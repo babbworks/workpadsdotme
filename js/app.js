@@ -192,9 +192,8 @@ var App = (function () {
   // ── Onboarding ───────────────────────────────────────────────
 
   function _checkOnboarding() {
-    return ActivityService.hasAny().then(function(has) {
-      if (!has) _showOnboarding();
-    });
+    if (!ActivityService.hasAny()) _showOnboarding();
+    return Promise.resolve();
   }
 
   function _showOnboarding() {
@@ -215,14 +214,12 @@ var App = (function () {
       setTimeout(function() { nameInput.style.borderColor = ''; }, 1200);
       return;
     }
-    ActivityService.create({ name: nameVal, phone: phoneVal }).then(function() {
-      el.overlayOnboarding.style.display = 'none';
-      if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) {
-        WorkpadsPanel.refresh();
-      }
-      // Re-route now that profile exists (shows list)
-      _route();
-    });
+    ActivityService.create({ name: nameVal, phone: phoneVal });
+    el.overlayOnboarding.style.display = 'none';
+    if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) {
+      WorkpadsPanel.refresh();
+    }
+    _route();
   }
 
   // ── Quick note ───────────────────────────────────────────────

@@ -101,10 +101,9 @@ var WizardScreen = (function () {
       });
     } else {
       // New: create a shell record immediately to get an ID
-      ActivityService.getSenderIdentity().then(function (identity) {
-        return RecordService.create({
-          worker: (identity && identity.name) || '',
-        });
+      var _identity = ActivityService.getSenderIdentity();
+      RecordService.create({
+        worker: (_identity && _identity.name) || '',
       }).then(function (r) {
         _record = r;
         _id     = r.id;

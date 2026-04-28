@@ -215,7 +215,7 @@ var ManagementScreen = (function () {
     if (!confirm('Delete all records permanently? This cannot be undone.')) return;
     RecordService.list().then(function (records) {
       return Promise.all(records.map(function (r) {
-        return RecordService.delete(r.id);
+        return RecordService.remove(r.id);
       }));
     }).then(function () {
       App.toast('All records cleared');
@@ -276,44 +276,43 @@ var ManagementScreen = (function () {
     var body = document.getElementById('mgmt-body');
     body.innerHTML = '<div style="padding-top:8px;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;">Loading\u2026</div>';
 
-    ActivityService.getActive().then(function (profile) {
-      var name  = (profile && profile.name)  || '';
-      var phone = (profile && profile.phone) || '';
+    var profile = ActivityService.getActive();
+    var name  = (profile && profile.name)  || '';
+    var phone = (profile && profile.phone) || '';
 
-      body.innerHTML = (
-        '<div style="padding-top:8px;">' +
-          '<p class="mgmt-section-title">Your profile</p>' +
-          '<div class="card">' +
-            '<div class="card-section">' +
-              '<div class="field-group">' +
-                '<label class="field-label" for="mgmt-name">Your name</label>' +
-                '<input class="field-input" id="mgmt-name" type="text" value="' + _esc(name) + '" placeholder="e.g. Alice Smith">' +
-              '</div>' +
-              '<div class="field-group" style="margin-bottom:0;">' +
-                '<label class="field-label" for="mgmt-phone">Phone / WhatsApp <span class="field-optional">(optional)</span></label>' +
-                '<input class="field-input" id="mgmt-phone" type="tel" value="' + _esc(phone) + '" placeholder="+44 7700 \u2026">' +
-              '</div>' +
+    body.innerHTML = (
+      '<div style="padding-top:8px;">' +
+        '<p class="mgmt-section-title">Your profile</p>' +
+        '<div class="card">' +
+          '<div class="card-section">' +
+            '<div class="field-group">' +
+              '<label class="field-label" for="mgmt-name">Your name</label>' +
+              '<input class="field-input" id="mgmt-name" type="text" value="' + _esc(name) + '" placeholder="e.g. Alice Smith">' +
+            '</div>' +
+            '<div class="field-group" style="margin-bottom:0;">' +
+              '<label class="field-label" for="mgmt-phone">Phone / WhatsApp <span class="field-optional">(optional)</span></label>' +
+              '<input class="field-input" id="mgmt-phone" type="tel" value="' + _esc(phone) + '" placeholder="+44 7700 \u2026">' +
             '</div>' +
           '</div>' +
-          '<div style="margin-top:16px;display:flex;gap:8px;">' +
-            '<button class="btn-primary" id="mgmt-save-profile">Save profile</button>' +
-          '</div>' +
+        '</div>' +
+        '<div style="margin-top:16px;display:flex;gap:8px;">' +
+          '<button class="btn-primary" id="mgmt-save-profile">Save profile</button>' +
+        '</div>' +
 
-          '<p class="mgmt-section-title">About</p>' +
-          '<div class="card">' +
-            '<div style="padding:16px 20px;">' +
-              _infoRow('App version', 'Workpads v0.1.0') +
-              _infoRow('Platform',    'Web \xb7 localStorage') +
-              _infoRow('Codec',       'bitpad-v1 \xb7 fflate 0.8.2') +
-              _infoRow('Standard',    'Workpads Standard v0.1') +
-            '</div>' +
+        '<p class="mgmt-section-title">About</p>' +
+        '<div class="card">' +
+          '<div style="padding:16px 20px;">' +
+            _infoRow('App version', 'Workpads v0.1.0') +
+            _infoRow('Platform',    'Web \xb7 localStorage') +
+            _infoRow('Codec',       'bitpad-v1 \xb7 fflate 0.8.2') +
+            _infoRow('Standard',    'Workpads Standard v0.1') +
           '</div>' +
-        '</div>'
-      );
+        '</div>' +
+      '</div>'
+    );
 
-      var saveBtn = document.getElementById('mgmt-save-profile');
-      if (saveBtn) saveBtn.addEventListener('click', _saveProfile);
-    });
+    var saveBtn = document.getElementById('mgmt-save-profile');
+    if (saveBtn) saveBtn.addEventListener('click', _saveProfile);
   }
 
   function _saveProfile() {
@@ -329,9 +328,8 @@ var ManagementScreen = (function () {
       App.toast('Name is required');
       return;
     }
-    ActivityService.update({ name: name, phone: phone }).then(function () {
-      App.toast('Profile saved');
-    });
+    ActivityService.update({ name: name, phone: phone });
+    App.toast('Profile saved');
   }
 
   // ── Helpers ──────────────────────────────────────────────────

@@ -71,6 +71,11 @@
     });
   }
 
+  // Hard-delete: permanently remove record from storage.
+  function removeRecord(id) {
+    return store.remove(id);
+  }
+
   // Soft-delete: move record to archive namespace.
   function archive_record(id) {
     return store.get(id).then(function(rec) {
@@ -122,6 +127,7 @@
     list:          list,
     listArchived:  listArchived,
     archive:       archive_record,
+    remove:        removeRecord,
     encodeUrl:     encodeUrl,
     decodeUrl:     decodeUrl,
     storeReceived: storeReceived,
