@@ -580,7 +580,7 @@
     if (!params.d) throw new Error('Missing payload parameter');
 
     var compressed = base64urlToBytes(params.d);
-    var frame = fflate.inflateRawSync(compressed);
+    var frame = fflate.inflateSync(compressed);
 
     // frame: [template][flagLo][flagHi][blobs...]
     var flags = frame[1] | (frame[2] << 8);

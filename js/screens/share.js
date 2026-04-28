@@ -84,7 +84,7 @@ var ShareScreen = (function () {
 
       try {
         var fragment = RecordService.encodeUrl(r);
-        _url = 'https://workpads.me/p#' + fragment;
+        _url = 'https://' + fragment;
       } catch (e) {
         _url = '';
       }
