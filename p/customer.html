@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workpads — Your Record</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <script src="../js/lib/fflate.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    button { cursor: pointer; border: none; background: none; font: inherit; }
+    input, textarea { font: inherit; border: none; outline: none; background: none; }
+
+    :root {
+      --paper:        #f6f1e8;
+      --card:         #faf7f1;
+      --card-raised:  #ffffff;
+      --ink:          #19140f;
+      --ink-mid:      #4a3f32;
+      --ink-muted:    #9a8c7c;
+      --ink-faint:    #c8bfb2;
+      --rule:         #ddd3c2;
+      --rule-light:   #eae4d8;
+      --stamp:        #c0470a;
+      --stamp-light:  #f5ebe4;
+      --stamp-border: #d96020;
+      --panel-bg:     #f1ece2;
+      --panel-border: #d8cfc0;
+      --panel-left-w: 58%;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 1000; opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .panels {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-left {
+      width: var(--panel-left-w);
+      flex-shrink: 0;
+      border-right: 1px solid var(--panel-border);
+      background: var(--paper);
+    }
+
+    .panel-right {
+      flex: 1;
+      background: var(--panel-bg);
+    }
+
+    /* ── Panel header ───────────────────────────────────────── */
+    .panel-head {
+      display: flex;
+      align-items: center;
+      height: 44px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--panel-border);
+      flex-shrink: 0;
+    }
+
+    .panel-head-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-mid);
+      user-select: none;
+    }
+
+    /* ── Panel body ─────────────────────────────────────────── */
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+    }
+    .panel-body::-webkit-scrollbar { width: 4px; }
+    .panel-body::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+    /* ── Panel footer ───────────────────────────────────────── */
+    .panel-foot {
+      flex-shrink: 0;
+      border-top: 1px solid var(--panel-border);
+      padding: 10px 16px;
+    }
+
+    /* ── Left panel content ─────────────────────────────────── */
+    .rec-header {
+      padding: 28px 28px 20px;
+      border-bottom: 1px solid var(--rule-light);
+    }
+
+    .rec-stamp {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--stamp); border: 1.5px solid var(--stamp-border);
+      border-radius: 3px; padding: 3px 8px;
+      margin-bottom: 12px;
+    }
+
+    .rec-job {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(22px, 3.5vw, 36px);
+      font-weight: 700; line-height: 1.1; letter-spacing: -0.02em;
+      color: var(--ink); margin-bottom: 10px;
+    }
+
+    .rec-meta-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0;
+    }
+    .rec-meta-item {
+      display: flex; align-items: baseline; gap: 5px;
+    }
+    .rec-meta-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--ink-muted);
+    }
+    .rec-meta-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--ink-mid);
+    }
+    .rec-meta-sep {
+      width: 1px; height: 12px; background: var(--rule);
+      margin: 0 12px; display: inline-block; vertical-align: middle;
+    }
+
+    /* ── Section ────────────────────────────────────────────── */
+    .rec-section {
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--rule-light);
+    }
+    .rec-section:last-child { border-bottom: none; }
+
+    .sec-head {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .sec-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--ink-muted);
+      white-space: nowrap;
+    }
+    .sec-rule { flex: 1; height: 1px; background: var(--rule-light); }
+
+    /* ── Actions list ───────────────────────────────────────── */
+    .actions-list { list-style: none; }
+    .action-item {
+      display: flex; gap: 14px; align-items: flex-start;
+      padding: 11px 0; border-bottom: 1px solid var(--rule-light);
+    }
+    .action-item:first-child { padding-top: 0; }
+    .action-item:last-child  { border-bottom: none; padding-bottom: 0; }
+    .action-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700; color: var(--stamp);
+      min-width: 22px; padding-top: 2px; flex-shrink: 0;
+    }
+    .action-title {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 14px; font-weight: 700; color: var(--ink); line-height: 1.3;
+    }
+    .action-notes {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 13px; font-style: italic; color: var(--ink-mid);
+      margin-top: 2px; line-height: 1.45;
+    }
+
+    /* ── Prose ──────────────────────────────────────────────── */
+    .prose {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 14.5px; color: var(--ink); line-height: 1.72;
+    }
+
+    /* ── Expenses tally ─────────────────────────────────────── */
+    .exp-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 6px 0; border-bottom: 1px solid var(--rule-light);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    }
+    .exp-row:last-child { border-bottom: none; }
+    .exp-label { color: var(--ink-mid); }
+    .exp-amount { color: var(--ink); font-weight: 700; }
+    .exp-total {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-top: 8px; padding-top: 8px; border-top: 1.5px solid var(--rule);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .exp-total-label {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--ink-muted);
+    }
+    .exp-total-value {
+      font-family: 'Fraunces', serif;
+      font-size: 22px; font-weight: 700; color: var(--ink);
+    }
+
+    /* ── Save workpad button ────────────────────────────────── */
+    .save-btn {
+      display: block; width: 100%;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #fff; background: var(--stamp);
+      border-radius: 3px; padding: 11px 16px;
+      transition: background 0.13s;
+      text-align: center;
+    }
+    .save-btn:hover { background: #a33a06; }
+    .save-btn:disabled { background: var(--ink-muted); cursor: default; }
+
+    .saved-state {
+      text-align: center;
+    }
+    .saved-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--ink-muted);
+      margin-bottom: 6px;
+    }
+    .saved-link {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--stamp); text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.13s;
+    }
+    .saved-link:hover { border-bottom-color: var(--stamp); }
+
+    /* ── Right panel: contact block ─────────────────────────── */
+    .contact-block {
+      padding: 16px 16px 0;
+    }
+    .contact-row {
+      display: flex; align-items: baseline; gap: 8px;
+      padding: 8px 0; border-bottom: 1px solid var(--rule-light);
+    }
+    .contact-row:last-child { border-bottom: none; }
+    .contact-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--ink-muted);
+      flex-shrink: 0; width: 68px;
+    }
+    .contact-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; color: var(--ink);
+    }
+
+    /* ── Right panel: participant list ──────────────────────── */
+    .participant-row {
+      display: flex; align-items: baseline; gap: 8px;
+      padding: 7px 16px; border-bottom: 1px solid var(--rule-light);
+    }
+    .participant-row:last-child { border-bottom: none; }
+    .part-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; color: var(--ink); flex: 1;
+    }
+    .part-role {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; color: var(--ink-muted);
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .part-star {
+      font-size: 9px; color: var(--stamp); flex-shrink: 0;
+    }
+
+    /* ── Private notes ──────────────────────────────────────── */
+    .notes-block { padding: 12px 16px; }
+    .notes-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--ink-mid);
+      margin-bottom: 2px;
+    }
+    .notes-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; color: var(--ink-faint);
+      letter-spacing: 0.04em; margin-bottom: 10px;
+    }
+    .notes-area {
+      display: block; width: 100%;
+      background: var(--card-raised); border: 1.5px solid var(--rule);
+      border-radius: 3px; padding: 8px 10px;
+      font-family: 'Libre Baskerville', serif; font-size: 13px;
+      color: var(--ink); resize: none; min-height: 100px;
+      line-height: 1.6; transition: border-color 0.13s;
+    }
+    .notes-area:focus { outline: none; border-color: var(--stamp-border); }
+    .notes-area::placeholder { color: var(--ink-faint); }
+    .notes-save-btn {
+      margin-top: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--stamp); border-bottom: 1px solid transparent;
+      transition: border-color 0.12s; padding: 2px 0;
+    }
+    .notes-save-btn:hover { border-bottom-color: var(--stamp); }
+    .notes-saved-msg {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; color: var(--ink-faint);
+      margin-top: 5px; display: none;
+    }
+
+    /* ── Right footer links ─────────────────────────────────── */
+    .foot-links {
+      display: flex; gap: 16px; align-items: center;
+    }
+    .foot-link {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--ink-muted);
+      text-decoration: none; transition: color 0.12s;
+      border-bottom: 1px solid transparent;
+    }
+    .foot-link:hover { color: var(--ink); border-bottom-color: var(--ink-faint); }
+
+    /* ── Welcome overlay ────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(25,20,15,0.45);
+      backdrop-filter: blur(4px);
+      z-index: 500;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .overlay-card {
+      background: var(--card); border: 1px solid var(--rule);
+      border-radius: 6px; padding: 36px 40px 32px;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 8px 40px rgba(25,20,15,.22);
+    }
+    .ov-wordmark {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--ink-muted);
+      margin-bottom: 18px;
+    }
+    .ov-heading {
+      font-family: 'Fraunces', serif;
+      font-size: 26px; font-weight: 700; color: var(--ink);
+      line-height: 1.15; margin-bottom: 8px;
+    }
+    .ov-sub {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 14px; font-style: italic; color: var(--ink-muted);
+      line-height: 1.6; margin-bottom: 24px;
+    }
+    .ov-field {
+      display: block; width: 100%;
+      background: var(--card-raised); border: 1.5px solid var(--rule);
+      border-radius: 3px; padding: 9px 12px;
+      font-family: 'Libre Baskerville', serif; font-size: 15px;
+      color: var(--ink); margin-bottom: 12px;
+      transition: border-color 0.13s;
+    }
+    .ov-field:focus { border-color: #d96020; outline: none; }
+    .ov-field::placeholder { color: var(--ink-faint); }
+    .ov-btn {
+      display: block; width: 100%;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #fff;
+      background: var(--stamp); border-radius: 3px;
+      padding: 11px 16px; transition: background 0.13s;
+    }
+    .ov-btn:hover { background: #a33a06; }
+    .ov-note {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; color: var(--ink-faint);
+      margin-top: 12px; letter-spacing: 0.04em; line-height: 1.5;
+    }
+
+    /* ── Error ──────────────────────────────────────────────── */
+    .error-wrap {
+      display: flex; align-items: center; justify-content: center;
+      height: 100vh; padding: 24px;
+    }
+    .error-card {
+      background: var(--card); border: 1px solid var(--rule);
+      border-radius: 4px; padding: 40px 36px; max-width: 480px;
+      text-align: center;
+    }
+    .error-stamp {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.2em;
+      color: var(--stamp); border: 1.5px solid var(--stamp-border);
+      border-radius: 3px; padding: 4px 10px;
+      display: inline-block; margin-bottom: 20px;
+    }
+    .error-title {
+      font-family: 'Fraunces', serif;
+      font-size: 24px; font-weight: 700; color: var(--ink); margin-bottom: 10px;
+    }
+    .error-text {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 14px; color: var(--ink-mid); line-height: 1.65;
+    }
+
+    /* ── Mobile ─────────────────────────────────────────────── */
+    @media (max-width: 680px) {
+      html, body { overflow: auto; }
+      .panels { flex-direction: column; height: auto; overflow: visible; }
+      .panel-left { width: 100%; border-right: none; border-bottom: 1px solid var(--panel-border); }
+      .panel-body { overflow: visible; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  var _record  = null;
+  var _hash    = '';
+  var _noteKey = '';
+
+  // ── Codec ─────────────────────────────────────────────────
+
+  var SCALAR_FIELDS = [
+    ['job',0],['customer',1],['date',2],['location',3],
+    ['meeting_time',4],['start_time',5],['end_time',6],
+    ['customer_phone',7],['worker',8],
+    ['details',10],['story',11],
+    ['amount',12],['currency',13],['vat',14],['record_type',15],
+  ];
+
+  function b64uToBytes(str) {
+    var b64    = str.replace(/-/g, '+').replace(/_/g, '/');
+    var pad    = (4 - b64.length % 4) % 4;
+    var binary = atob(b64 + '===='.slice(0, pad));
+    var bytes  = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  function bytesToB64u(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  function decodeWorkpad(hashFragment) {
+    // Strip chain ref before decoding
+    var chainRef = null;
+    var cIdx = hashFragment.indexOf('&c=');
+    if (cIdx !== -1) {
+      chainRef = hashFragment.slice(cIdx + 3);
+      hashFragment = hashFragment.slice(0, cIdx);
+    }
+
+    if (!/^[0-9][a-z][a-z]\//.test(hashFragment)) throw new Error('Unsupported format');
+
+    var compressed = b64uToBytes(hashFragment.slice(4));
+    var frame      = fflate.inflateSync(compressed);
+    var flags      = (frame[1] << 8) | frame[2];  // big-endian uint16
+    var offset     = 3;
+    var td         = new TextDecoder();
+    var rec        = {};
+
+    // Low scalar fields (bits 0–8)
+    for (var i = 0; i < SCALAR_FIELDS.length; i++) {
+      var sf = SCALAR_FIELDS[i];
+      if (sf[1] < 9 && (flags & (1 << sf[1]))) {
+        var len = (frame[offset] << 8) | frame[offset+1]; offset += 2;
+        rec[sf[0]] = td.decode(frame.slice(offset, offset+len)); offset += len;
+      }
+    }
+
+    // Actions (bit 9)
+    if (flags & (1 << 9)) {
+      var count   = frame[offset++];
+      var actions = [];
+      for (var j = 0; j < count; j++) {
+        var tl = (frame[offset] << 8) | frame[offset+1]; offset += 2;
+        var ti = td.decode(frame.slice(offset, offset+tl)); offset += tl;
+        var nl = (frame[offset] << 8) | frame[offset+1]; offset += 2;
+        var ni = td.decode(frame.slice(offset, offset+nl)); offset += nl;
+        actions.push({ title: ti, notes: ni });
+      }
+      rec.actions = actions;
+    }
+
+    // High scalar fields (bits 10+)
+    for (var k = 0; k < SCALAR_FIELDS.length; k++) {
+      var hf = SCALAR_FIELDS[k];
+      if (hf[1] > 9 && (flags & (1 << hf[1]))) {
+        var hl = (frame[offset] << 8) | frame[offset+1]; offset += 2;
+        rec[hf[0]] = td.decode(frame.slice(offset, offset+hl)); offset += hl;
+      }
+    }
+
+    if (chainRef) rec._chainRef = chainRef;
+    return rec;
+  }
+
+  function encodeWorkpad(record, chainRef) {
+    var te = new TextEncoder();
+    var flags = 0;
+    var scalarBytes = {};
+
+    for (var i = 0; i < SCALAR_FIELDS.length; i++) {
+      var sf = SCALAR_FIELDS[i];
+      if (record[sf[0]] != null && record[sf[0]] !== '') {
+        scalarBytes[sf[0]] = te.encode(String(record[sf[0]]));
+        flags |= (1 << sf[1]);
+      }
+    }
+
+    var actionItems = Array.isArray(record.actions) ? record.actions.slice(0, 20) : [];
+    if (actionItems.length) flags |= (1 << 9);
+
+    // Calculate size
+    var size = 3;
+    for (var j = 0; j < SCALAR_FIELDS.length; j++) {
+      var sf2 = SCALAR_FIELDS[j];
+      if (sf2[1] < 9 && scalarBytes[sf2[0]]) size += 2 + scalarBytes[sf2[0]].length;
+    }
+    if (actionItems.length) {
+      size += 1;
+      for (var k = 0; k < actionItems.length; k++) {
+        var tb = te.encode(actionItems[k].title || '');
+        var nb = te.encode(actionItems[k].notes || '');
+        size += 2 + tb.length + 2 + nb.length;
+      }
+    }
+    for (var m = 0; m < SCALAR_FIELDS.length; m++) {
+      var sf3 = SCALAR_FIELDS[m];
+      if (sf3[1] > 9 && scalarBytes[sf3[0]]) size += 2 + scalarBytes[sf3[0]].length;
+    }
+
+    var buf = new Uint8Array(size);
+    var pos = 0;
+    buf[pos++] = 0x01;                         // template svc-basic
+    buf[pos++] = (flags >>> 8) & 0xFF;         // flags high byte
+    buf[pos++] = flags & 0xFF;                 // flags low byte
+
+    function writeField(bytes) {
+      buf[pos++] = (bytes.length >>> 8) & 0xFF;
+      buf[pos++] = bytes.length & 0xFF;
+      buf.set(bytes, pos); pos += bytes.length;
+    }
+
+    for (var p = 0; p < SCALAR_FIELDS.length; p++) {
+      var sf4 = SCALAR_FIELDS[p];
+      if (sf4[1] < 9 && scalarBytes[sf4[0]]) writeField(scalarBytes[sf4[0]]);
+    }
+
+    if (actionItems.length) {
+      buf[pos++] = actionItems.length;
+      for (var q = 0; q < actionItems.length; q++) {
+        writeField(te.encode(actionItems[q].title || ''));
+        writeField(te.encode(actionItems[q].notes || ''));
+      }
+    }
+
+    for (var r = 0; r < SCALAR_FIELDS.length; r++) {
+      var sf5 = SCALAR_FIELDS[r];
+      if (sf5[1] > 9 && scalarBytes[sf5[0]]) writeField(scalarBytes[sf5[0]]);
+    }
+
+    var compressed = fflate.deflateSync(buf, { level: 9 });
+    var url = '1ag/' + bytesToB64u(compressed);
+    if (chainRef) url += '&c=' + chainRef;
+    return url;
+  }
+
+  // ── Helpers ───────────────────────────────────────────────
+
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function nl(s) {
+    return esc(s).replace(/\n/g,'<br>');
+  }
+
+  function genId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  }
+
+  // ── Storage ───────────────────────────────────────────────
+
+  function storeRecord(name) {
+    try {
+      var id  = genId();
+      var rec = Object.assign({}, _record, {
+        id:         id,
+        receivedAt: Date.now(),
+        createdAt:  Date.now(),
+        updatedAt:  Date.now(),
+        draft:      false,
+        source:     'received',
+      });
+      localStorage.setItem('wp_record_' + id, JSON.stringify(rec));
+      // Save basic profile if name given and not already set
+      var profile = null;
+      try { profile = JSON.parse(localStorage.getItem('wp_activity') || 'null'); } catch(_){}
+      if (!profile) {
+        localStorage.setItem('wp_activity', JSON.stringify({ name: name, createdAt: Date.now() }));
+      }
+      return id;
+    } catch(e) { return null; }
+  }
+
+  function saveNote(text) {
+    if (!_noteKey) return;
+    try { localStorage.setItem(_noteKey, text); } catch(_){}
+  }
+
+  function loadNote() {
+    if (!_noteKey) return '';
+    try { return localStorage.getItem(_noteKey) || ''; } catch(_) { return ''; }
+  }
+
+  function isAlreadySaved() {
+    // Check if any record in localStorage has matching job+customer+date
+    try {
+      var r = _record;
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (!key || key.indexOf('wp_record_') !== 0) continue;
+        var stored = JSON.parse(localStorage.getItem(key) || 'null');
+        if (stored && stored.receivedAt &&
+            stored.job === r.job && stored.customer === r.customer) return true;
+      }
+    } catch(_){}
+    return false;
+  }
+
+  // ── Render helpers ────────────────────────────────────────
+
+  function secHead(label) {
+    return '<div class="sec-head"><span class="sec-label">' + label +
+           '</span><span class="sec-rule"></span></div>';
+  }
+
+  function renderMetaRow(r) {
+    var items = [];
+    if (r.customer) items.push({ l:'Customer', v: r.customer });
+    if (r.date)     items.push({ l:'Date',     v: r.date });
+    if (r.location) items.push({ l:'Location', v: r.location });
+    if (!items.length) return '';
+    var html = '<div class="rec-meta-row">';
+    items.forEach(function(item, i) {
+      if (i > 0) html += '<span class="rec-meta-sep"></span>';
+      html += '<div class="rec-meta-item">' +
+                '<span class="rec-meta-label">' + item.l + '</span>' +
+                '<span class="rec-meta-value">' + esc(item.v) + '</span>' +
+              '</div>';
+    });
+    return html + '</div>';
+  }
+
+  function renderActions(actions) {
+    if (!actions || !actions.length) return '';
+    var html = '<div class="rec-section">' + secHead('Actions') +
+               '<ol class="actions-list">';
+    actions.forEach(function(a, i) {
+      var num = (i < 9 ? '0' : '') + (i + 1);
+      html += '<li class="action-item">' +
+                '<span class="action-num">' + num + '</span>' +
+                '<div>' +
+                  '<div class="action-title">' + esc(a.title) + '</div>' +
+                  (a.notes ? '<div class="action-notes">' + esc(a.notes) + '</div>' : '') +
+                '</div>' +
+              '</li>';
+    });
+    return html + '</ol></div>';
+  }
+
+  function renderStory(r) {
+    if (!r.story) return '';
+    return '<div class="rec-section">' + secHead('Story') +
+           '<p class="prose">' + nl(r.story) + '</p></div>';
+  }
+
+  function renderFinancial(r) {
+    if (!r.amount) return '';
+    var sym = r.currency === 'EUR' ? '&euro;' : r.currency === 'USD' ? '$' : '&pound;';
+    var vatLabel = r.vat === 'standard' ? 'inc. 20% VAT'
+                 : r.vat === 'reduced'  ? 'inc. 5% VAT'
+                 : r.vat === 'zero'     ? 'zero-rated' : '';
+    var typeLabel = r.record_type === 'quote' ? 'Quoted amount'
+                  : r.record_type === 'invoice' ? 'Invoice total' : 'Amount';
+    return '<div class="rec-section">' + secHead(typeLabel) +
+           '<div class="exp-total">' +
+             '<span class="exp-total-value">' + sym + esc(r.amount) + '</span>' +
+           '</div>' +
+           (vatLabel ? '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--ink-muted);margin-top:6px;">' + vatLabel + '</div>' : '') +
+           '</div>';
+  }
+
+  function recordTypeStamp(r) {
+    var labels = { quote: 'Quote', invoice: 'Invoice', ack: 'Approval', job: 'Workpad' };
+    return labels[r.record_type] || 'Received';
+  }
+
+  // ── Right panel ───────────────────────────────────────────
+
+  function renderContact(r) {
+    var rows = [];
+    if (r.worker)         rows.push({ l: 'Worker',   v: r.worker });
+    if (r.customer_phone) rows.push({ l: 'Phone',    v: r.customer_phone });
+    if (r.start_time)     rows.push({ l: 'Start',    v: r.start_time });
+    if (r.end_time)       rows.push({ l: 'End',      v: r.end_time });
+    if (r.meeting_time)   rows.push({ l: 'Meeting',  v: r.meeting_time });
+    if (!rows.length) return '';
+    return '<div class="contact-block">' +
+           rows.map(function(row) {
+             return '<div class="contact-row">' +
+                      '<span class="contact-label">' + row.l + '</span>' +
+                      '<span class="contact-value">' + esc(row.v) + '</span>' +
+                    '</div>';
+           }).join('') + '</div>';
+  }
+
+  function renderParticipants(r) {
+    var parts = r.participants;
+    if (!parts || !parts.length) {
+      if (!r.worker) return '';
+      parts = [{ name: r.worker, role: 'worker' }];
+    }
+    var ROLES = {
+      worker:'Worker', supervisor:'Job owner', sub:'Subcontractor',
+      colleague:'Colleague', site:'Site contact', referral:'Referred by', witness:'Witness',
+    };
+    return parts.map(function(p, i) {
+      return '<div class="participant-row">' +
+               (i === 0 ? '<span class="part-star">\u2605</span>' : '<span class="part-star"></span>') +
+               '<span class="part-name">' + esc(p.name || '\u2014') + '</span>' +
+               '<span class="part-role">' + esc(ROLES[p.role] || p.role || 'Worker') + '</span>' +
+             '</div>';
+    }).join('');
+  }
+
+  // ── Full render ───────────────────────────────────────────
+
+  function render(r) {
+    var saved = isAlreadySaved();
+    var isQuote = r.record_type === 'quote';
+    var savedFooter = saved
+      ? '<div class="saved-state">' +
+          '<div class="saved-label">Saved to your workspace</div>' +
+          '<a class="saved-link" href="../index.html">Open Workpads \u2192</a>' +
+        '</div>'
+      : (isQuote
+          ? '<button class="save-btn" id="approve-btn">Approve this quote</button>'
+          : '<button class="save-btn" id="save-btn">Save Workpad</button>');
+
+    var leftBody =
+      '<div class="rec-header">' +
+        '<div class="rec-stamp">' + recordTypeStamp(r) + '</div>' +
+        '<h1 class="rec-job">' + esc(r.job || 'Job Record') + '</h1>' +
+        renderMetaRow(r) +
+      '</div>' +
+      renderFinancial(r) +
+      renderActions(r) +
+      renderStory(r);
+
+    var contactHtml     = renderContact(r);
+    var participantHtml = renderParticipants(r);
+    var savedNote       = loadNote();
+
+    var rightBody =
+      (contactHtml
+        ? '<div class="rec-section" style="padding:16px 16px 0;">' +
+            secHead('Contact') + contactHtml +
+          '</div>'
+        : '') +
+      (participantHtml
+        ? '<div class="rec-section" style="padding:12px 0 0;">' +
+            secHead('Participants') + participantHtml +
+          '</div>'
+        : '') +
+      '<div class="notes-block">' +
+        '<div class="notes-title">Private Notes</div>' +
+        '<div class="notes-sub">Saves in browser \u2014 local files.</div>' +
+        '<textarea class="notes-area" id="priv-notes" placeholder="Your notes about this job\u2026" rows="6">' +
+          esc(savedNote) +
+        '</textarea>' +
+        '<button class="notes-save-btn" id="notes-save-btn">Save note</button>' +
+        '<div class="notes-saved-msg" id="notes-saved-msg">Saved locally.</div>' +
+      '</div>';
+
+    document.getElementById('app').innerHTML = (
+      '<div class="panels">' +
+
+        '<div class="panel panel-left">' +
+          '<div class="panel-head"><span class="panel-head-title">Workpad</span></div>' +
+          '<div class="panel-body">' + leftBody + '</div>' +
+          '<div class="panel-foot">' + savedFooter + '</div>' +
+        '</div>' +
+
+        '<div class="panel panel-right">' +
+          '<div class="panel-head"><span class="panel-head-title">Private</span></div>' +
+          '<div class="panel-body">' + rightBody + '</div>' +
+          '<div class="panel-foot">' +
+            '<div class="foot-links">' +
+              '<a class="foot-link" href="https://workpads.org" target="_blank" rel="noopener">workpads.org</a>' +
+              '<a class="foot-link" href="https://babb.tel" target="_blank" rel="noopener">babb.tel</a>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+      '</div>'
+    );
+
+    // Save workpad
+    var saveBtn = document.getElementById('save-btn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function() { showWelcome(); });
+    }
+
+    // Approve quote
+    var approveBtn = document.getElementById('approve-btn');
+    if (approveBtn) {
+      approveBtn.addEventListener('click', function() { showApproveDialog(); });
+    }
+
+    // Private notes
+    var notesBtn   = document.getElementById('notes-save-btn');
+    var notesArea  = document.getElementById('priv-notes');
+    var notesMsg   = document.getElementById('notes-saved-msg');
+    if (notesBtn && notesArea) {
+      notesBtn.addEventListener('click', function() {
+        saveNote(notesArea.value);
+        if (notesMsg) { notesMsg.style.display = 'block'; setTimeout(function(){ notesMsg.style.display='none'; }, 2000); }
+      });
+      // Auto-save on blur
+      notesArea.addEventListener('blur', function() { saveNote(this.value); });
+    }
+  }
+
+  // ── Welcome / save overlay ────────────────────────────────
+
+  function showWelcome() {
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.id = 'welcome-overlay';
+    overlay.innerHTML = (
+      '<div class="overlay-card">' +
+        '<div class="ov-wordmark">Workpads</div>' +
+        '<h2 class="ov-heading">Save this workpad</h2>' +
+        '<p class="ov-sub">Enter your name to save this record to your local workspace. You can add your own records and share them as links.</p>' +
+        '<input class="ov-field" id="ov-name" type="text" placeholder="Your name" autocomplete="given-name">' +
+        '<button class="ov-btn" id="ov-submit">Save &amp; set up workspace</button>' +
+        '<p class="ov-note">All data stays in your browser. No account required.</p>' +
+      '</div>'
+    );
+    document.body.appendChild(overlay);
+
+    var nameEl = document.getElementById('ov-name');
+    if (nameEl) nameEl.focus();
+
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) { document.body.removeChild(overlay); }
+    });
+
+    document.getElementById('ov-submit').addEventListener('click', function() {
+      var name = (document.getElementById('ov-name').value || '').trim();
+      if (!name) {
+        var el = document.getElementById('ov-name');
+        el.style.borderColor = 'var(--stamp)';
+        el.focus();
+        setTimeout(function(){ el.style.borderColor = ''; }, 1400);
+        return;
+      }
+      var id = storeRecord(name);
+      document.body.removeChild(overlay);
+      // Update save button to saved state
+      var foot = document.querySelector('.panel-left .panel-foot');
+      if (foot) {
+        foot.innerHTML = '<div class="saved-state">' +
+          '<div class="saved-label">Saved to your workspace</div>' +
+          (id ? '<a class="saved-link" href="../index.html#/view/' + id + '">Open in Workpads \u2192</a>' : '') +
+        '</div>';
+      }
+    });
+  }
+
+  function showApproveDialog() {
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.id = 'approve-overlay';
+    overlay.innerHTML = (
+      '<div class="overlay-card">' +
+        '<div class="ov-wordmark">Workpads</div>' +
+        '<h2 class="ov-heading">Approve this quote</h2>' +
+        '<p class="ov-sub">Enter your name to confirm approval. You\u2019ll get a short link to send back to the sender.</p>' +
+        '<input class="ov-field" id="ov-approve-name" type="text" placeholder="Your name" autocomplete="given-name">' +
+        '<button class="ov-btn" id="ov-approve-submit">Generate approval link</button>' +
+        '<p class="ov-note">The link is a record of your approval. Copy and send it back via the same channel.</p>' +
+      '</div>'
+    );
+    document.body.appendChild(overlay);
+
+    var nameEl = document.getElementById('ov-approve-name');
+    if (nameEl) nameEl.focus();
+
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+
+    document.getElementById('ov-approve-submit').addEventListener('click', function() {
+      var name = (document.getElementById('ov-approve-name').value || '').trim();
+      if (!name) {
+        var el = document.getElementById('ov-approve-name');
+        el.style.borderColor = 'var(--stamp)';
+        el.focus();
+        setTimeout(function() { el.style.borderColor = ''; }, 1400);
+        return;
+      }
+      document.body.removeChild(overlay);
+      showAckResult(name);
+    });
+  }
+
+  function showAckResult(customerName) {
+    var ackRecord = {
+      record_type: 'ack',
+      job: 'ACK: ' + (_record.job || 'quote'),
+      date: new Date().toISOString().slice(0, 10),
+      worker: customerName,
+    };
+    var ackHash = encodeWorkpad(ackRecord, _record._chainRef || null);
+    var ackUrl  = 'https://workpads.me/p#' + ackHash;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.innerHTML = (
+      '<div class="overlay-card">' +
+        '<div class="ov-wordmark">Workpads</div>' +
+        '<h2 class="ov-heading">Quote approved</h2>' +
+        '<p class="ov-sub">Copy this link and send it back to ' + esc(_record.worker || 'the sender') + '.</p>' +
+        '<div id="ack-url-box" style="' +
+          'background:var(--ink);border-radius:4px;padding:14px 16px;margin:16px 0;cursor:pointer;' +
+          'font-family:\'JetBrains Mono\',monospace;font-size:11px;color:rgba(240,237,230,.85);' +
+          'word-break:break-all;line-height:1.55;' +
+        '">' + esc(ackUrl) + '</div>' +
+        '<button class="ov-btn" id="ack-copy-btn">Copy link</button>' +
+        '<p class="ov-note">This link carries your name and the date as proof of approval.</p>' +
+      '</div>'
+    );
+    document.body.appendChild(overlay);
+
+    function copyAck() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ackUrl).catch(function() { fallbackCopy(ackUrl); });
+      } else {
+        fallbackCopy(ackUrl);
+      }
+      var btn = document.getElementById('ack-copy-btn');
+      if (btn) { btn.textContent = 'Copied!'; setTimeout(function() { if (btn) btn.textContent = 'Copy link'; }, 2000); }
+    }
+
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+    }
+
+    document.getElementById('ack-url-box').addEventListener('click', copyAck);
+    document.getElementById('ack-copy-btn').addEventListener('click', copyAck);
+
+    // Update save footer to show saved state
+    var foot = document.querySelector('.panel-left .panel-foot');
+    if (foot) {
+      foot.innerHTML = '<div class="saved-state">' +
+        '<div class="saved-label">Approved as ' + esc(customerName) + '</div>' +
+        '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--ink-faint);margin-top:4px;">Send the link above to confirm</div>' +
+      '</div>';
+    }
+  }
+
+  function renderError(msg) {
+    document.getElementById('app').innerHTML = (
+      '<div class="error-wrap"><div class="error-card">' +
+        '<div class="error-stamp">Error</div>' +
+        '<h1 class="error-title">Could not read workpad</h1>' +
+        '<p class="error-text">' + esc(msg) + '<br><br>This link may be malformed or from an incompatible version.</p>' +
+      '</div></div>'
+    );
+  }
+
+  // ── Demo record ───────────────────────────────────────────
+
+  var DEMO = {
+    job:            'Replace faucet and reline drainage',
+    customer:       'Alice Smith',
+    date:           '2026-04-27',
+    location:       '11 River Road, Bristol',
+    worker:         'Bob Jones',
+    customer_phone: '+44 7700 900123',
+    start_time:     '09:00',
+    end_time:       '11:30',
+    amount:         '280.00',
+    currency:       'GBP',
+    vat:            'standard',
+    story:          'Found the compression fitting had corroded through at the elbow joint. Removed old fitting, fitted a new 15mm copper elbow with PTFE tape seal. Pressure tested — no leaks.',
+    actions: [
+      { title: 'Arrive on site',          notes: 'Check scope with customer' },
+      { title: 'Isolate water supply',    notes: 'Main stopcock under kitchen sink' },
+      { title: 'Fit new elbow and seal',  notes: 'PTFE on all threads' },
+      { title: 'Pressure test',           notes: '4 bar for 10 minutes' },
+      { title: 'Restore and sign off',    notes: 'Customer to confirm satisfaction' },
+    ],
+  };
+
+  // ── Boot ──────────────────────────────────────────────────
+
+  function boot() {
+    _hash    = window.location.hash.slice(1);
+    _noteKey = 'wp_cnote_' + (_hash.slice(0, 40) || 'demo');
+
+    if (!_hash || !/^[0-9][a-z][a-z]\//.test(_hash)) {
+      _record = DEMO;
+      render(DEMO);
+      return;
+    }
+
+    try {
+      _record = decodeWorkpad(_hash);
+      render(_record);
+    } catch(e) {
+      renderError(e.message);
+    }
+  }
+
+  if (typeof fflate !== 'undefined') {
+    boot();
+  } else {
+    window.addEventListener('load', boot);
+  }
+
+}());
+</script>
+</body>
+</html>

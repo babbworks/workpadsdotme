@@ -51,65 +51,6 @@
       flex-direction: column;
     }
 
-    /* ── Top bar ───────────────────────────────────────────── */
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 18px 32px;
-      border-bottom: 1px solid var(--rule);
-      position: sticky;
-      top: 0;
-      background: rgba(246,241,232,0.92);
-      backdrop-filter: blur(8px);
-      z-index: 10;
-    }
-
-    .logo {
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: 700;
-      font-size: 13px;
-      letter-spacing: 0.22em;
-      color: var(--ink);
-      text-transform: uppercase;
-    }
-
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .codec-tag {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 0.08em;
-      color: var(--ink-muted);
-      background: var(--rule-light);
-      border: 1px solid var(--rule);
-      padding: 3px 8px;
-      border-radius: 3px;
-    }
-
-    .get-app-btn {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--stamp);
-      text-decoration: none;
-      border: 1.5px solid var(--stamp-border);
-      padding: 6px 14px;
-      border-radius: 3px;
-      transition: background 0.15s, color 0.15s;
-    }
-    .get-app-btn:hover {
-      background: var(--stamp);
-      color: #fff;
-    }
-
     /* ── Main content ──────────────────────────────────────── */
     .main {
       flex: 1;
@@ -428,43 +369,48 @@
       opacity: 0.7;
     }
 
-    /* ── CTA row ───────────────────────────────────────────── */
-    .cta-row {
+    /* ── About block (bottom) ──────────────────────────────── */
+    .about-block {
       max-width: 680px;
       width: 100%;
-      margin-top: 28px;
+      margin-top: 32px;
+      padding: 16px 20px;
+      border: 1px solid var(--rule);
+      border-radius: 3px;
       display: flex;
-      align-items: center;
+      align-items: baseline;
       justify-content: space-between;
+      gap: 16px;
       opacity: 0;
       animation: fadeIn 0.4s ease 0.9s forwards;
     }
-
-    .cta-text {
+    .about-wordmark {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+    .about-sub {
       font-family: 'Libre Baskerville', serif;
-      font-size: 13.5px;
+      font-size: 12.5px;
       font-style: italic;
       color: var(--ink-muted);
     }
-
-    .cta-link {
+    .about-link {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--stamp);
       text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.13s;
+      white-space: nowrap;
     }
-    .cta-link:hover { text-decoration: underline; }
-    .cta-link::after {
-      content: '→';
-      font-style: normal;
-      font-family: 'Libre Baskerville', serif;
-    }
+    .about-link:hover { border-bottom-color: var(--stamp); }
 
     /* ── Error state ───────────────────────────────────────── */
     .error-card {
@@ -521,14 +467,6 @@
 <body>
 
 <div class="page">
-  <header class="topbar">
-    <div class="logo">Workpads</div>
-    <div class="topbar-right">
-      <span class="codec-tag" id="codec-tag">bitpad-v1</span>
-      <a class="get-app-btn" href="https://workpads.me/?start=1">Start yours</a>
-    </div>
-  </header>
-
   <main class="main" id="main">
     <!-- content rendered by JS -->
   </main>
@@ -575,30 +513,52 @@
   }
 
   function decodeWorkpad(hashFragment) {
-    var params = parseHashParams(hashFragment);
-    if (params.alg !== 'bitpad-v1') throw new Error('Unsupported algorithm: ' + (params.alg || 'none'));
-    if (!params.d) throw new Error('Missing payload parameter');
+    // Extract chain ref if present
+    var chainRef = null;
+    var cIdx = hashFragment.indexOf('&c=');
+    if (cIdx !== -1) {
+      chainRef = hashFragment.slice(cIdx + 3);
+      hashFragment = hashFragment.slice(0, cIdx);
+    }
 
-    var compressed = base64urlToBytes(params.d);
-    var frame = fflate.inflateSync(compressed);
+    var compressed, frame;
 
-    // frame: [template][flagLo][flagHi][blobs...]
-    var flags = frame[1] | (frame[2] << 8);
+    if (/^[0-9][a-z][a-z]\//.test(hashFragment)) {
+      compressed = base64urlToBytes(hashFragment.slice(4));
+      frame = fflate.inflateSync(compressed);
+    } else {
+      var params = parseHashParams(hashFragment);
+      if (params.alg !== 'bitpad-v1') throw new Error('Unsupported algorithm: ' + (params.alg || 'none'));
+      if (!params.d) throw new Error('Missing payload parameter');
+      compressed = base64urlToBytes(params.d);
+      frame = fflate.inflateSync(compressed);
+    }
+
+    // Flags: 16-bit big-endian uint16 at bytes 1–2
+    var flags = (frame[1] << 8) | frame[2];
     var offset = 3;
     var td = new TextDecoder();
     var record = {};
 
-    for (var i = 0; i < 11; i++) {
-      if (flags & (1 << i)) {
-        var len = (frame[offset] << 8) | frame[offset + 1];
-        offset += 2;
-        record[SCALAR_FIELDS[i]] = td.decode(frame.slice(offset, offset + len));
-        offset += len;
+    var ALL_FIELDS = [
+      ['job',0],['customer',1],['date',2],['location',3],
+      ['meeting_time',4],['start_time',5],['end_time',6],
+      ['customer_phone',7],['worker',8],
+      ['details',10],['story',11],
+      ['amount',12],['currency',13],['vat',14],['record_type',15],
+    ];
+
+    // Low scalar fields (bits < 9)
+    for (var i = 0; i < ALL_FIELDS.length; i++) {
+      var f = ALL_FIELDS[i];
+      if (f[1] < 9 && (flags & (1 << f[1]))) {
+        var len = (frame[offset] << 8) | frame[offset + 1]; offset += 2;
+        record[f[0]] = td.decode(frame.slice(offset, offset + len)); offset += len;
       }
     }
 
-    // bit 11 = actions
-    if (flags & (1 << 11)) {
+    // Actions (bit 9)
+    if (flags & (1 << 9)) {
       var count = frame[offset++];
       var actions = [];
       for (var j = 0; j < count; j++) {
@@ -611,6 +571,16 @@
       record.actions = actions;
     }
 
+    // High scalar fields (bits > 9)
+    for (var k = 0; k < ALL_FIELDS.length; k++) {
+      var hf = ALL_FIELDS[k];
+      if (hf[1] > 9 && (flags & (1 << hf[1]))) {
+        var len2 = (frame[offset] << 8) | frame[offset + 1]; offset += 2;
+        record[hf[0]] = td.decode(frame.slice(offset, offset + len2)); offset += len2;
+      }
+    }
+
+    if (chainRef) record._chainRef = chainRef;
     return record;
   }
 
@@ -741,7 +711,9 @@
 
     // header
     html += '<div class="doc-header">';
-    html += '<div class="doc-stamp">' + (isDemo ? 'SAMPLE' : 'RECEIVED') + '</div>';
+    var stampLabels = { quote: 'QUOTE', invoice: 'INVOICE', ack: 'APPROVAL', job: 'WORKPAD' };
+    var stamp = isDemo ? 'SAMPLE' : (stampLabels[record.record_type] || 'RECEIVED');
+    html += '<div class="doc-stamp">' + stamp + '</div>';
     html += '<div class="doc-ref">JOB RECORD · WORKPADS</div>';
     html += '<h1 class="job-title">' + esc(record.job || 'Untitled record') + '</h1>';
     html += renderMetaRow(record);
@@ -760,10 +732,11 @@
 
     html += '</div>'; // .document
 
-    // CTA
-    html += '<div class="cta-row">' +
-      '<span class="cta-text">Create your own workpad</span>' +
-      '<a class="cta-link" href="https://workpads.me/?start=1">Start yours</a>' +
+    // About block
+    html += '<div class="about-block">' +
+      '<span class="about-wordmark">Workpads</span>' +
+      '<span class="about-sub">Job records that travel as links</span>' +
+      '<a class="about-link" href="https://workpads.me/?start=1">Start yours</a>' +
     '</div>';
 
     main.innerHTML = html;
@@ -800,11 +773,34 @@
     ],
   };
 
+  // ── Store received record in localStorage ─────────────────
+  function storeReceived(decoded) {
+    try {
+      var ts  = Date.now();
+      var id  = ts.toString(36) + Math.random().toString(36).slice(2, 6);
+      var rec = { id: id, receivedAt: ts, draft: false, createdAt: ts, updatedAt: ts };
+      var wireFields = [
+        'job','customer','date','location','meeting_time',
+        'start_time','end_time','customer_phone','worker',
+        'details','story','actions',
+        'amount','currency','vat','record_type',
+      ];
+      wireFields.forEach(function(f) {
+        if (decoded[f] !== undefined && decoded[f] !== null) rec[f] = decoded[f];
+      });
+      if (decoded._chainRef) rec.chainRef = decoded._chainRef;
+      localStorage.setItem('wp_record_' + id, JSON.stringify(rec));
+      return id;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ── Boot ──────────────────────────────────────────────────
   function boot() {
     var hash = window.location.hash.slice(1);
 
-    if (!hash || !hash.includes('alg=')) {
+    if (!hash || (!/^[0-9][a-z][a-z]\//.test(hash) && !hash.includes('alg='))) {
       // Landing / demo state
       renderDocument(DEMO, true);
       return;
@@ -812,6 +808,11 @@
 
     try {
       var record = decodeWorkpad(hash);
+
+      // Store to localStorage so the main app has it, then display inline
+      storeReceived(record);
+
+      // Display inline — no app UI, just the clean record
       renderDocument(record, false);
     } catch (e) {
       renderError(e.message);

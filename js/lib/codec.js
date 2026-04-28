@@ -52,6 +52,10 @@
     { id: 'worker',         bit: 8  },
     { id: 'details',        bit: 10 },
     { id: 'story',          bit: 11 },
+    { id: 'amount',         bit: 12 },
+    { id: 'currency',       bit: 13 },
+    { id: 'vat',            bit: 14 },
+    { id: 'record_type',    bit: 15 },
   ];
 
   function writeU16(buf, offset, value) {
@@ -188,24 +192,53 @@
 
   // ── public API ──────────────────────────────────────────────────────────────
 
-  function encode(record) {
+  // URL scheme tag: <version><codebook><compression>
+  // '1' = pads-v1, 'a' = codebook-a, 'g' = deflate (fflate)
+  var SCHEME_TAG = '1ag';
+
+  function encode(record, chainRef) {
     var frame = bitpadEncode(record);
     var compressed = global.fflate.deflateSync(frame, { level: 9 });
     var d = toBase64Url(compressed);
-    return URL_PREFIX + 'v=1&alg=bitpad-v1&d=' + d;
+    var url = URL_PREFIX + SCHEME_TAG + '/' + d;
+    if (chainRef) url += '&c=' + chainRef;
+    return url;
   }
 
   function decode(url) {
     var hash = url.indexOf('#') !== -1 ? url.slice(url.indexOf('#') + 1) : url;
+
+    // Extract chain ref if present
+    var chainRef = null;
+    var cIdx = hash.indexOf('&c=');
+    if (cIdx !== -1) {
+      chainRef = hash.slice(cIdx + 3);
+      hash = hash.slice(0, cIdx);
+    }
+
+    var compressed, frame, record;
+
+    // New format: 3-char scheme tag + '/' (e.g. '1ag/<data>')
+    if (/^[0-9][a-z][a-z]\//.test(hash)) {
+      compressed = fromBase64Url(hash.slice(4));
+      frame = global.fflate.inflateSync(compressed);
+      record = bitpadDecode(frame);
+      if (chainRef) record._chainRef = chainRef;
+      return record;
+    }
+
+    // Legacy format: key=value params (backward compat)
     var params = {};
     hash.split('&').forEach(function(part) {
       var eq = part.indexOf('=');
       if (eq !== -1) params[part.slice(0, eq)] = part.slice(eq + 1);
     });
     if (!params.d) throw new Error('WPCodec.decode: missing d param');
-    var compressed = fromBase64Url(params.d);
-    var frame = global.fflate.inflateSync(compressed);
-    return bitpadDecode(frame);
+    compressed = fromBase64Url(params.d);
+    frame = global.fflate.inflateSync(compressed);
+    record = bitpadDecode(frame);
+    if (chainRef) record._chainRef = chainRef;
+    return record;
   }
 
   function validate(record) {

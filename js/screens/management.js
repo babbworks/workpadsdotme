@@ -83,8 +83,8 @@ var ManagementScreen = (function () {
     var el = document.getElementById('screen-management');
     el.innerHTML = (
       '<div class="mgmt-wrap">' +
-        '<h1 class="screen-title">Manage</h1>' +
-        '<p class="screen-subtitle" style="margin-bottom:24px;">Your local workspace</p>' +
+        '<h1 class="screen-title" style="text-align:center;">Workpads</h1>' +
+        '<p class="screen-subtitle" style="margin-bottom:24px;text-align:center;">Your Local Workspace</p>' +
         '<div class="tab-bar" id="mgmt-tabs">' +
           _tabBtn('records',  'Records') +
           _tabBtn('personal', 'Personal') +
@@ -159,7 +159,7 @@ var ManagementScreen = (function () {
             '<div style="padding:16px 20px;">' +
               _infoRow('Estimated usage', storageUsed) +
               _infoRow('Backend',         'localStorage (browser)') +
-              _infoRow('Codec',           'bitpad-v1 \xb7 fflate deflateRaw') +
+              _infoRow('Codec',           'pads-v1 \xb7 1ag \xb7 fflate deflate') +
               _infoRow('App version',     'Workpads v0.1.0') +
             '</div>' +
           '</div>' +
@@ -232,11 +232,18 @@ var ManagementScreen = (function () {
     var body = document.getElementById('mgmt-body');
     body.innerHTML = '<div style="padding-top:8px;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;">Loading\u2026</div>';
 
-    PersonalService.count().then(function (count) {
+    PersonalService.list().then(function (notes) {
+      var all        = notes || [];
+      var quickCount = all.filter(function (n) { return n.source === 'quick-note'; }).length;
+      var fieldCount = all.filter(function (n) { return n.source === 'field-note' || n.linkedFieldId; }).length;
+      var otherCount = all.length - quickCount - fieldCount;
+
       body.innerHTML = (
         '<div style="padding-top:8px;">' +
           '<div class="stat-grid">' +
-            _stat('Notes', count, 'personal captures') +
+            _stat('Quick Notes',     quickCount, 'free-text notes') +
+            _stat('Field Captures',  fieldCount, 'linked to records') +
+            (otherCount > 0 ? _stat('Other', otherCount, 'captures') : '') +
           '</div>' +
           '<div class="card" style="margin-bottom:20px;">' +
             '<div style="padding:16px 20px;">' +
@@ -245,10 +252,16 @@ var ManagementScreen = (function () {
             '</div>' +
           '</div>' +
           '<div style="display:flex;gap:8px;">' +
+            '<button class="btn-ghost" id="mgmt-export-notes">Export notes</button>' +
             '<button class="mgmt-danger-btn" id="mgmt-clear-notes">Clear all notes</button>' +
           '</div>' +
         '</div>'
       );
+
+      var exportBtn = document.getElementById('mgmt-export-notes');
+      if (exportBtn) exportBtn.addEventListener('click', function () {
+        App.toast('Export coming in v0.2');
+      });
 
       var clearBtn = document.getElementById('mgmt-clear-notes');
       if (clearBtn) clearBtn.addEventListener('click', _clearNotes);
@@ -259,7 +272,7 @@ var ManagementScreen = (function () {
     if (!confirm('Delete all personal notes? This cannot be undone.')) return;
     PersonalService.list().then(function (notes) {
       return Promise.all((notes || []).map(function (n) {
-        return PersonalService.delete(n.id);
+        return PersonalService.archive(n.id);
       }));
     }).then(function () {
       App.toast('Notes cleared');
@@ -304,7 +317,7 @@ var ManagementScreen = (function () {
           '<div style="padding:16px 20px;">' +
             _infoRow('App version', 'Workpads v0.1.0') +
             _infoRow('Platform',    'Web \xb7 localStorage') +
-            _infoRow('Codec',       'bitpad-v1 \xb7 fflate 0.8.2') +
+            _infoRow('Codec',       'pads-v1 \xb7 1ag \xb7 fflate 0.8.2') +
             _infoRow('Standard',    'Workpads Standard v0.1') +
           '</div>' +
         '</div>' +

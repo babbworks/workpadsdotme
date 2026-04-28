@@ -8,6 +8,9 @@ var ListScreen = (function () {
   var _records     = [];
   var _query       = '';
   var _stylesAdded = false;
+  var _density     = 1; // 0=title, 1=title+date, 2=title+date+customer, 3=all
+
+  var _DENSITY_KEY = 'wp_pref_list_density';
 
   // ── Styles ──────────────────────────────────────────────────
 
@@ -39,6 +42,30 @@ var ListScreen = (function () {
       '}',
       '.list-search:focus { outline: none; border-color: var(--stamp-border); }',
       '.list-search::placeholder { color: var(--ink-faint); }',
+
+      '.list-controls {',
+      '  display: flex;',
+      '  align-items: center;',
+      '  gap: 12px;',
+      '}',
+
+      '.list-density {',
+      '  display: flex;',
+      '  gap: 2px;',
+      '  align-items: center;',
+      '}',
+
+      '.list-density-dot {',
+      '  font-family: var(--font-body);',
+      '  font-size: 16px;',
+      '  line-height: 1;',
+      '  color: var(--ink-faint);',
+      '  padding: 2px 4px;',
+      '  border-radius: 2px;',
+      '  transition: color .12s;',
+      '}',
+      '.list-density-dot.active { color: var(--stamp); }',
+      '.list-density-dot:hover:not(.active) { color: var(--ink-mid); }',
 
       '.list-records {',
       '  border: 1px solid var(--rule);',
@@ -152,9 +179,11 @@ var ListScreen = (function () {
 
   function onShow() {
     _addStyles();
-    _query = '';
+    _query   = '';
+    _density = parseInt(localStorage.getItem(_DENSITY_KEY) || '1', 10);
     RecordService.list().then(function (records) {
-      _records = records;
+      // Exclude expense sub-records from the main list — they appear under their parent
+      _records = (records || []).filter(function (r) { return r.recordType !== 'expense'; });
       _render();
     });
   }
@@ -176,9 +205,12 @@ var ListScreen = (function () {
               total + '\u00a0workpad' + (total !== 1 ? 's' : '') +
             '</p>';
     html += '</div>';
+    html += '<div class="list-controls">';
+    html += _renderDensitySelector();
     html += '<input class="list-search" id="list-search" type="search" ' +
               'placeholder="Search records\u2026" value="' + _esc(_query) + '" ' +
               'autocomplete="off" spellcheck="false">';
+    html += '</div>';
     html += '</div>';
 
     // ── Records list
@@ -198,14 +230,25 @@ var ListScreen = (function () {
     _bindEvents(el);
   }
 
-  function _renderRow(r) {
-    var meta = [];
-    if (r.customer) meta.push(_esc(r.customer));
-    if (r.date)     meta.push(_esc(r.date));
-    if (r.location) meta.push(_esc(r.location));
+  function _renderDensitySelector() {
+    var symbols = ['\xb7', '\u2022', '\u25cf', '\u2b24'];
+    var titles  = ['Title only', 'Title + date', 'Title + date + customer', 'All fields'];
+    var html = '<div class="list-density">';
+    symbols.forEach(function (sym, i) {
+      html += '<button class="list-density-dot' + (i === _density ? ' active' : '') +
+              '" data-density="' + i + '" title="' + titles[i] + '">' + sym + '</button>';
+    });
+    return html + '</div>';
+  }
 
+  function _renderRow(r) {
     var jobHtml = _esc(r.job || 'Untitled');
     if (_query) jobHtml = _highlight(jobHtml, _esc(_query));
+
+    var metaItems = [];
+    if (_density >= 1 && r.date)                 metaItems.push(_fmtDate(r.date));
+    if (_density >= 2 && r.customer)             metaItems.push(_esc(r.customer.slice(0, 20)));
+    if (_density >= 3 && r.location)             metaItems.push(_esc(r.location.slice(0, 20)));
 
     return (
       '<div class="list-row" data-id="' + _esc(r.id) + '" tabindex="0" role="button">' +
@@ -214,8 +257,8 @@ var ListScreen = (function () {
             jobHtml +
             (r.receivedAt ? '<span class="record-item-tag" style="margin-left:8px;">Received</span>' : '') +
           '</div>' +
-          (meta.length
-            ? '<div class="list-row-meta">' + meta.join(' \xb7 ') + '</div>'
+          (metaItems.length
+            ? '<div class="list-row-meta">' + metaItems.join(' \xb7 ') + '</div>'
             : '') +
         '</div>' +
         '<div class="list-row-actions">' +
@@ -248,6 +291,16 @@ var ListScreen = (function () {
   // ── Events ───────────────────────────────────────────────────
 
   function _bindEvents(screenEl) {
+    // Density dots
+    screenEl.querySelectorAll('.list-density-dot').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        _density = parseInt(this.dataset.density, 10);
+        localStorage.setItem(_DENSITY_KEY, String(_density));
+        _render();
+      });
+    });
+
     // Search input
     var searchEl = document.getElementById('list-search');
     if (searchEl) {
@@ -302,6 +355,15 @@ var ListScreen = (function () {
              (r.location || '').toLowerCase().indexOf(q) !== -1 ||
              (r.date     || '').toLowerCase().indexOf(q) !== -1;
     });
+  }
+
+  function _fmtDate(s) {
+    if (!s) return '';
+    try {
+      var d   = new Date(s + 'T00:00:00');
+      var mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return d.getDate() + '\u00a0' + mon[d.getMonth()];
+    } catch (e) { return s; }
   }
 
   // Wrap matched text in a highlight span

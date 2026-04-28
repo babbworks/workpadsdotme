@@ -25,10 +25,13 @@ var ShareScreen = (function () {
       '}',
       '.share-url-box:hover { background:#2a2420; }',
 
+      '.share-url-top-row {',
+      '  display:flex; align-items:baseline; justify-content:space-between;',
+      '  margin-bottom:4px;',
+      '}',
       '.share-url-prefix {',
       '  font-family:var(--font-mono); font-size:11px;',
       '  color:rgba(240,237,230,.35); letter-spacing:.04em;',
-      '  margin-bottom:4px;',
       '}',
 
       '.share-url-payload {',
@@ -38,12 +41,10 @@ var ShareScreen = (function () {
       '}',
 
       '.share-url-hint {',
-      '  position:absolute; top:50%; right:20px;',
-      '  transform:translateY(-50%);',
       '  font-family:var(--font-mono); font-size:10px;',
       '  font-weight:700; letter-spacing:.1em; text-transform:uppercase;',
       '  color:rgba(240,237,230,.3);',
-      '  pointer-events:none;',
+      '  pointer-events:none; flex-shrink:0; margin-left:12px;',
       '}',
 
       '.share-meta-row {',
@@ -133,16 +134,18 @@ var ShareScreen = (function () {
 
     // URL box
     html += '<div class="share-url-box" id="share-url-box" title="Click to copy">';
-    html += '<div class="share-url-prefix">https://workpads.me/p#</div>';
-    html += '<div class="share-url-payload">' + _esc((_url.split('#')[1]) || '') + '</div>';
+    html += '<div class="share-url-top-row">';
+    html += '<span class="share-url-prefix">https://workpads.me/p#</span>';
     html += '<span class="share-url-hint">Click to copy</span>';
+    html += '</div>';
+    html += '<div class="share-url-payload">' + _esc((_url.split('#')[1]) || '') + '</div>';
     html += '</div>';
 
     // Meta stats
     html += '<div class="share-meta-row">';
     html += _metaItem('Characters', String(charCount));
     html += _metaItem('Payload', dataLen + '\u00a0chars');
-    html += _metaItem('Codec', 'bitpad-v1');
+    html += _metaItem('Codec', 'pads-v1 \xb7 1ag');
     html += '</div>';
 
     // Action buttons
@@ -154,7 +157,7 @@ var ShareScreen = (function () {
 
     // Attribution
     html += '<div class="share-attribution">';
-    html += 'Workpads v0.1.0 \xb7 bitpad-v1 codec \xb7 workpads.me';
+    html += 'Workpads v0.1.0 \xb7 pads-v1 \xb7 1ag \xb7 workpads.me';
     html += '</div>';
 
     html += '</div>'; // .share-wrap

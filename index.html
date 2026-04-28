@@ -13,37 +13,21 @@
 
   <div id="shell">
 
-    <!-- ── Top bar ──────────────────────────────────────────── -->
-    <header id="topbar">
-      <div class="topbar-left">
-        <button class="btn-icon btn-mobile-panel" id="mobile-btn-left" aria-label="Open workpads panel">&#9776;</button>
-        <span class="logo">Workpads</span>
-      </div>
-      <div class="topbar-center" id="topbar-context">
-        <!-- screen title / breadcrumb injected by app.js -->
-      </div>
-      <div class="topbar-right">
-        <button class="btn-ghost" id="btn-manage" title="Manage">Manage</button>
-        <button class="btn-primary" id="btn-new">+ New</button>
-        <button class="btn-icon btn-mobile-panel" id="mobile-btn-right" aria-label="Open personal panel">&#8250;</button>
-      </div>
-    </header>
-
     <!-- ── Three-column content area ───────────────────────── -->
     <div id="content">
 
-      <!-- Left panel: Workpads -->
+      <!-- Left panel: Records -->
       <aside id="panel-left" class="panel">
         <div class="panel-header">
-          <span class="panel-title">Workpads</span>
-          <button class="panel-toggle" id="toggle-left" title="Collapse panel" aria-label="Collapse workpads panel">
+          <button class="panel-title" id="panel-left-title" title="Show all records">Records</button>
+          <button class="panel-toggle" id="toggle-left" title="Collapse panel" aria-label="Collapse records panel">
             <span class="toggle-icon">‹</span>
           </button>
         </div>
         <div class="panel-body" id="panel-left-body">
           <!-- WorkpadsPanel.js renders here -->
         </div>
-        <div class="panel-collapsed-label" aria-hidden="true">Workpads</div>
+        <div class="panel-collapsed-label" aria-hidden="true">Records</div>
       </aside>
 
       <!-- Main screen area -->
@@ -89,7 +73,7 @@
         <input class="field-input" id="onboard-phone" type="tel" placeholder="e.g. +44 7700 900123" autocomplete="tel">
       </div>
       <button class="btn-primary btn-full" id="onboard-submit">Start sending workpads</button>
-      <p class="overlay-footnote">Your name appears on records you create. You can change it later in Manage.</p>
+      <p class="overlay-footnote">Your name appears on records you create. You can change it later in settings.</p>
     </div>
   </div>
 
@@ -102,6 +86,20 @@
         <button class="btn-ghost" id="quicknote-cancel">Cancel</button>
         <button class="btn-primary" id="quicknote-save">Save note</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Note detail overlay ────────────────────────────────── -->
+  <div id="overlay-note-detail" class="overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="overlay-card overlay-card-sm">
+      <div class="overlay-note-header">
+        <span class="overlay-note-time" id="overlay-note-time"></span>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="overlay-note-copy" style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--ink-mid);background:var(--rule-light);border:1px solid var(--rule);border-radius:3px;padding:3px 9px;cursor:pointer;">Copy</button>
+          <button class="btn-icon" id="overlay-note-close" aria-label="Close">&times;</button>
+        </div>
+      </div>
+      <div class="overlay-note-body" id="overlay-note-body"></div>
     </div>
   </div>
 

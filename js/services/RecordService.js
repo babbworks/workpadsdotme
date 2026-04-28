@@ -11,6 +11,18 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }
 
+  function genChainRef() {
+    var buf = new Uint8Array(3);
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(buf);
+    } else {
+      for (var i = 0; i < 3; i++) buf[i] = Math.floor(Math.random() * 256);
+    }
+    var bin = '';
+    for (var i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
   }
@@ -23,6 +35,7 @@
       id:        id,
       date:      todayIso(),
       worker:    identity.name || undefined,
+      chainRef:  genChainRef(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       draft:     true,
@@ -95,6 +108,7 @@
       'job', 'customer', 'date', 'location', 'meeting_time',
       'start_time', 'end_time', 'customer_phone', 'worker',
       'details', 'story', 'actions',
+      'amount', 'currency', 'vat', 'record_type',
     ];
     wireFields.forEach(function(f) {
       if (rec[f] !== null && rec[f] !== undefined) payload[f] = rec[f];
@@ -104,7 +118,7 @@
       var name = ActivityService.getSenderIdentity().name;
       if (name) payload.worker = name;
     }
-    return WPCodec.encode(payload);
+    return WPCodec.encode(payload, rec.chainRef || null);
   }
 
   // Decode a received URL into a record object (not stored automatically).
@@ -115,22 +129,37 @@
   // Store a received record (from a decoded URL). Returns stored record.
   function storeReceived(decoded) {
     var id = genId();
-    var rec = Object.assign({ id: id, receivedAt: Date.now(), draft: false }, decoded);
+    var chainRef = decoded._chainRef || null;
+    var data = Object.assign({}, decoded);
+    delete data._chainRef;
+    var rec = Object.assign({ id: id, receivedAt: Date.now(), draft: false }, data);
+    if (chainRef) rec.chainRef = chainRef;
     return store.put(id, rec).then(function() { return rec; });
   }
 
+  // Find all records sharing a chainRef (for ACK / approval lookup).
+  function findByChainRef(chainRef) {
+    if (!chainRef) return Promise.resolve([]);
+    return store.list().then(function(pairs) {
+      return pairs
+        .map(function(p) { return p.data; })
+        .filter(function(r) { return r.chainRef === chainRef; });
+    });
+  }
+
   global.RecordService = {
-    create:        create,
-    save:          save,
-    update:        update,
-    get:           get,
-    list:          list,
-    listArchived:  listArchived,
-    archive:       archive_record,
-    remove:        removeRecord,
-    encodeUrl:     encodeUrl,
-    decodeUrl:     decodeUrl,
-    storeReceived: storeReceived,
+    create:          create,
+    save:            save,
+    update:          update,
+    get:             get,
+    list:            list,
+    listArchived:    listArchived,
+    archive:         archive_record,
+    remove:          removeRecord,
+    encodeUrl:       encodeUrl,
+    decodeUrl:       decodeUrl,
+    storeReceived:   storeReceived,
+    findByChainRef:  findByChainRef,
   };
 
 }(window));

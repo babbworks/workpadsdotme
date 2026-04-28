@@ -53,6 +53,10 @@ var App = (function () {
         if (!seg1) { navigate('/'); return; }
         _showScreen('share', { id: seg1 });
         break;
+      case 'expense':
+        if (!seg1) { navigate('/'); return; }
+        _showScreen('wizard', { mode: 'expense', parentId: seg1 });
+        break;
       case 'manage':
         _showScreen('management', { tab: seg1 || 'records' });
         break;
@@ -79,8 +83,8 @@ var App = (function () {
     // Update topbar context label
     _setTopbarContext(name, params);
 
-    // Show / hide topbar New button
-    el.btnNew.style.display = (name === 'wizard') ? 'none' : '';
+    // Show / hide topbar New button (if present)
+    if (el.btnNew) el.btnNew.style.display = (name === 'wizard') ? 'none' : '';
 
     // Invoke screen
     var screen = SCREENS[name];
@@ -92,6 +96,21 @@ var App = (function () {
 
     // Scroll main area to top on every screen change
     el.mainArea.scrollTop = 0;
+
+    // Suppress panels on management screen
+    el.content.classList.toggle('panels-suppressed', name === 'management');
+
+    // Update side panels
+    var recordId = (name === 'view' || name === 'edit' || name === 'share')
+      ? (params && params.id) || null
+      : null;
+    if (typeof PersonalPanel !== 'undefined' && PersonalPanel.setContext) {
+      PersonalPanel.setContext(recordId);
+    }
+    if (typeof WorkpadsPanel !== 'undefined') {
+      if (WorkpadsPanel.setContext) WorkpadsPanel.setContext(name, params || {});
+      if (WorkpadsPanel.refresh)   WorkpadsPanel.refresh();
+    }
   }
 
   function _setTopbarContext(name, params) {
@@ -103,9 +122,11 @@ var App = (function () {
       management: 'Manage',
     };
     var label = labels[name] || '';
-    el.topbarContext.innerHTML = label
-      ? '<span class="topbar-context-title">' + _esc(label) + '</span>'
-      : '';
+    if (el.topbarContext) {
+      el.topbarContext.innerHTML = label
+        ? '<span class="topbar-context-title">' + _esc(label) + '</span>'
+        : '';
+    }
   }
 
   function _renderPlaceholder(screenEl, name) {
@@ -124,6 +145,7 @@ var App = (function () {
   function showWizard(id)              { navigate(id ? '/edit/' + id : '/new'); }
   function showView(id)                { navigate('/view/' + id); }
   function showShare(id)               { navigate('/share/' + id); }
+  function showExpense(parentId)       { navigate('/expense/' + parentId); }
   function showManagement(tab)         { navigate('/manage/' + (tab || 'records')); }
 
   // ── Panels ───────────────────────────────────────────────────
@@ -235,7 +257,7 @@ var App = (function () {
   function _saveQuickNote() {
     var text = (document.getElementById('quicknote-input').value || '').trim();
     if (!text) { _hideQuickNote(); return; }
-    PersonalService.save({ text: text }).then(function() {
+    PersonalService.capture({ text: text, source: 'quick-note' }).then(function() {
       _hideQuickNote();
       toast('Note saved');
       if (typeof PersonalPanel !== 'undefined' && PersonalPanel.refresh) {
@@ -275,12 +297,21 @@ var App = (function () {
 
       // Escape: close overlays in order
       if (e.key === 'Escape') {
+        var noteDetail = document.getElementById('overlay-note-detail');
+        if (noteDetail && noteDetail.style.display !== 'none') {
+          noteDetail.style.display = 'none'; return;
+        }
         if (el.overlayQuicknote.style.display !== 'none') { _hideQuickNote(); return; }
         if (el.overlayOnboarding.style.display !== 'none') return; // can't escape onboarding
       }
 
-      // Ctrl/Cmd + . — quick note (not when typing)
+      // Ctrl/Cmd + . or * — quick note (not when typing)
       if (!inInput && (e.ctrlKey || e.metaKey) && e.key === '.') {
+        e.preventDefault();
+        showQuickNote();
+        return;
+      }
+      if (!inInput && e.key === '*') {
         e.preventDefault();
         showQuickNote();
         return;
@@ -320,17 +351,18 @@ var App = (function () {
     // Collect DOM refs
     el.content           = document.getElementById('content');
     el.mainArea          = document.getElementById('main-area');
-    el.topbarContext     = document.getElementById('topbar-context');
+    el.topbarContext     = document.getElementById('topbar-context');   // may be null (topbar removed)
     el.toggleLeft        = document.getElementById('toggle-left');
     el.toggleRight       = document.getElementById('toggle-right');
     el.panelLeft         = document.getElementById('panel-left');
     el.panelRight        = document.getElementById('panel-right');
     el.overlayOnboarding = document.getElementById('overlay-onboarding');
     el.overlayQuicknote  = document.getElementById('overlay-quicknote');
-    el.btnNew            = document.getElementById('btn-new');
-    el.btnManage         = document.getElementById('btn-manage');
-    el.mobileBtnLeft     = document.getElementById('mobile-btn-left');
-    el.mobileBtnRight    = document.getElementById('mobile-btn-right');
+    el.btnNew            = document.getElementById('btn-new');          // may be null (topbar removed)
+    el.btnManage         = document.getElementById('btn-manage');       // may be null (topbar removed)
+    el.mobileBtnLeft     = document.getElementById('mobile-btn-left');  // may be null (topbar removed)
+    el.mobileBtnRight    = document.getElementById('mobile-btn-right'); // may be null (topbar removed)
+    el.panelLeftTitle    = document.getElementById('panel-left-title');
 
     // Register screens — each file exposes a global screen object
     SCREENS = {
@@ -349,11 +381,23 @@ var App = (function () {
     if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.init) WorkpadsPanel.init();
     if (typeof PersonalPanel !== 'undefined' && PersonalPanel.init) PersonalPanel.init();
 
-    // Topbar buttons
-    el.btnNew.addEventListener('click',    function() { showWizard(); });
-    el.btnManage.addEventListener('click', function() { showManagement(); });
+    // Topbar buttons (may not exist if topbar removed)
+    if (el.btnNew)    el.btnNew.addEventListener('click',    function() { showWizard(); });
+    if (el.btnManage) el.btnManage.addEventListener('click', function() { showManagement(); });
     if (el.mobileBtnLeft)  el.mobileBtnLeft.addEventListener('click',  function() { _openMobilePanel('left'); });
     if (el.mobileBtnRight) el.mobileBtnRight.addEventListener('click', function() { _openMobilePanel('right'); });
+
+    // Panel title — clicking "RECORDS" label shows all records (clears any context)
+    if (el.panelLeftTitle) {
+      el.panelLeftTitle.addEventListener('click', function() {
+        if (_currentScreen === 'list') {
+          // Already on list — just refresh panel to show all
+          if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) WorkpadsPanel.refresh();
+        } else {
+          showList();
+        }
+      });
+    }
 
     // Onboarding overlay
     document.getElementById('onboard-submit').addEventListener('click', _completeOnboarding);
@@ -401,7 +445,9 @@ var App = (function () {
     showWizard:     showWizard,
     showView:       showView,
     showShare:      showShare,
+    showExpense:    showExpense,
     showManagement: showManagement,
+    showManage:     showManagement,
     showQuickNote:  showQuickNote,
     toast:          toast,
     openMobilePanel: _openMobilePanel,
