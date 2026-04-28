@@ -166,13 +166,21 @@ var ManagementScreen = (function () {
 
           '<p class="mgmt-section-title">Actions</p>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<button class="mgmt-danger-btn" id="mgmt-clear-records">Clear all records</button>' +
+            '<button class="mgmt-danger-btn" id="mgmt-clear-records">Delete Active Records</button>' +
+            '<button class="mgmt-danger-btn" id="mgmt-clear-archive">Clear Archive</button>' +
+            '<button class="mgmt-danger-btn" id="mgmt-clear-all-storage">Clear All Storage</button>' +
           '</div>' +
         '</div>'
       );
 
       var clearBtn = document.getElementById('mgmt-clear-records');
       if (clearBtn) clearBtn.addEventListener('click', _clearRecords);
+
+      var clearArchBtn = document.getElementById('mgmt-clear-archive');
+      if (clearArchBtn) clearArchBtn.addEventListener('click', _clearArchive);
+
+      var clearAllBtn = document.getElementById('mgmt-clear-all-storage');
+      if (clearAllBtn) clearAllBtn.addEventListener('click', _clearAllStorage);
     });
   }
 
@@ -226,6 +234,36 @@ var ManagementScreen = (function () {
     });
   }
 
+  function _clearArchive() {
+    if (!confirm('Delete all archived records permanently? This cannot be undone.')) return;
+    try {
+      var keysToRemove = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('wp_archive_') === 0) keysToRemove.push(k);
+      }
+      keysToRemove.forEach(function (k) { localStorage.removeItem(k); });
+    } catch (e) {}
+    App.toast('Archive cleared');
+    _renderRecords();
+  }
+
+  function _clearAllStorage() {
+    if (!confirm('Delete ALL workpads data (records, archive, notes, profile)? This cannot be undone.')) return;
+    try {
+      var keysToRemove = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('wp_') === 0) keysToRemove.push(k);
+      }
+      keysToRemove.forEach(function (k) { localStorage.removeItem(k); });
+    } catch (e) {}
+    App.toast('All workpads storage cleared');
+    if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) WorkpadsPanel.refresh();
+    if (typeof PersonalPanel !== 'undefined' && PersonalPanel.refresh) PersonalPanel.refresh();
+    _renderRecords();
+  }
+
   // ── Personal tab ─────────────────────────────────────────────
 
   function _renderPersonal() {
@@ -253,7 +291,7 @@ var ManagementScreen = (function () {
           '</div>' +
           '<div style="display:flex;gap:8px;">' +
             '<button class="btn-ghost" id="mgmt-export-notes">Export notes</button>' +
-            '<button class="mgmt-danger-btn" id="mgmt-clear-notes">Clear all notes</button>' +
+            '<button class="mgmt-danger-btn" id="mgmt-clear-notes">Archive Saves</button>' +
           '</div>' +
         '</div>'
       );

@@ -32,6 +32,7 @@ var App = (function () {
     var name  = parts[0] || 'list';
     var seg1  = parts[1] || null;  // id or tab
     var seg2  = parts[2] || null;  // sub-param
+    var seg3  = parts[3] || null;  // action index (expense only)
 
     switch (name) {
       case 'list':
@@ -55,7 +56,18 @@ var App = (function () {
         break;
       case 'expense':
         if (!seg1) { navigate('/'); return; }
-        _showScreen('wizard', { mode: 'expense', parentId: seg1 });
+        _showScreen('wizard', { mode: 'expense', parentId: seg1, amount: seg2 || null, actionIdx: seg3 != null ? parseInt(seg3, 10) : null });
+        break;
+      case 'archive':
+        _showScreen('archive', {});
+        break;
+      case 'archived':
+        if (!seg1) { navigate('/archive'); return; }
+        _showScreen('view', { id: seg1, isArchived: true });
+        break;
+      case 'payment':
+        if (!seg1) { navigate('/'); return; }
+        _showScreen('wizard', { mode: 'payment', parentId: seg1 });
         break;
       case 'manage':
         _showScreen('management', { tab: seg1 || 'records' });
@@ -145,7 +157,15 @@ var App = (function () {
   function showWizard(id)              { navigate(id ? '/edit/' + id : '/new'); }
   function showView(id)                { navigate('/view/' + id); }
   function showShare(id)               { navigate('/share/' + id); }
-  function showExpense(parentId)       { navigate('/expense/' + parentId); }
+  function showExpense(parentId, amount, actionIdx) {
+    var path = '/expense/' + parentId;
+    if (amount || actionIdx != null) path += '/' + (amount || '_');
+    if (actionIdx != null) path += '/' + actionIdx;
+    navigate(path);
+  }
+  function showArchive()               { navigate('/archive'); }
+  function showArchivedView(id)        { navigate('/archived/' + id); }
+  function showPayment(parentId)       { navigate('/payment/' + parentId); }
   function showManagement(tab)         { navigate('/manage/' + (tab || 'records')); }
 
   // ── Panels ───────────────────────────────────────────────────
@@ -371,6 +391,7 @@ var App = (function () {
       view:       (typeof ViewScreen       !== 'undefined') ? ViewScreen       : null,
       share:      (typeof ShareScreen      !== 'undefined') ? ShareScreen      : null,
       management: (typeof ManagementScreen !== 'undefined') ? ManagementScreen : null,
+      archive:    (typeof ArchiveScreen    !== 'undefined') ? ArchiveScreen    : null,
     };
 
     // Panels
@@ -422,11 +443,11 @@ var App = (function () {
     // Hash routing — listen for changes
     window.addEventListener('hashchange', _route);
 
-    // Handle ?start=1 from receiver page (bypass normal onboarding gate timing)
+    // Handle ?start=1 from receiver page — skip onboarding if account already exists
     var urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('start') === '1') {
       _showScreen('list', {});
-      _showOnboarding();
+      if (!ActivityService.hasAny()) _showOnboarding();
       return;
     }
 
@@ -446,8 +467,11 @@ var App = (function () {
     showView:       showView,
     showShare:      showShare,
     showExpense:    showExpense,
+    showPayment:    showPayment,
     showManagement: showManagement,
     showManage:     showManagement,
+    showArchive:    showArchive,
+    showArchivedView: showArchivedView,
     showQuickNote:  showQuickNote,
     toast:          toast,
     openMobilePanel: _openMobilePanel,

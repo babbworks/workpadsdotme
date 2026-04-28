@@ -71,10 +71,14 @@ var PersonalPanel = (function () {
       '.ppp-item:hover .ppp-item-delete { opacity:1; }',
 
       '.ppp-item-text {',
-      '  font-family:var(--font-body); font-size:12.5px;',
-      '  color:var(--ink); line-height:1.5;',
+      '  font-family:var(--font-body); font-size:11px;',
+      '  color:var(--ink); line-height:1.45;',
       '  word-break:break-word;',
       '  margin-bottom:2px;',
+      '}',
+      '.ppp-click-hint {',
+      '  display:inline; font-size:9px; font-family:var(--font-mono);',
+      '  color:var(--ink-faint); letter-spacing:.04em; margin-left:4px;',
       '}',
       '.ppp-item-tags {',
       '  display:block; margin-bottom:3px;',
@@ -138,7 +142,16 @@ var PersonalPanel = (function () {
       '  padding:6px 14px 2px;',
       '  font-family:var(--font-mono); font-size:9px;',
       '  color:var(--ink-faint); letter-spacing:.06em;',
+      '  display:flex; justify-content:space-between; align-items:center;',
       '}',
+      '.ppp-archive-link {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.06em; text-transform:uppercase;',
+      '  color:var(--ink-faint); background:none; border:none;',
+      '  cursor:pointer; padding:0; transition:color .12s;',
+      '  text-decoration:underline; text-decoration-style:dotted;',
+      '}',
+      '.ppp-archive-link:hover { color:var(--ink-mid); }',
       '.ppp-manage-btn {',
       '  display:flex; align-items:center; justify-content:space-between;',
       '  width:100%; padding:10px 14px; text-align:left;',
@@ -205,7 +218,10 @@ var PersonalPanel = (function () {
       '<div class="ppp-context-label" id="ppp-context" style="display:none;"></div>' +
       '<div class="ppp-list" id="ppp-list"></div>' +
       '<div class="ppp-footer">' +
-        '<div class="ppp-count" id="ppp-count"></div>' +
+        '<div class="ppp-count" id="ppp-count">' +
+          '<span id="ppp-count-text"></span>' +
+          '<button class="ppp-archive-link" id="ppp-archive-btn">Archive \u2192</button>' +
+        '</div>' +
         '<button class="ppp-manage-btn" id="ppp-manage-btn">' +
           'Workpads<span class="ppp-manage-gear">\u2699</span>' +
         '</button>' +
@@ -283,8 +299,7 @@ var PersonalPanel = (function () {
   }
 
   function _renderList() {
-    var listEl  = document.getElementById('ppp-list');
-    var countEl = document.getElementById('ppp-count');
+    var listEl = document.getElementById('ppp-list');
     if (!listEl) return;
 
     // When a record is active, show linked notes first, then the rest
@@ -303,7 +318,8 @@ var PersonalPanel = (function () {
         ? 'No saves yet.'
         : 'No notes yet.<br>Type above and press Enter.';
       listEl.innerHTML = '<div class="ppp-empty">' + emptyMsg + '</div>';
-      if (countEl) countEl.textContent = '';
+      var _ct = document.getElementById('ppp-count-text');
+      if (_ct) _ct.textContent = '';
       return;
     }
 
@@ -326,9 +342,17 @@ var PersonalPanel = (function () {
         ? '<span class="ppp-field-badge">' + _esc(FIELD_LABELS[n.linkedFieldId] || n.linkedFieldId) + '</span>'
         : '';
 
-      // Truncate display text to 60 chars
+      // Truncate display text to 60 chars, stripping field label prefix if present
       var rawText = n.text || '';
-      var display = rawText.length > 60 ? rawText.slice(0, 60) + '\u2026' : rawText;
+      var displayText = rawText;
+      if (fieldBadge && n.linkedFieldId) {
+        var labelPrefix = FIELD_LABELS[n.linkedFieldId] || n.linkedFieldId;
+        // Strip "Label: " or "Label " prefix (case-insensitive)
+        var prefixRe = new RegExp('^' + labelPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[:\\s]\\s*', 'i');
+        displayText = displayText.replace(prefixRe, '');
+      }
+      var truncated = displayText.length > 60;
+      var display   = truncated ? displayText.slice(0, 60) + '\u2026' : displayText;
 
       // Tag display
       var tagsHtml = (n.tags && n.tags.length)
@@ -345,7 +369,9 @@ var PersonalPanel = (function () {
             ' data-action="' + clickAction + '"' +
             ' data-record="' + _esc(n.linkedRecordId || '') + '"' +
             (clickAction ? ' style="cursor:pointer;"' : '') + '>' +
-          '<div class="ppp-item-text" title="' + _esc(rawText) + '">' + fieldBadge + _esc(display) + '</div>' +
+          '<div class="ppp-item-text" title="' + _esc(rawText) + '">' + fieldBadge + _esc(display) +
+            (truncated && clickAction ? '<span class="ppp-click-hint">click to view</span>' : '') +
+          '</div>' +
           tagsHtml +
           (timeStr ? '<div class="ppp-item-time">' + timeStr + '</div>' : '') +
           '<button class="ppp-item-opts" data-id="' + _esc(n.id) + '" ' +
@@ -365,11 +391,18 @@ var PersonalPanel = (function () {
 
     listEl.innerHTML = html;
 
-    if (countEl) {
+    var countTextEl  = document.getElementById('ppp-count-text');
+    var archiveBtnEl = document.getElementById('ppp-archive-btn');
+    if (countTextEl) {
       var label = _activeRecordId && linked.length > 0
         ? linked.length + ' linked \xb7 ' + _notes.length + ' total'
         : _notes.length + (_notes.length === 1 ? ' note' : ' notes');
-      countEl.textContent = label;
+      countTextEl.textContent = label;
+    }
+    if (archiveBtnEl) {
+      archiveBtnEl.onclick = function () {
+        if (typeof App !== 'undefined') App.showArchive();
+      };
     }
 
     // Note item body click: quick-note → detail overlay, field-note → workpad

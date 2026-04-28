@@ -36,7 +36,7 @@
 
   // ── bitpad-v1 binary frame ──────────────────────────────────────────────────
 
-  var TEMPLATE_SVC_BASIC_V2 = 0x01;
+  var TEMPLATE_SVC_BASIC_V1 = 0x01;
   var ACTIONS_BIT = 9;
   var MAX_ACTIONS = 20;
 
@@ -109,7 +109,7 @@
 
     var buf = new Uint8Array(size);
     var pos = 0;
-    buf[pos++] = TEMPLATE_SVC_BASIC_V2;
+    buf[pos++] = TEMPLATE_SVC_BASIC_V1;
     writeU16(buf, pos, flags); pos += 2;
 
     for (var m = 0; m < SCALAR_FIELDS.length; m++) {
@@ -148,7 +148,7 @@
     if (bytes.length < 3) throw new Error('WPCodec: frame too short');
     var pos = 0;
     var templateId = bytes[pos++];
-    if (templateId !== TEMPLATE_SVC_BASIC_V2) {
+    if (templateId !== TEMPLATE_SVC_BASIC_V1) {
       throw new Error('WPCodec: unknown template 0x' + templateId.toString(16));
     }
     var flags = readU16(bytes, pos); pos += 2;
@@ -208,35 +208,21 @@
   function decode(url) {
     var hash = url.indexOf('#') !== -1 ? url.slice(url.indexOf('#') + 1) : url;
 
-    // Extract chain ref if present
+    // Split on '&' — first segment is codec payload, rest are key=value params
+    var segments = hash.split('&');
+    var payload  = segments[0];
     var chainRef = null;
-    var cIdx = hash.indexOf('&c=');
-    if (cIdx !== -1) {
-      chainRef = hash.slice(cIdx + 3);
-      hash = hash.slice(0, cIdx);
+    for (var i = 1; i < segments.length; i++) {
+      var eq = segments[i].indexOf('=');
+      if (eq !== -1 && segments[i].slice(0, eq) === 'c') {
+        chainRef = segments[i].slice(eq + 1);
+      }
     }
 
-    var compressed, frame, record;
-
-    // New format: 3-char scheme tag + '/' (e.g. '1ag/<data>')
-    if (/^[0-9][a-z][a-z]\//.test(hash)) {
-      compressed = fromBase64Url(hash.slice(4));
-      frame = global.fflate.inflateSync(compressed);
-      record = bitpadDecode(frame);
-      if (chainRef) record._chainRef = chainRef;
-      return record;
-    }
-
-    // Legacy format: key=value params (backward compat)
-    var params = {};
-    hash.split('&').forEach(function(part) {
-      var eq = part.indexOf('=');
-      if (eq !== -1) params[part.slice(0, eq)] = part.slice(eq + 1);
-    });
-    if (!params.d) throw new Error('WPCodec.decode: missing d param');
-    compressed = fromBase64Url(params.d);
-    frame = global.fflate.inflateSync(compressed);
-    record = bitpadDecode(frame);
+    if (!/^[0-9][a-z][a-z]\//.test(payload)) throw new Error('WPCodec.decode: unrecognised format');
+    var compressed = fromBase64Url(payload.slice(4));
+    var frame = global.fflate.inflateSync(compressed);
+    var record = bitpadDecode(frame);
     if (chainRef) record._chainRef = chainRef;
     return record;
   }
@@ -272,6 +258,61 @@
     return { valid: errors.length === 0, errors: errors };
   }
 
-  global.WPCodec = { encode: encode, decode: decode, validate: validate };
+  // ── fin encoding (expenses + payments → compressed JSON → base64url) ────────
+
+  function encodeFin(expenses, payments) {
+    var obj = {};
+    if (expenses && expenses.length) {
+      obj.e = expenses.map(function(e) {
+        var item = { a: String(e.amount || '0') };
+        if (e.job)              item.l = e.job;
+        if (e.date)             item.d = e.date;
+        if (e.expense_billing)  item.b = e.expense_billing;
+        if (e.actionIdx != null) item.n = e.actionIdx;
+        return item;
+      });
+    }
+    if (payments && payments.length) {
+      obj.p = payments.map(function(p) {
+        var item = { a: String(p.amount || '0') };
+        if (p.job)  item.l = p.job;
+        if (p.date) item.d = p.date;
+        return item;
+      });
+    }
+    var bytes = toUtf8(JSON.stringify(obj));
+    var compressed = global.fflate.deflateSync(bytes, { level: 9 });
+    return toBase64Url(compressed);
+  }
+
+  function decodeFin(str) {
+    try {
+      var bytes    = fromBase64Url(str);
+      var inflated = global.fflate.inflateSync(bytes);
+      return JSON.parse(fromUtf8(inflated));
+    } catch(e) { return null; }
+  }
+
+  // Append viewer-added expenses to an existing decoded fin object.
+  // viewerExpenses: [{job, amount, actionIdx}]
+  // Returns new base64url fin string with added items flagged s:'v'.
+  function appendFin(finObj, viewerExpenses) {
+    var obj = {
+      e: (finObj && finObj.e ? finObj.e.slice() : []),
+      p: (finObj && finObj.p ? finObj.p.slice() : []),
+    };
+    (viewerExpenses || []).forEach(function(e) {
+      var item = { a: String(e.amount || '0'), s: 'v' };
+      if (e.job)           item.l = e.job;
+      if (e.date)          item.d = e.date;
+      if (e.actionIdx != null) item.n = e.actionIdx;
+      obj.e.push(item);
+    });
+    var bytes = toUtf8(JSON.stringify(obj));
+    var compressed = global.fflate.deflateSync(bytes, { level: 9 });
+    return toBase64Url(compressed);
+  }
+
+  global.WPCodec = { encode: encode, decode: decode, validate: validate, encodeFin: encodeFin, decodeFin: decodeFin, appendFin: appendFin };
 
 }(window));

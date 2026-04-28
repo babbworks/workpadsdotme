@@ -9,7 +9,8 @@ var WizardScreen = (function () {
   // ── State ────────────────────────────────────────────────────
   var _record         = {};
   var _id             = null;
-  var _mode           = 'new';   // 'new' | 'edit' | 'expense'
+  var _mode           = 'new';   // 'new' | 'edit' | 'expense' | 'payment'
+  var _parentRecord   = null;
   var _tab            = 'process';
   var _stylesAdded    = false;
   var _storyPreview   = false;
@@ -215,14 +216,23 @@ var WizardScreen = (function () {
       '}',
 
       /* Field-level note capture */
-      '.wiz-field-note-btn {',
-      '  display:inline; margin-left:6px;',
-      '  font-family:var(--font-mono); font-size:9px;',
-      '  color:var(--ink-faint); background:none; border:none;',
-      '  cursor:pointer; padding:0 2px; vertical-align:middle;',
-      '  transition:color .12s; line-height:1;',
+      '.wiz-field-row {',
+      '  display:flex; align-items:stretch;',
       '}',
-      '.wiz-field-note-btn:hover { color:var(--stamp); }',
+      '.wiz-field-row .field-input {',
+      '  flex:1; border-radius:3px 0 0 3px;',
+      '}',
+      '.wiz-field-note-btn {',
+      '  flex-shrink:0; width:34px;',
+      '  display:flex; align-items:center; justify-content:center;',
+      '  font-size:15px; font-weight:900; line-height:1;',
+      '  color:var(--ink-mid); background:var(--rule-light);',
+      '  border:1.5px solid var(--rule); border-left:none;',
+      '  border-radius:0 3px 3px 0;',
+      '  cursor:pointer; transition:background .12s, color .12s;',
+      '}',
+      '.wiz-field-note-btn:hover { background:var(--rule); color:var(--stamp); }',
+      '.wiz-field-note-btn:focus { outline:2px solid var(--stamp-border); outline-offset:-2px; }',
 
       '.wiz-note-box {',
       '  margin-top:6px; padding:10px 12px;',
@@ -239,16 +249,46 @@ var WizardScreen = (function () {
       '.wiz-note-box textarea:focus { border-color:var(--stamp-border); outline:none; }',
       '.wiz-note-box-actions { display:flex; gap:6px; margin-top:6px; }',
 
-      /* More section (financial + extras) */
-      '.wiz-more-toggle {',
-      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
-      '  letter-spacing:.1em; text-transform:uppercase;',
-      '  color:var(--ink-muted); background:none; border:none;',
-      '  cursor:pointer; padding:0; transition:color .12s;',
+      /* Expense parent banner */
+      '.wiz-expense-parent {',
+      '  margin-bottom:16px; padding:10px 14px;',
+      '  background:var(--stamp-light); border:1px solid var(--stamp-border);',
+      '  border-radius:3px;',
       '}',
-      '.wiz-more-toggle:hover { color:var(--ink); }',
-      '.wiz-more-arrow { display:inline-block; font-size:8px; transition:transform .15s; margin-right:4px; }',
-      '.wiz-more-body { margin-top:18px; }',
+      '.wiz-expense-parent-job {',
+      '  font-family:var(--font-body); font-size:13px; font-weight:700;',
+      '  color:var(--ink); margin-bottom:3px;',
+      '}',
+      '.wiz-expense-parent-meta {',
+      '  font-family:var(--font-mono); font-size:9px; color:var(--ink-muted);',
+      '  letter-spacing:.04em; margin-bottom:5px;',
+      '}',
+      '.wiz-expense-parent-ids {',
+      '  font-family:var(--font-mono); font-size:9px; color:var(--ink-faint);',
+      '  letter-spacing:.04em;',
+      '}',
+
+      /* Expense billing toggle */
+      '.wiz-billing-row {',
+      '  display:flex; gap:6px; margin-bottom:16px;',
+      '}',
+      '.wiz-billing-btn {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.08em; text-transform:uppercase;',
+      '  color:var(--ink-muted); border:1.5px solid var(--rule);',
+      '  border-radius:3px; padding:4px 10px; cursor:pointer;',
+      '  transition:all .13s; background:none;',
+      '}',
+      '.wiz-billing-btn.active {',
+      '  color:var(--stamp); border-color:var(--stamp-border); background:var(--stamp-light);',
+      '}',
+      '.wiz-billing-btn:hover:not(.active) { border-color:var(--ink-faint); color:var(--ink-mid); }',
+
+      /* COGS label style */
+      '.wiz-cogs-label {',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint);',
+      '}',
 
       '.wiz-finance-row {',
       '  display:flex; gap:8px; align-items:center;',
@@ -372,13 +412,41 @@ var WizardScreen = (function () {
       });
     } else if (_mode === 'expense' && params.parentId) {
       var parentId = params.parentId;
+      var preAmount = (params.amount && params.amount !== '_') ? params.amount : null;
+      var preActionIdx = (params.actionIdx != null && !isNaN(params.actionIdx)) ? params.actionIdx : null;
       RecordService.get(parentId).then(function (parent) {
-        var parentJob = parent ? (parent.job || 'record') : 'record';
+        _parentRecord = parent || null;
+        var identity  = (typeof ActivityService !== 'undefined') ? ActivityService.getSenderIdentity() : null;
+        var action = (preActionIdx != null && parent && parent.actions) ? parent.actions[preActionIdx] : null;
+        var fields = {
+          recordType:      'expense',
+          parentId:        parentId,
+          job:             preAmount ? 'Difference' : (action ? action.title : 'Expense'),
+          customer:        parent ? (parent.customer || '') : '',
+          worker:          (identity && identity.name) || '',
+          expense_billing: 'customer',
+        };
+        if (preAmount) fields.amount = preAmount;
+        if (preActionIdx != null) {
+          fields.actionIdx   = preActionIdx;
+          fields.actionTitle = action ? action.title : '';
+        }
+        RecordService.create(fields).then(function (r) {
+          _record = r;
+          _id     = r.id;
+          _render();
+          _notifyContext();
+        });
+      });
+    } else if (_mode === 'payment' && params.parentId) {
+      var parentId = params.parentId;
+      RecordService.get(parentId).then(function (parent) {
+        _parentRecord = parent || null;
         var identity  = (typeof ActivityService !== 'undefined') ? ActivityService.getSenderIdentity() : null;
         RecordService.create({
-          recordType: 'expense',
+          recordType: 'payment',
           parentId:   parentId,
-          job:        'Expense',
+          job:        'Payment received',
           customer:   parent ? (parent.customer || '') : '',
           worker:     (identity && identity.name) || '',
         }).then(function (r) {
@@ -416,7 +484,7 @@ var WizardScreen = (function () {
     el.innerHTML = (
       '<div class="wiz-wrap">' +
         _renderHeader() +
-        (_mode === 'expense' ? _renderExpenseBanner() : '') +
+        (_mode === 'expense' || _mode === 'payment' ? _renderExpenseBanner() : '') +
         _renderTabBar() +
         _renderDots() +
         '<div id="wiz-body">' + _renderTabBody(_tab) + '</div>' +
@@ -442,7 +510,22 @@ var WizardScreen = (function () {
   }
 
   function _renderExpenseBanner() {
-    return '<div class="wiz-expense-banner">Expense record \u2014 linked to parent workpad</div>';
+    var p        = _parentRecord;
+    var job      = p ? _esc(p.job || 'Untitled') : 'Parent record';
+    var customer = p && p.customer ? _esc(p.customer) : '';
+    var parentId = _record.parentId || '';
+    var recId    = _id || '';
+    var typeLabel = _mode === 'payment' ? 'Payment' : 'Expense';
+    return (
+      '<div class="wiz-expense-parent">' +
+        '<div class="wiz-expense-parent-job">' + job + '</div>' +
+        (customer ? '<div class="wiz-expense-parent-meta">Customer \u00b7 ' + customer + '</div>' : '') +
+        '<div class="wiz-expense-parent-ids">' +
+          'Parent\u00a0ID\u00a0' + _esc(parentId) +
+          (recId ? '\u00a0\u00b7\u00a0 ' + typeLabel + '\u00a0ID\u00a0' + _esc(recId) : '') +
+        '</div>' +
+      '</div>'
+    );
   }
 
   function _renderTabBar() {
@@ -506,14 +589,29 @@ var WizardScreen = (function () {
     return html + '</div>';
   }
 
+  function _renderActionPicker() {
+    if (_mode !== 'expense' || !_parentRecord || !_parentRecord.actions || !_parentRecord.actions.length) return '';
+    var current = _record.actionIdx != null ? String(_record.actionIdx) : '';
+    var opts = '<option value="">— no specific action —</option>';
+    _parentRecord.actions.forEach(function (a, i) {
+      opts += '<option value="' + i + '"' + (String(i) === current ? ' selected' : '') + '>' + _esc(a.title) + '</option>';
+    });
+    return (
+      '<div class="field-group">' +
+        '<label class="field-label" for="f-action-idx">Action</label>' +
+        '<select class="field-input" id="f-action-idx">' + opts + '</select>' +
+      '</div>'
+    );
+  }
+
   function _renderProcess() {
-    var moreOpen = (_mode === 'expense');
     var jobPlaceholder = (_mode === 'expense') ? 'What is the expense?' : 'What is the job?';
 
     return (
       '<div class="card">' +
         '<div class="card-section">' +
           (_mode !== 'expense' ? _renderRecordTypeSelector() : '') +
+          _renderActionPicker() +
           _field('job',      'Job',      'text', _record.job      || '', true,  jobPlaceholder) +
           '<div class="field-group">' +
             '<label class="field-label" for="f-customer">Customer</label>' +
@@ -525,16 +623,8 @@ var WizardScreen = (function () {
           '</div>' +
           _field('date',     'Date',     'date', _record.date     || '', false, '') +
         '</div>' +
-        '<div class="card-section" style="padding-top:14px;padding-bottom:14px;">' +
-          '<button class="wiz-more-toggle" id="wiz-more-toggle" type="button">' +
-            '<span class="wiz-more-arrow" id="wiz-more-arrow"' +
-              (moreOpen ? ' style="transform:rotate(90deg);"' : '') + '>\u25b8</span>More' +
-          '</button>' +
-          '<div id="wiz-more-body"' + (moreOpen ? '' : ' style="display:none;"') + '>' +
-            '<div class="wiz-more-body">' +
-              _renderFinancialFields() +
-            '</div>' +
-          '</div>' +
+        '<div class="card-section">' +
+          _renderFinancialFields() +
         '</div>' +
       '</div>'
     );
@@ -571,7 +661,23 @@ var WizardScreen = (function () {
       return '<option value="' + ct.val + '"' + (ct.val === chargeType ? ' selected' : '') + '>' + ct.label + '</option>';
     }).join('');
 
+    var isExpense   = (_mode === 'expense');
+    var billing     = _record.expense_billing || 'customer';
+    var isCogs      = isExpense && billing === 'cogs';
+    var amtLabelTxt = isCogs ? 'Cost of Goods Sold' : 'Customer price';
+
+    var billingToggle = isExpense
+      ? '<div class="wiz-billing-row">' +
+          '<button type="button" class="wiz-billing-btn' + (billing === 'customer' ? ' active' : '') +
+            '" data-billing="customer">Customer Price</button>' +
+          '<button type="button" class="wiz-billing-btn' + (billing === 'cogs' ? ' active' : '') +
+            '" data-billing="cogs"' + (billing !== 'cogs' ? ' style="opacity:.55;"' : '') +
+            '>COGS <span class="wiz-cogs-label">(Cost of Goods Sold)</span></button>' +
+        '</div>'
+      : '';
+
     return (
+      billingToggle +
       '<div class="field-group">' +
         '<label class="field-label">Charge type</label>' +
         '<select class="field-input wiz-field-select" id="f-charge_type" style="width:100%;">' +
@@ -579,7 +685,7 @@ var WizardScreen = (function () {
         '</select>' +
       '</div>' +
       '<div class="field-group">' +
-        '<label class="field-label">Customer price</label>' +
+        '<label class="field-label" id="wiz-amount-label">' + amtLabelTxt + '</label>' +
         '<div class="wiz-finance-row">' +
           '<span class="wiz-finance-sym wiz-curr-sym">' + sym + '</span>' +
           '<input class="field-input" id="f-amount" type="text" inputmode="decimal"' +
@@ -905,20 +1011,23 @@ var WizardScreen = (function () {
   // ── Field helper ─────────────────────────────────────────────
 
   function _field(key, label, type, value, required, placeholder) {
-    var noteBtn = (_id && typeof PersonalService !== 'undefined')
+    var hasNote = !!(_id && typeof PersonalService !== 'undefined');
+    var noteBtn = hasNote
       ? '<button class="wiz-field-note-btn" type="button" data-field="' + key + '"' +
-          ' data-label="' + _esc(label) + '" title="Add note for this field">\u270e</button>'
+          ' data-label="' + _esc(label) + '" title="Add note for this field" tabindex="0">\u270f</button>'
       : '';
+    var inputEl = '<input class="field-input" id="f-' + key + '" type="' + type + '"' +
+      ' value="' + _esc(value) + '"' +
+      ' placeholder="' + _esc(placeholder) + '">';
     return (
       '<div class="field-group">' +
         '<label class="field-label" for="f-' + key + '">' +
           label +
           (required ? ' <span class="field-required">*</span>' : '') +
-          noteBtn +
         '</label>' +
-        '<input class="field-input" id="f-' + key + '" type="' + type + '"' +
-          ' value="' + _esc(value) + '"' +
-          ' placeholder="' + _esc(placeholder) + '">' +
+        (hasNote
+          ? '<div class="wiz-field-row">' + inputEl + noteBtn + '</div>'
+          : inputEl) +
         '<div class="wiz-note-box" id="wiz-notebox-' + key + '" style="display:none;">' +
           '<textarea placeholder="Note about \u2018' + _esc(label) + '\u2019\u2026" rows="2"></textarea>' +
           '<div class="wiz-note-box-actions">' +
@@ -951,6 +1060,7 @@ var WizardScreen = (function () {
     _tryCollect('vat',            'f-vat');
     _tryCollect('worker_cost',    'f-worker_cost');
     _tryCollect('charge_type',    'f-charge_type');
+    // expense_billing is set via button click, already on _record — no DOM element to collect
     _collectParticipants();
     _collectPartsFlag();
     _collectActions();
@@ -1182,6 +1292,26 @@ var WizardScreen = (function () {
       });
     });
 
+    // ── Action picker (expense mode) ─────────────────────────
+    var actionPickerEl = document.getElementById('f-action-idx');
+    if (actionPickerEl) {
+      actionPickerEl.addEventListener('change', function () {
+        var val = this.value;
+        if (val === '') {
+          _record.actionIdx   = undefined;
+          _record.actionTitle = undefined;
+        } else {
+          var idx = parseInt(val, 10);
+          var action = _parentRecord && _parentRecord.actions && _parentRecord.actions[idx];
+          _record.actionIdx   = idx;
+          _record.actionTitle = action ? action.title : '';
+          var jobEl = document.getElementById('f-job');
+          if (jobEl && action) jobEl.value = action.title;
+        }
+        RecordService.save(_id, _record);
+      });
+    }
+
     // ── Record type selector ─────────────────────────────────
     var typeRow = document.querySelector('.wiz-type-row');
     if (typeRow) {
@@ -1261,16 +1391,24 @@ var WizardScreen = (function () {
       });
     }
 
-    // ── More section toggle ──────────────────────────────────
-    var moreToggle = document.getElementById('wiz-more-toggle');
-    if (moreToggle) {
-      moreToggle.addEventListener('click', function () {
-        var moreBody = document.getElementById('wiz-more-body');
-        var arrow    = document.getElementById('wiz-more-arrow');
-        if (!moreBody) return;
-        var open = moreBody.style.display !== 'none';
-        moreBody.style.display = open ? 'none' : '';
-        if (arrow) arrow.style.transform = open ? '' : 'rotate(90deg)';
+    // ── Expense billing toggle ───────────────────────────────
+    var billingRow = document.querySelector('.wiz-billing-row');
+    if (billingRow) {
+      billingRow.addEventListener('click', function (e) {
+        var btn = e.target.closest('.wiz-billing-btn');
+        if (!btn) return;
+        _record.expense_billing = btn.dataset.billing;
+        document.querySelectorAll('.wiz-billing-btn').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.billing === _record.expense_billing);
+        });
+        // Update amount label text to reflect billing mode
+        var amtLabel = document.getElementById('wiz-amount-label');
+        if (amtLabel) {
+          amtLabel.textContent = _record.expense_billing === 'cogs'
+            ? 'Cost of Goods Sold'
+            : 'Customer price';
+        }
+        RecordService.save(_id, _record);
       });
     }
 

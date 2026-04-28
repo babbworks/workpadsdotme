@@ -155,7 +155,7 @@ var WorkpadsPanel = (function () {
       '  color:var(--ink-faint); font-style:italic;',
       '}',
 
-      /* Expense sub-records section */
+      /* Financial sub-records section */
       '#wpp-expenses { flex-shrink:0; }',
       '.wpp-exp-header {',
       '  display:flex; justify-content:space-between; align-items:center;',
@@ -164,6 +164,14 @@ var WorkpadsPanel = (function () {
       '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
       '  letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint);',
       '}',
+      '.wpp-fin-subtitle {',
+      '  padding:5px 14px 3px;',
+      '  font-family:var(--font-mono); font-size:8.5px; font-weight:700;',
+      '  letter-spacing:.10em; text-transform:uppercase;',
+      '  color:rgba(100,90,80,.38);',
+      '  border-top:1px solid var(--rule-light);',
+      '}',
+      '.wpp-fin-subtitle:first-of-type { border-top:none; }',
       '.wpp-exp-item {',
       '  padding:5px 14px;',
       '  display:flex; justify-content:space-between; align-items:center;',
@@ -172,7 +180,7 @@ var WorkpadsPanel = (function () {
       '}',
       '.wpp-exp-item:hover { background:rgba(192,71,10,.04); }',
       '.wpp-exp-job {',
-      '  font-family:var(--font-mono); font-size:11px; color:var(--ink-muted);',
+      '  font-family:var(--font-mono); font-size:11px; color:var(--ink-mid);',
       '  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;',
       '}',
       '.wpp-exp-amount {',
@@ -189,6 +197,7 @@ var WorkpadsPanel = (function () {
       '.wpp-exp-add {',
       '  padding:6px 10px;',
       '  border-top:1px solid var(--rule-light);',
+      '  display:flex; gap:6px;',
       '}',
     ].join('\n');
     document.head.appendChild(s);
@@ -284,8 +293,7 @@ var WorkpadsPanel = (function () {
   }
 
   function _renderListCtx(ctxEl) {
-    // Only count non-expense records for stats
-    var mainRecords = _records.filter(function (r) { return r.recordType !== 'expense'; });
+    var mainRecords = _records.filter(function (r) { return !r.parentId; });
     var total    = mainRecords.length;
     if (total === 0) { ctxEl.style.display = 'none'; ctxEl.innerHTML = ''; return; }
 
@@ -367,7 +375,7 @@ var WorkpadsPanel = (function () {
       return;
     }
 
-    var mainRecords = _records.filter(function (r) { return r.recordType !== 'expense'; });
+    var mainRecords = _records.filter(function (r) { return !r.parentId; });
     var recent = mainRecords.filter(function (r) {
       return r.customer && r.customer.toLowerCase() === customer.toLowerCase();
     }).slice(0, 2);
@@ -394,77 +402,148 @@ var WorkpadsPanel = (function () {
 
   // ── Expense sub-records ──────────────────────────────────────
 
-  function _renderExpenses(expenses, parentId) {
+  function _renderExpenses(children, parentId) {
     var expEl = document.getElementById('wpp-expenses');
     if (!expEl) return;
 
     expEl.style.display = '';
 
-    if (expenses.length === 0) {
-      expEl.innerHTML = (
-        '<div class="wpp-exp-header"><span>Expenses</span><span>0</span></div>' +
-        '<div class="wpp-exp-add">' +
-          '<button class="btn-ghost" id="wpp-add-exp" style="width:100%;font-size:11px;padding:5px 8px;">+ Add expense</button>' +
-        '</div>'
-      );
-    } else {
-      // Calculate total (all expenses in same currency assumption for display)
-      var total     = 0;
-      var hasCurrency = false;
-      var currSym   = '\u00a3';
-      expenses.forEach(function (e) {
-        if (e.currency) {
-          hasCurrency = true;
-          currSym = e.currency === 'EUR' ? '\u20ac' : e.currency === 'USD' ? '$' : '\u00a3';
-        }
-        var amt = parseFloat(e.amount || '');
-        if (!isNaN(amt)) total += amt;
-      });
+    var payments = children.filter(function (r) { return r.recordType === 'payment'; });
+    var expenses = children.filter(function (r) { return r.recordType !== 'payment'; });
 
-      var itemsHtml = expenses.map(function (e) {
-        var sym = e.currency === 'EUR' ? '\u20ac' : e.currency === 'USD' ? '$' : '\u00a3';
-        var amt = e.amount ? (sym + e.amount) : '';
+    // Determine currency symbol from children or parent
+    var currSym = '\u00a3';
+    var parentRecord = null;
+    for (var pi = 0; pi < _records.length; pi++) {
+      if (_records[pi].id === parentId) { parentRecord = _records[pi]; break; }
+    }
+    if (parentRecord && parentRecord.currency) {
+      currSym = parentRecord.currency === 'EUR' ? '\u20ac' : parentRecord.currency === 'USD' ? '$' : '\u00a3';
+    }
+    children.forEach(function (r) {
+      if (r.currency) currSym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+    });
+
+    var fmt = function (n) { return currSym + n.toFixed(2); };
+
+    function itemsFor(list, defaultLabel) {
+      return list.map(function (r) {
+        var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+        var amt = r.amount ? (sym + parseFloat(r.amount).toFixed(2)) : '';
         return (
-          '<div class="wpp-exp-item" data-exp-id="' + _esc(e.id) + '">' +
-            '<span class="wpp-exp-job">' + _esc(e.job || 'Expense') + '</span>' +
-            (amt ? '<span class="wpp-exp-amount">' + _esc(amt) + '</span>' : '') +
+          '<div class="wpp-exp-item" data-exp-id="' + _esc(r.id) + '" style="padding-right:6px;">' +
+            '<span class="wpp-exp-job">' + _esc(r.job || defaultLabel) + '</span>' +
+            '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">' +
+              (amt ? '<span class="wpp-exp-amount" style="margin-right:4px;">' + _esc(amt) + '</span>' : '') +
+              '<button class="wpp-item-opts wpp-exp-opts" data-id="' + _esc(r.id) + '" ' +
+                'style="position:static;opacity:1;font-size:8px;" title="Options">\u25be</button>' +
+              '<div class="wpp-item-menu" id="wpp-exp-menu-' + _esc(r.id) + '" style="display:none;top:auto;right:0;">' +
+                '<button class="wpp-item-menu-opt danger" data-action="archive" data-id="' + _esc(r.id) + '">Archive</button>' +
+              '</div>' +
+            '</div>' +
           '</div>'
         );
       }).join('');
+    }
 
-      var totalHtml = '';
-      if (total > 0) {
-        totalHtml = '<div class="wpp-exp-total">' +
-          '<span>Total</span>' +
-          '<span>' + currSym + total.toFixed(2) + '</span>' +
-          '</div>';
+    var bodyHtml = '';
+    if (payments.length) {
+      bodyHtml += '<div class="wpp-fin-subtitle">Payment</div>' + itemsFor(payments, 'Payment');
+    }
+    if (expenses.length) {
+      bodyHtml += '<div class="wpp-fin-subtitle">Expense</div>' + itemsFor(expenses, 'Expense');
+    }
+
+    // Profit formula
+    var totalExpenses = expenses.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
+    var totalReceived = payments.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
+    var quotedPrice   = parseFloat((parentRecord && parentRecord.amount) || 0);
+    var profit        = totalReceived - totalExpenses;
+
+    var summaryRows = '';
+    if (quotedPrice > 0) {
+      summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:1px solid var(--rule-light);">' +
+        '<span style="color:var(--ink-muted);">Quoted</span>' +
+        '<span>' + fmt(quotedPrice) + '</span>' +
+      '</div>';
+    }
+    if (totalExpenses > 0 || totalReceived > 0) {
+      if (totalExpenses > 0) {
+        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+          '<span style="color:var(--ink-muted);">Costs</span>' +
+          '<span>' + fmt(totalExpenses) + '</span>' +
+        '</div>';
       }
-
-      expEl.innerHTML = (
-        '<div class="wpp-exp-header">' +
-          '<span>Expenses</span>' +
-          '<span>' + expenses.length + '</span>' +
-        '</div>' +
-        itemsHtml +
-        totalHtml +
-        '<div class="wpp-exp-add">' +
-          '<button class="btn-ghost" id="wpp-add-exp" style="width:100%;font-size:11px;padding:5px 8px;">+ Add expense</button>' +
-        '</div>'
-      );
+      if (totalReceived > 0) {
+        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+          '<span style="color:var(--ink-muted);">Received</span>' +
+          '<span>' + fmt(totalReceived) + '</span>' +
+        '</div>';
+      }
+      summaryRows += '<div class="wpp-exp-total" style="border-top:1px solid var(--rule);">' +
+        '<span>Profit</span>' +
+        '<span style="color:' + (profit >= 0 ? '#2a6e2a' : '#b84040') + ';">' + fmt(profit) + '</span>' +
+      '</div>';
     }
 
-    // Bind "Add expense"
+    expEl.innerHTML = (
+      '<div class="wpp-exp-header">' +
+        '<span>Financial</span>' +
+        '<span>' + children.length + '</span>' +
+      '</div>' +
+      bodyHtml +
+      summaryRows +
+      '<div class="wpp-exp-add">' +
+        '<button class="btn-ghost" id="wpp-add-pay" style="flex:1;font-size:11px;padding:5px 8px;">+ Payment</button>' +
+        '<button class="btn-ghost" id="wpp-add-exp" style="flex:1;font-size:11px;padding:5px 8px;">+ Expense</button>' +
+      '</div>'
+    );
+
+    var addPayBtn = document.getElementById('wpp-add-pay');
+    if (addPayBtn) addPayBtn.addEventListener('click', function () { App.showPayment(parentId); });
+
     var addExpBtn = document.getElementById('wpp-add-exp');
-    if (addExpBtn) {
-      addExpBtn.addEventListener('click', function () {
-        if (typeof App.showExpense === 'function') App.showExpense(parentId);
-      });
-    }
+    if (addExpBtn) addExpBtn.addEventListener('click', function () { App.showExpense(parentId); });
 
-    // Bind expense item clicks
+    // Item click → navigate (not on opts button)
     expEl.querySelectorAll('.wpp-exp-item').forEach(function (item) {
-      item.addEventListener('click', function () {
+      item.addEventListener('click', function (e) {
+        if (e.target.closest('.wpp-exp-opts') || e.target.closest('.wpp-item-menu')) return;
         App.showView(this.dataset.expId);
+      });
+    });
+
+    // Opts button dropdown
+    expEl.querySelectorAll('.wpp-exp-opts').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id   = this.dataset.id;
+        var menu = document.getElementById('wpp-exp-menu-' + id);
+        if (!menu) return;
+        var isOpen = menu.style.display !== 'none';
+        expEl.querySelectorAll('.wpp-item-menu').forEach(function (m) { m.style.display = 'none'; });
+        menu.style.display = isOpen ? 'none' : 'block';
+        if (!isOpen) document.addEventListener('click', function close() {
+          expEl.querySelectorAll('.wpp-item-menu').forEach(function (m) { m.style.display = 'none'; });
+          document.removeEventListener('click', close);
+        });
+      });
+    });
+
+    // Archive option
+    expEl.querySelectorAll('.wpp-item-menu-opt').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = this.dataset.id;
+        expEl.querySelectorAll('.wpp-item-menu').forEach(function (m) { m.style.display = 'none'; });
+        if (this.dataset.action === 'archive') {
+          if (window.confirm('Archive this record?')) {
+            RecordService.archive(id).then(function () {
+              App.toast('Archived');
+              if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) WorkpadsPanel.refresh();
+            });
+          }
+        }
       });
     });
   }
@@ -478,8 +557,8 @@ var WorkpadsPanel = (function () {
     var activeId = _activeId();
     var inRecordMode = (_screenName === 'view' || _screenName === 'edit' || _screenName === 'share');
 
-    // Filter: exclude expense sub-records from the main panel list
-    var mainRecords = _records.filter(function (r) { return r.recordType !== 'expense'; });
+    // Filter: exclude child records (expenses, payments) from the main panel list
+    var mainRecords = _records.filter(function (r) { return !r.parentId; });
 
     if (mainRecords.length === 0) {
       listEl.innerHTML = (

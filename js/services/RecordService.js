@@ -100,6 +100,23 @@
     });
   }
 
+  // Get a single record by ID from the archive store.
+  function getArchived(id) {
+    return archive.get(id);
+  }
+
+  // Restore: move record from archive back to active store.
+  function restoreRecord(id) {
+    return archive.get(id).then(function(rec) {
+      if (!rec) return Promise.reject(new Error('RecordService: archived record not found: ' + id));
+      delete rec.archivedAt;
+      rec.updatedAt = Date.now();
+      return store.put(id, rec).then(function() {
+        return archive.remove(id);
+      });
+    });
+  }
+
   // Encode a record to a shareable workpads URL.
   // Strips internal fields (id, createdAt, updatedAt, draft) before encoding.
   function encodeUrl(rec) {
@@ -154,7 +171,9 @@
     get:             get,
     list:            list,
     listArchived:    listArchived,
+    getArchived:     getArchived,
     archive:         archive_record,
+    restore:         restoreRecord,
     remove:          removeRecord,
     encodeUrl:       encodeUrl,
     decodeUrl:       decodeUrl,

@@ -1,7 +1,7 @@
 /* ============================================================
    Workpads Web App — app.css
    Aesthetic: "The Telegram" — warm paper, ink, rust accent
-   Fonts: Fraunces · JetBrains Mono · Libre Baskerville
+   Fonts: Fraunces (display) · JetBrains Mono · System sans-serif (body)
    ============================================================ */
 
 /* ── Reset ─────────────────────────────────────────────────── */
@@ -39,7 +39,7 @@ a { color: inherit; }
   /* Typography */
   --font-display: 'Fraunces', Georgia, serif;
   --font-mono:    'JetBrains Mono', 'Courier New', monospace;
-  --font-body:    'Libre Baskerville', Georgia, serif;
+  --font-body:    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   /* Shadows */
   --shadow-panel: inset -1px 0 0 var(--panel-border);

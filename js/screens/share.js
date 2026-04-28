@@ -7,6 +7,11 @@ var ShareScreen = (function () {
 
   var _record      = null;
   var _url         = '';
+  var _shareType   = 'job';
+  var _shareView   = 'simple';  // 'simple' (p/index.html) | 'full' (customer.html)
+  var _finRaw      = '';
+  var _includeFin  = false;
+  var _finSummary  = '';
   var _stylesAdded = false;
 
   // ── Styles ───────────────────────────────────────────────────
@@ -69,6 +74,54 @@ var ShareScreen = (function () {
       '  font-family:var(--font-mono); font-size:10px;',
       '  color:var(--ink-faint); letter-spacing:.06em;',
       '}',
+
+      '.share-type-row {',
+      '  display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap;',
+      '}',
+      '.share-type-btn {',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  letter-spacing:.08em; text-transform:uppercase;',
+      '  color:var(--ink-muted); border:1.5px solid var(--rule);',
+      '  border-radius:3px; padding:5px 12px; cursor:pointer;',
+      '  transition:color .13s, border-color .13s, background .13s;',
+      '  background:none;',
+      '}',
+      '.share-type-btn.active {',
+      '  color:var(--stamp); border-color:var(--stamp-border); background:var(--stamp-light);',
+      '}',
+      '.share-type-btn:hover:not(.active) {',
+      '  border-color:var(--ink-faint); color:var(--ink-mid);',
+      '}',
+      '.share-type-label {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-muted);',
+      '  margin-bottom:8px;',
+      '}',
+
+      '.share-fin-row {',
+      '  display:flex; align-items:center; gap:10px;',
+      '  margin-bottom:20px; padding:10px 14px;',
+      '  border:1.5px solid var(--rule); border-radius:3px;',
+      '  cursor:pointer; user-select:none; transition:border-color .13s;',
+      '}',
+      '.share-fin-row:hover { border-color:var(--ink-faint); }',
+      '.share-fin-row.active { border-color:var(--stamp-border); background:var(--stamp-light); }',
+      '.share-fin-check {',
+      '  width:14px; height:14px; flex-shrink:0;',
+      '  border:1.5px solid var(--rule); border-radius:2px;',
+      '  display:flex; align-items:center; justify-content:center;',
+      '  font-size:10px; color:var(--stamp); transition:border-color .13s;',
+      '}',
+      '.share-fin-row.active .share-fin-check { border-color:var(--stamp-border); }',
+      '.share-fin-text { flex:1; }',
+      '.share-fin-label {',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  letter-spacing:.06em; color:var(--ink);',
+      '}',
+      '.share-fin-meta {',
+      '  font-family:var(--font-mono); font-size:9px; color:var(--ink-muted);',
+      '  margin-top:2px;',
+      '}',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -81,22 +134,63 @@ var ShareScreen = (function () {
 
     RecordService.get(params.id).then(function (r) {
       if (!r) { App.showList(); return; }
-      _record = r;
-
-      try {
-        var fragment = RecordService.encodeUrl(r);
-        _url = 'https://' + fragment;
-      } catch (e) {
-        _url = '';
-      }
-
-      _render();
+      _record     = r;
+      _shareType  = r.record_type || 'job';
+      _shareView  = 'simple';
+      _finRaw     = '';
+      _finSummary = '';
+      _includeFin = (_shareType === 'quote' || _shareType === 'invoice');
+      _loadFin().then(function () {
+        _encodeUrl();
+        _render();
+      });
     });
   }
 
   function onHide() {
-    _record = null;
-    _url    = '';
+    _record     = null;
+    _url        = '';
+    _shareType  = 'job';
+    _shareView  = 'simple';
+    _finRaw     = '';
+    _finSummary = '';
+    _includeFin = false;
+  }
+
+  function _loadFin() {
+    return RecordService.list().then(function (all) {
+      var id       = _record.id;
+      // COGS expenses are internal — never expose to customer
+      var expenses = all.filter(function (r) {
+        return r.parentId === id && r.recordType === 'expense' && r.expense_billing !== 'cogs';
+      });
+      var payments = all.filter(function (r) { return r.parentId === id && r.recordType === 'payment'; });
+      if (!expenses.length && !payments.length) return;
+      try {
+        _finRaw = WPCodec.encodeFin(expenses, payments);
+        var parts = [];
+        if (expenses.length) parts.push(expenses.length + ' expense' + (expenses.length !== 1 ? 's' : ''));
+        if (payments.length) parts.push(payments.length + ' payment' + (payments.length !== 1 ? 's' : ''));
+        _finSummary = parts.join(' \xb7 ');
+      } catch(e) { _finRaw = ''; _finSummary = ''; }
+    });
+  }
+
+  function _encodeUrl() {
+    try {
+      var recForEncode = Object.assign({}, _record, {
+        record_type: _shareType === 'job' ? undefined : _shareType,
+      });
+      var fragment = RecordService.encodeUrl(recForEncode);
+      // fragment = 'workpads.me/p#1ag/...' — swap path for full/customer view
+      if (_shareView === 'full') {
+        fragment = fragment.replace('workpads.me/p#', 'workpads.me/p/customer.html#');
+      }
+      var fin = (_includeFin && _finRaw) ? '&fin=' + _finRaw : '';
+      _url = 'https://' + fragment + fin;
+    } catch (e) {
+      _url = '';
+    }
   }
 
   // ── Render ───────────────────────────────────────────────────
@@ -132,10 +226,44 @@ var ShareScreen = (function () {
     html += '<h1 class="screen-title">Share workpad</h1>';
     html += '<p class="screen-subtitle">' + _esc(_record.job || 'Untitled') + '</p>';
 
+    // Share-as type selector
+    var shareTypes = [
+      { val: 'job',     label: 'Job record' },
+      { val: 'quote',   label: 'Quote' },
+      { val: 'invoice', label: 'Invoice' },
+    ];
+    html += '<div class="share-type-label">Share as</div>';
+    html += '<div class="share-type-row" id="share-type-row">';
+    shareTypes.forEach(function (t) {
+      html += '<button type="button" class="share-type-btn' +
+              (t.val === _shareType ? ' active' : '') +
+              '" data-type="' + t.val + '">' + t.label + '</button>';
+    });
+    html += '</div>';
+
+    // View layout selector
+    html += '<div class="share-type-label">View layout</div>';
+    html += '<div class="share-type-row" id="share-view-row">';
+    html += '<button type="button" class="share-type-btn' + (_shareView === 'simple' ? ' active' : '') + '" data-view="simple">Simple</button>';
+    html += '<button type="button" class="share-type-btn' + (_shareView === 'full'   ? ' active' : '') + '" data-view="full">Full screen</button>';
+    html += '</div>';
+
+    // Financials toggle (only when fin data available)
+    if (_finRaw) {
+      html += '<div class="share-fin-row' + (_includeFin ? ' active' : '') + '" id="share-fin-toggle">' +
+        '<div class="share-fin-check">' + (_includeFin ? '\u2713' : '') + '</div>' +
+        '<div class="share-fin-text">' +
+          '<div class="share-fin-label">Include expenses &amp; payments</div>' +
+          '<div class="share-fin-meta">' + _finSummary + (_shareView === 'full' ? ' \xb7 sidebar' : ' \xb7 inline') + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
     // URL box
+    var urlPrefix = _shareView === 'full' ? 'https://workpads.me/p/customer.html#' : 'https://workpads.me/p#';
     html += '<div class="share-url-box" id="share-url-box" title="Click to copy">';
     html += '<div class="share-url-top-row">';
-    html += '<span class="share-url-prefix">https://workpads.me/p#</span>';
+    html += '<span class="share-url-prefix" id="share-url-prefix">' + urlPrefix + '</span>';
     html += '<span class="share-url-hint">Click to copy</span>';
     html += '</div>';
     html += '<div class="share-url-payload">' + _esc((_url.split('#')[1]) || '') + '</div>';
@@ -186,6 +314,77 @@ var ShareScreen = (function () {
     if (backBtn) backBtn.addEventListener('click', function () {
       App.showView(_record.id);
     });
+
+    var typeRow = document.getElementById('share-type-row');
+    if (typeRow) {
+      typeRow.addEventListener('click', function (e) {
+        var btn = e.target.closest('.share-type-btn');
+        if (!btn) return;
+        _shareType = btn.dataset.type;
+        document.querySelectorAll('.share-type-btn').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.type === _shareType);
+        });
+        // Auto-enable fin for financial document types
+        if (_finRaw) {
+          _includeFin = (_shareType === 'quote' || _shareType === 'invoice');
+          _syncFinToggle();
+        }
+        _encodeUrl();
+        _syncUrlDisplay();
+      });
+    }
+
+    var viewRow = document.getElementById('share-view-row');
+    if (viewRow) {
+      viewRow.addEventListener('click', function (e) {
+        var btn = e.target.closest('.share-type-btn');
+        if (!btn) return;
+        _shareView = btn.dataset.view;
+        viewRow.querySelectorAll('.share-type-btn').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.view === _shareView);
+        });
+        _encodeUrl();
+        _syncUrlDisplay();
+        // Update fin meta label
+        var finMeta = document.querySelector('#share-fin-toggle .share-fin-meta');
+        if (finMeta) {
+          finMeta.textContent = _finSummary + (_shareView === 'full' ? ' \xb7 sidebar' : ' \xb7 inline');
+        }
+      });
+    }
+
+    var finToggle = document.getElementById('share-fin-toggle');
+    if (finToggle) {
+      finToggle.addEventListener('click', function () {
+        _includeFin = !_includeFin;
+        _syncFinToggle();
+        _encodeUrl();
+        _syncUrlDisplay();
+      });
+    }
+  }
+
+  function _syncFinToggle() {
+    var row = document.getElementById('share-fin-toggle');
+    if (!row) return;
+    row.classList.toggle('active', _includeFin);
+    var check = row.querySelector('.share-fin-check');
+    if (check) check.textContent = _includeFin ? '\u2713' : '';
+  }
+
+  function _syncUrlDisplay() {
+    var charCount = _url.length;
+    var dataLen   = (_url.split('#')[1] || '').length;
+    var prefixEl  = document.getElementById('share-url-prefix');
+    var payloadEl = document.querySelector('.share-url-payload');
+    var urlPrefix = _shareView === 'full' ? 'https://workpads.me/p/customer.html#' : 'https://workpads.me/p#';
+    if (prefixEl)  prefixEl.textContent  = urlPrefix;
+    if (payloadEl) payloadEl.textContent = (_url.split('#')[1]) || '';
+    var metaVals = document.querySelectorAll('.share-meta-value');
+    if (metaVals[0]) metaVals[0].textContent = String(charCount);
+    if (metaVals[1]) metaVals[1].textContent = dataLen + '\u00a0chars';
+    var openLink = document.getElementById('share-open-link');
+    if (openLink) openLink.href = _url;
   }
 
   function _copyUrl() {

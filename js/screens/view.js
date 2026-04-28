@@ -7,8 +7,12 @@ var ViewScreen = (function () {
 
   var _record        = null;
   var _approval      = null;
+  var _expenses      = [];
+  var _payments      = [];
+  var _finTab        = 'expenses';
   var _stylesAdded   = false;
   var _actionsFilter = '';
+  var _isArchived    = false;
 
   // ── Styles ───────────────────────────────────────────────────
 
@@ -84,12 +88,37 @@ var ViewScreen = (function () {
       '  font-family:var(--font-body); font-size:13.5px; font-style:italic;',
       '  color:var(--ink-mid); margin-top:3px; line-height:1.5;',
       '}',
+      '.view-action-body { flex:1; min-width:0; }',
+      '.view-action-exp-btn {',
+      '  flex-shrink:0; align-self:center;',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  color:var(--stamp); background:none; border:1px solid var(--stamp-border);',
+      '  border-radius:4px; padding:3px 8px; cursor:pointer; white-space:nowrap;',
+      '  opacity:0.6; transition:opacity 0.15s;',
+      '}',
+      '.view-action-exp-btn:hover { opacity:1; }',
 
-      /* Prose (story / details) */
+      /* Prose (story / details) — markdown rendered */
       '.view-prose {',
       '  font-family:var(--font-body); font-size:15.5px;',
       '  color:var(--ink); line-height:1.75;',
       '}',
+      '.view-prose p { margin-bottom:.65em; }',
+      '.view-prose p:last-child { margin-bottom:0; }',
+      '.view-prose h1,.view-prose h2,.view-prose h3 {',
+      '  font-weight:700; margin-bottom:.35em; margin-top:.6em; line-height:1.25;',
+      '}',
+      '.view-prose h1 { font-size:1.25em; }',
+      '.view-prose h2 { font-size:1.1em; }',
+      '.view-prose h3 { font-size:1em; letter-spacing:.02em; }',
+      '.view-prose ul,.view-prose ol { padding-left:1.4em; margin-bottom:.6em; }',
+      '.view-prose li { margin-bottom:.2em; }',
+      '.view-prose code {',
+      '  font-family:var(--font-mono); font-size:.85em;',
+      '  background:var(--rule-light); border-radius:2px; padding:1px 5px;',
+      '}',
+      '.view-prose strong { font-weight:700; }',
+      '.view-prose em { font-style:italic; }',
 
       /* Action filter toolbar */
       '.view-actions-toolbar {',
@@ -187,6 +216,93 @@ var ViewScreen = (function () {
       '  letter-spacing:.06em;',
       '}',
 
+      /* Expense tally */
+      '.view-exp-action-header {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:0.06em;',
+      '  color:var(--ink-faint); text-transform:uppercase; padding:8px 0 2px;',
+      '}',
+      '.view-exp-list { margin-bottom:12px; }',
+      '.view-exp-row {',
+      '  display:flex; justify-content:space-between; align-items:baseline;',
+      '  padding:5px 0; border-bottom:1px solid var(--rule-light);',
+      '  font-family:var(--font-mono); font-size:11px;',
+      '}',
+      '.view-exp-row:last-child { border-bottom:none; }',
+      '.view-exp-label { color:var(--ink-mid); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:12px; }',
+      '.view-exp-label a { color:var(--stamp); text-decoration:none; }',
+      '.view-exp-label a:hover { text-decoration:underline; }',
+      '.view-exp-amount { color:var(--ink); font-weight:700; flex-shrink:0; }',
+      '.view-exp-amount.cogs { color:var(--ink-faint); font-weight:400; }',
+      '.view-tally-row {',
+      '  display:flex; justify-content:space-between; align-items:baseline;',
+      '  padding:8px 0;',
+      '  font-family:var(--font-mono); font-size:11px;',
+      '}',
+      '.view-tally-label {',
+      '  font-size:9px; font-weight:700; letter-spacing:.14em;',
+      '  text-transform:uppercase; color:var(--ink-muted);',
+      '}',
+      '.view-tally-value { color:var(--ink); font-weight:700; }',
+      '.view-tally-total {',
+      '  border-top:1.5px solid var(--rule); margin-top:4px;',
+      '}',
+      '.view-tally-total .view-tally-value {',
+      '  font-family:var(--font-display); font-size:24px; line-height:1;',
+      '}',
+      '.view-diff-row {',
+      '  display:flex; justify-content:space-between; align-items:center;',
+      '  padding:6px 0; margin-top:4px;',
+      '  font-family:var(--font-mono); font-size:10px;',
+      '  border-top:1px dashed var(--rule-light);',
+      '}',
+      '.view-diff-label { color:var(--ink-muted); }',
+      '.view-diff-value { color:var(--ink-mid); font-weight:700; }',
+      '.view-diff-link {',
+      '  font-size:9px; font-weight:700; letter-spacing:.08em;',
+      '  color:var(--stamp); background:none; border:none; cursor:pointer;',
+      '  padding:0; margin-left:8px;',
+      '  text-decoration:underline; text-decoration-style:dotted;',
+      '}',
+
+      /* Financial tab toggle */
+      '.view-fin-tabs { display:flex; align-items:center; gap:0; }',
+      '.view-fin-tab {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.16em; text-transform:uppercase;',
+      '  background:none; border:none; cursor:pointer; padding:0;',
+      '  color:var(--ink-faint); transition:color .12s;',
+      '}',
+      '.view-fin-tab.active { color:var(--ink-muted); }',
+      '.view-fin-tab + .view-fin-tab {',
+      '  margin-left:10px; padding-left:10px;',
+      '  border-left:1px solid var(--rule);',
+      '}',
+
+      /* Cross-panel summary (non-active tab total + outstanding) */
+      '.view-fin-cross {',
+      '  display:flex; justify-content:space-between; align-items:baseline;',
+      '  padding:5px 0;',
+      '  font-family:var(--font-mono); font-size:10px;',
+      '  border-top:1px dashed var(--rule-light); margin-top:6px;',
+      '}',
+      '.view-fin-cross + .view-fin-cross { border-top:none; margin-top:0; padding-top:2px; }',
+      '.view-fin-cross-label { color:var(--ink-muted); }',
+      '.view-fin-cross-value { color:var(--ink-mid); font-weight:700; }',
+      '.view-fin-outstanding .view-fin-cross-label { font-weight:700; }',
+
+      /* Payment rows (mirror of expense rows) */
+      '.view-pay-row {',
+      '  display:flex; justify-content:space-between; align-items:baseline;',
+      '  padding:5px 0; border-bottom:1px solid var(--rule-light);',
+      '  font-family:var(--font-mono); font-size:11px;',
+      '}',
+      '.view-pay-row:last-child { border-bottom:none; }',
+      '.view-pay-label { color:var(--ink-mid); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:12px; }',
+      '.view-pay-label a { color:var(--stamp); text-decoration:none; }',
+      '.view-pay-label a:hover { text-decoration:underline; }',
+      '.view-pay-amount { color:var(--ink); font-weight:700; flex-shrink:0; }',
+      '.view-pay-empty { font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); padding:8px 0; }',
+
       /* Parent record link */
       '.view-parent-link {',
       '  font-family:var(--font-mono); font-size:11px; color:var(--stamp);',
@@ -204,27 +320,45 @@ var ViewScreen = (function () {
   function onShow(params) {
     _addStyles();
     if (!params || !params.id) { App.showList(); return; }
+    _isArchived = !!(params && params.isArchived);
 
-    RecordService.get(params.id).then(function (r) {
-      if (!r) { App.showList(); return; }
-      _record = r;
-      _approval = null;
+    var loader = _isArchived
+      ? RecordService.getArchived(params.id)
+      : RecordService.get(params.id);
 
-      if (r.chainRef && r.record_type !== 'ack') {
-        RecordService.findByChainRef(r.chainRef).then(function(linked) {
-          var acks = linked.filter(function(lr) {
-            return lr.record_type === 'ack' && lr.id !== r.id;
-          });
-          _approval = acks.length ? acks[0] : null;
-          _render();
-        });
-      } else {
-        _render();
+    loader.then(function (r) {
+      if (!r) {
+        if (_isArchived) { App.showArchive(); return; }
+        App.showList();
+        return;
       }
+      _record   = r;
+      _approval = null;
+      _expenses = [];
+
+      var expenseLoad = RecordService.list().then(function (all) {
+        _expenses = all.filter(function (rec) {
+          return rec.parentId === r.id && rec.recordType === 'expense';
+        });
+        _payments = all.filter(function (rec) {
+          return rec.parentId === r.id && rec.recordType === 'payment';
+        });
+      });
+
+      var approvalLoad = (r.chainRef && r.record_type !== 'ack')
+        ? RecordService.findByChainRef(r.chainRef).then(function (linked) {
+            var acks = linked.filter(function (lr) {
+              return lr.record_type === 'ack' && lr.id !== r.id;
+            });
+            _approval = acks.length ? acks[0] : null;
+          })
+        : Promise.resolve();
+
+      Promise.all([expenseLoad, approvalLoad]).then(function () { _render(); });
     });
   }
 
-  function onHide() { _record = null; _approval = null; _actionsFilter = ''; }
+  function onHide() { _record = null; _approval = null; _expenses = []; _payments = []; _finTab = 'expenses'; _actionsFilter = ''; _isArchived = false; }
 
   // ── Render ───────────────────────────────────────────────────
 
@@ -260,14 +394,19 @@ var ViewScreen = (function () {
 
     // ── Action bar
     html += '<div class="view-action-bar">';
-    if (r.parentId) {
-      html += '<button class="view-parent-link" id="view-btn-parent">\u2190 Parent record</button>';
+    if (_isArchived) {
+      html += '<button class="btn-primary" id="view-btn-restore">Restore</button>';
+      html += '<button class="btn-ghost" id="view-btn-back-archive">\u2190 Archive</button>';
+    } else {
+      if (r.parentId) {
+        html += '<button class="view-parent-link" id="view-btn-parent">\u2190 Parent record</button>';
+      }
+      if (r.recordType !== 'expense') {
+        html += '<button class="btn-primary" id="view-btn-share">Share</button>';
+      }
+      html += '<button class="btn-ghost" id="view-btn-edit">Edit</button>';
+      html += '<button class="btn-ghost" id="view-btn-archive">Archive</button>';
     }
-    if (r.recordType !== 'expense') {
-      html += '<button class="btn-primary" id="view-btn-share">Share</button>';
-    }
-    html += '<button class="btn-ghost" id="view-btn-edit">Edit</button>';
-    html += '<button class="btn-ghost" id="view-btn-archive">Archive</button>';
     html += '</div>';
 
     // ── Body sections (main card)
@@ -292,13 +431,13 @@ var ViewScreen = (function () {
 
     if (r.story) {
       html += _renderCardSection('Story',
-        '<p class="view-prose">' + _escNl(r.story) + '</p>');
+        '<div class="view-prose">' + _md(r.story) + '</div>');
     }
 
     if (r.details) {
       html += _renderCardSection(
         'Notes\u200b<span class="view-private-badge">Private</span>',
-        '<p class="view-prose">' + _escNl(r.details) + '</p>',
+        '<div class="view-prose">' + _md(r.details) + '</div>',
         true
       );
     }
@@ -311,10 +450,8 @@ var ViewScreen = (function () {
     html += '</div>'; // .card
 
     // ── Financial card (separate, below main card)
-    if (r.amount) {
-      html += '<div class="card view-financial-card">';
-      html += _renderCardSection('Financial', _renderFinancial(r));
-      html += '</div>';
+    if (r.amount || _expenses.length || _payments.length) {
+      html += _renderFinancialCard(r);
     }
 
     html += '</div>'; // .view-wrap
@@ -378,7 +515,7 @@ var ViewScreen = (function () {
     var filtered = actions.slice();
     if (_actionsFilter.trim()) {
       var q = _actionsFilter.toLowerCase();
-      filtered = ordered.filter(function(a) {
+      filtered = actions.filter(function(a) {
         return (a.title || '').toLowerCase().indexOf(q) !== -1 ||
                (a.notes || '').toLowerCase().indexOf(q) !== -1;
       });
@@ -391,12 +528,14 @@ var ViewScreen = (function () {
     var html = '<ol class="view-actions-list">';
     filtered.forEach(function (a, i) {
       var num = (i < 9 ? '0' : '') + (i + 1);
+      var origIdx = actions.indexOf(a);
       html += '<li class="view-action-item">' +
                 '<span class="view-action-num">' + num + '</span>' +
-                '<div>' +
+                '<div class="view-action-body">' +
                   '<div class="view-action-title">' + _esc(a.title) + '</div>' +
                   (a.notes ? '<div class="view-action-notes">' + _esc(a.notes) + '</div>' : '') +
                 '</div>' +
+                '<button class="view-action-exp-btn" data-action-idx="' + origIdx + '" title="Add expense for this action">+ expense</button>' +
               '</li>';
     });
     return html + '</ol>';
@@ -437,42 +576,207 @@ var ViewScreen = (function () {
     return html + '</div>';
   }
 
-  function _renderFinancial(r) {
-    var CHARGE_LABELS = {
-      '':   'General / labour',
-      '1':  'Urgency / emergency',
-      '2':  'After-hours',
-      '3':  'Travel / mileage',
-      '4':  'Delivery / courier',
-      '5':  'Equipment hire',
-      '6':  'Materials / consumables',
-      '7':  'Subcontractor',
-      '8':  'Cancellation fee',
-      '9':  'Deposit / retainer',
-      '10': 'Credit / discount',
-      '11': 'Warranty adjustment',
-      '12': 'Regulatory levy',
-      '13': 'FX adjustment',
-      '14': 'Payment handling',
-    };
+  function _renderFinancialCard(r) {
+    var expActive = _finTab === 'expenses';
+    var tabsHtml =
+      '<div class="view-fin-tabs">' +
+        '<button class="view-fin-tab' + ( expActive ? ' active' : '') + '" data-tab="expenses">Expenses</button>' +
+        '<button class="view-fin-tab' + (!expActive ? ' active' : '') + '" data-tab="income">Income</button>' +
+      '</div>';
+
+    var content = expActive
+      ? _renderExpensesTab(r, _expenses, _payments)
+      : _renderIncomeTab(r, _expenses, _payments);
+
+    return (
+      '<div class="card view-financial-card">' +
+        '<div class="card-section">' +
+          '<div class="section-label-row" style="margin-bottom:16px;">' +
+            tabsHtml +
+            '<span class="section-rule"></span>' +
+          '</div>' +
+          content +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function _renderExpensesTab(r, expenses, payments) {
+    var sym      = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+    var vatLabel = r.vat === 'standard' ? 'inc. 20% VAT'
+                 : r.vat === 'reduced'  ? 'inc. 5% VAT'
+                 : r.vat === 'zero'     ? 'zero-rated' : '';
+    var fmt = function (n) { return sym + n.toFixed(2); };
+
+    var billedExp = (expenses || []).filter(function (e) { return e.expense_billing !== 'cogs' && e.amount; });
+    var cogsExp   = (expenses || []).filter(function (e) { return e.expense_billing === 'cogs'  && e.amount; });
+    var total     = parseFloat(r.amount) || 0;
+
+    // Simple display when no expense line items
+    if (!billedExp.length && !cogsExp.length) {
+      var html = '<div class="view-financial"><div>';
+      html += '<div class="view-financial-amount">' + sym + _esc(r.amount || '0') + '</div>';
+      if (vatLabel) html += '<div class="view-financial-tax">' + vatLabel + '</div>';
+      if (r.parts_flag) html += '<div class="view-parts-flag">Parts / materials involved</div>';
+      html += '</div></div>';
+      html += _renderFinCross(payments, null, r, 'expenses');
+      return html;
+    }
+
+    var subtotal   = billedExp.reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+    var diff       = total - subtotal;
+    var diffRecord = billedExp.filter(function (e) { return e.isDifference; })[0] || null;
+
+    var expRows = (function () {
+      var groups = [];
+      var groupMap = {};
+      billedExp.forEach(function (e) {
+        var key = e.actionIdx != null ? String(e.actionIdx) : '';
+        if (!groupMap[key]) {
+          var title = '';
+          if (key !== '' && r.actions && r.actions[parseInt(key, 10)]) {
+            title = r.actions[parseInt(key, 10)].title;
+          }
+          var g = { key: key, title: title, items: [] };
+          groups.push(g);
+          groupMap[key] = g;
+        }
+        groupMap[key].items.push(e);
+      });
+      return groups.map(function (g) {
+        var header = g.title
+          ? '<div class="view-exp-action-header">' + _esc(g.title) + '</div>'
+          : '';
+        var rows = g.items.map(function (e) {
+          var label = e.isDifference
+            ? '<span style="color:var(--ink-faint);font-style:italic;">Difference</span>'
+            : '<a href="#" class="view-exp-nav" data-id="' + _esc(e.id) + '">' + _esc(e.job || 'Expense') + '</a>';
+          return '<div class="view-exp-row">' +
+                   '<span class="view-exp-label">' + label + '</span>' +
+                   '<span class="view-exp-amount">' + fmt(parseFloat(e.amount) || 0) + '</span>' +
+                 '</div>';
+        }).join('');
+        return header + rows;
+      }).join('');
+    }());
+
+    var cogsRows = cogsExp.map(function (e) {
+      return '<div class="view-exp-row">' +
+               '<span class="view-exp-label"><a href="#" class="view-exp-nav" data-id="' + _esc(e.id) + '">' +
+                 _esc(e.job || 'Expense') + '</a> <span style="font-size:9px;color:var(--ink-faint);">COGS</span></span>' +
+               '<span class="view-exp-amount cogs">' + fmt(parseFloat(e.amount) || 0) + '</span>' +
+             '</div>';
+    }).join('');
+
+    var diffLine = (Math.abs(diff) > 0.001)
+      ? '<div class="view-diff-row">' +
+          '<span class="view-diff-label">Difference</span>' +
+          '<span>' +
+            '<span class="view-diff-value">' + fmt(Math.abs(diff)) +
+              (diff < 0 ? ' <span style="color:#b84040;">\u25b2</span>' : '') +
+            '</span>' +
+            (diffRecord
+              ? '<button class="view-diff-link" id="view-diff-btn" data-id="' + _esc(diffRecord.id) + '">View</button>'
+              : '<button class="view-diff-link" id="view-diff-btn" data-diff="' + Math.abs(diff).toFixed(2) + '">+ Absorb</button>') +
+          '</span>' +
+        '</div>'
+      : '';
+
+    return (
+      '<div class="view-exp-list">' + expRows + cogsRows + '</div>' +
+      '<div class="view-tally-row">' +
+        '<span class="view-tally-label">Subtotal</span>' +
+        '<span class="view-tally-value">' + fmt(subtotal) + '</span>' +
+      '</div>' +
+      '<div class="view-tally-row view-tally-total">' +
+        '<span class="view-tally-label">Customer price</span>' +
+        '<span class="view-tally-value">' + fmt(total) +
+          (vatLabel ? ' <span style="font-family:var(--font-mono);font-size:9px;font-weight:400;color:var(--ink-muted);">' + vatLabel + '</span>' : '') +
+        '</span>' +
+      '</div>' +
+      diffLine +
+      _renderFinCross(payments, subtotal, r, 'expenses')
+    );
+  }
+
+  function _renderIncomeTab(r, expenses, payments) {
     var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
-    var vatLabel = r.vat === 'standard' ? ' inc. 20% VAT'
-                 : r.vat === 'reduced'  ? ' inc. 5% VAT'
-                 : r.vat === 'zero'     ? ' zero-rated' : '';
-    var chargeStr = r.charge_type != null ? String(r.charge_type) : '';
-    var chargeLabel = CHARGE_LABELS[chargeStr] || '';
-    var html = '<div class="view-financial">';
-    html += '<div>';
-    if (chargeLabel) {
-      html += '<div class="view-financial-charge">' + _esc(chargeLabel) + '</div>';
+    var fmt = function (n) { return sym + n.toFixed(2); };
+
+    var payRows = (payments && payments.length)
+      ? payments.map(function (p) {
+          var label = p.date
+            ? _esc(p.date) + (p.job ? ' \xb7 ' + _esc(p.job) : '')
+            : _esc(p.job || 'Payment');
+          return '<div class="view-pay-row">' +
+                   '<span class="view-pay-label"><a href="#" class="view-pay-nav" data-id="' + _esc(p.id) + '">' + label + '</a></span>' +
+                   '<span class="view-pay-amount">' + fmt(parseFloat(p.amount) || 0) + '</span>' +
+                 '</div>';
+        }).join('')
+      : '<div class="view-pay-empty">No payments recorded.' +
+          ' <button class="view-diff-link" id="view-add-payment">+ Record</button>' +
+        '</div>';
+
+    var totalPaid   = (payments || []).reduce(function (s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
+    var billedTotal = (expenses || [])
+      .filter(function (e) { return e.expense_billing !== 'cogs' && e.amount; })
+      .reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+
+    var tallyHtml = payments && payments.length
+      ? '<div class="view-tally-row view-tally-total">' +
+          '<span class="view-tally-label">Total received</span>' +
+          '<span class="view-tally-value">' + fmt(totalPaid) + '</span>' +
+        '</div>' +
+        '<div style="text-align:right;padding:4px 0;">' +
+          '<button class="view-diff-link" id="view-add-payment">+ Record</button>' +
+        '</div>'
+      : '';
+
+    return (
+      '<div class="view-exp-list">' + payRows + '</div>' +
+      tallyHtml +
+      _renderFinCross(payments, billedTotal, r, 'income')
+    );
+  }
+
+  function _renderFinCross(payments, expSubtotal, r, activeTab) {
+    var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+    var fmt = function (n) { return sym + n.toFixed(2); };
+
+    var totalPaid     = (payments || []).reduce(function (s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
+    var customerPrice = parseFloat(r.amount) || 0;
+    var outstanding   = customerPrice - totalPaid;
+
+    // Cross-panel total row
+    var crossLabel = activeTab === 'expenses' ? 'Income received' : 'Expenses';
+    var crossValue = activeTab === 'expenses' ? totalPaid : (expSubtotal || 0);
+
+    var outLabel, outClass;
+    if (Math.abs(outstanding) < 0.001 && (customerPrice > 0 || totalPaid > 0)) {
+      outLabel = '\u2713 Paid in full';
+      outClass = 'style="color:#2a6e2a;"';
+    } else if (outstanding < 0) {
+      outLabel = 'Overpayment \u00b7 ' + fmt(Math.abs(outstanding));
+      outClass = 'style="color:#b84040;"';
+    } else if (outstanding > 0) {
+      outLabel = 'Outstanding';
+      outClass = '';
+    } else {
+      return '';
     }
-    html += '<div class="view-financial-amount">' + sym + _esc(r.amount) + '</div>';
-    if (vatLabel) {
-      html += '<div class="view-financial-tax">' + vatLabel + '</div>';
-    }
-    html += '</div>';
-    html += '</div>';
-    return html;
+
+    return (
+      '<div class="view-fin-cross">' +
+        '<span class="view-fin-cross-label">' + crossLabel + '</span>' +
+        '<span class="view-fin-cross-value">' + fmt(crossValue) + '</span>' +
+      '</div>' +
+      '<div class="view-fin-cross view-fin-outstanding">' +
+        '<span class="view-fin-cross-label" ' + outClass + '>' + outLabel + '</span>' +
+        (outstanding > 0
+          ? '<span class="view-fin-cross-value">' + fmt(outstanding) + '</span>'
+          : '') +
+      '</div>'
+    );
   }
 
   function _renderDetailGrid(r, keys) {
@@ -501,6 +805,15 @@ var ViewScreen = (function () {
     var id       = _record.id;
     var parentId = _record.parentId;
 
+    if (_isArchived) {
+      var restoreBtn  = document.getElementById('view-btn-restore');
+      var backArchBtn = document.getElementById('view-btn-back-archive');
+      if (restoreBtn)  restoreBtn.addEventListener('click',  _doRestore);
+      if (backArchBtn) backArchBtn.addEventListener('click', function () { App.showArchive(); });
+      _bindFinancialEvents(id);
+      return;
+    }
+
     var parentBtn  = document.getElementById('view-btn-parent');
     var shareBtn   = document.getElementById('view-btn-share');
     var editBtn    = document.getElementById('view-btn-edit');
@@ -510,6 +823,8 @@ var ViewScreen = (function () {
     if (shareBtn)   shareBtn.addEventListener('click',   function () { App.showShare(id); });
     if (editBtn)    editBtn.addEventListener('click',    function () { App.showWizard(id); });
     if (archiveBtn) archiveBtn.addEventListener('click', _doArchive);
+
+    _bindFinancialEvents(id);
 
     // Action filter toolbar (live re-render preserving filter state)
     var searchEl = document.getElementById('view-act-search');
@@ -521,6 +836,63 @@ var ViewScreen = (function () {
     }
   }
 
+  function _bindFinancialEvents(id) {
+    // Tab toggle
+    document.querySelectorAll('.view-fin-tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tab = this.dataset.tab;
+        if (tab === _finTab) return;
+        _finTab = tab;
+        var card = document.querySelector('.view-financial-card');
+        if (card) {
+          var newCard = document.createElement('div');
+          newCard.innerHTML = _renderFinancialCard(_record);
+          card.parentNode.replaceChild(newCard.firstChild, card);
+          _bindFinancialEvents(id);
+        }
+      });
+    });
+
+    // Expense navigation
+    document.querySelectorAll('.view-exp-nav').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        App.showView(this.dataset.id);
+      });
+    });
+
+    // Difference absorb / view
+    var diffBtn = document.getElementById('view-diff-btn');
+    if (diffBtn) {
+      if (diffBtn.dataset.id) {
+        diffBtn.addEventListener('click', function () { App.showView(this.dataset.id); });
+      } else {
+        diffBtn.addEventListener('click', function () { App.showExpense(id, this.dataset.diff); });
+      }
+    }
+
+    // Payment navigation
+    document.querySelectorAll('.view-pay-nav').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        App.showView(this.dataset.id);
+      });
+    });
+
+    // Add payment button
+    var addPayBtn = document.getElementById('view-add-payment');
+    if (addPayBtn) {
+      addPayBtn.addEventListener('click', function () { App.showPayment(id); });
+    }
+
+    // Action expense buttons
+    document.querySelectorAll('.view-action-exp-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        App.showExpense(id, null, parseInt(this.dataset.actionIdx, 10));
+      });
+    });
+  }
+
   function _rerenderActions() {
     var r = _record;
     if (!r || !r.actions || !r.actions.length) return;
@@ -528,20 +900,95 @@ var ViewScreen = (function () {
     var toolbarEl   = screenEl && screenEl.querySelector('.view-actions-toolbar');
     var actListEl   = toolbarEl && toolbarEl.nextElementSibling;
     if (!actListEl) return;
-    // Replace just the list portion (after toolbar)
-    var newHtml = _renderActions(r.actions);
-    actListEl.outerHTML = newHtml;
+    actListEl.outerHTML = _renderActions(r.actions);
+    // Re-bind expense buttons on new DOM nodes
+    document.querySelectorAll('.view-action-exp-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        App.showExpense(r.id, null, parseInt(this.dataset.actionIdx, 10));
+      });
+    });
+  }
+
+  function _doRestore() {
+    RecordService.restore(_record.id).then(function () {
+      if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) WorkpadsPanel.refresh();
+      App.toast('Record restored');
+      App.showView(_record.id);
+    }).catch(function () {
+      App.toast('Restore failed');
+    });
   }
 
   function _doArchive() {
     if (!confirm('Archive this record? It will be removed from your active list.')) return;
+    var parentId = _record.parentId || null;
     RecordService.archive(_record.id).then(function () {
       if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) {
         WorkpadsPanel.refresh();
       }
       App.toast('Record archived');
-      App.showList();
+      if (parentId) {
+        App.showView(parentId);
+      } else {
+        App.showList();
+      }
     });
+  }
+
+  // ── Markdown renderer ────────────────────────────────────────
+
+  function _mdInline(s) {
+    s = _esc(s);
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*(.+?)\*/g,     '<em>$1</em>');
+    s = s.replace(/`(.+?)`/g,       '<code>$1</code>');
+    return s;
+  }
+
+  function _md(text) {
+    if (!text) return '';
+    var lines  = text.split('\n');
+    var html   = '';
+    var inUl   = false;
+    var inOl   = false;
+    var olNum  = 0;
+
+    function closeList() {
+      if (inUl) { html += '</ul>'; inUl = false; }
+      if (inOl) { html += '</ol>'; inOl = false; olNum = 0; }
+    }
+
+    lines.forEach(function (line) {
+      var hm = line.match(/^(#{1,3})\s+(.+)/);
+      if (hm) {
+        closeList();
+        var lvl = hm[1].length;
+        html += '<h' + lvl + '>' + _mdInline(hm[2]) + '</h' + lvl + '>';
+        return;
+      }
+      var ulm = line.match(/^[-*]\s+(.+)/);
+      if (ulm) {
+        if (inOl) closeList();
+        if (!inUl) { html += '<ul>'; inUl = true; }
+        html += '<li>' + _mdInline(ulm[1]) + '</li>';
+        return;
+      }
+      var olm = line.match(/^\d+\.\s+(.+)/);
+      if (olm) {
+        if (inUl) closeList();
+        if (!inOl) { html += '<ol>'; inOl = true; }
+        html += '<li>' + _mdInline(olm[1]) + '</li>';
+        return;
+      }
+      closeList();
+      if (line.trim() === '') {
+        if (html.slice(-4) !== '<br>') html += '<br>';
+        return;
+      }
+      html += '<p>' + _mdInline(line) + '</p>';
+    });
+    closeList();
+    return html;
   }
 
   // ── Helpers ──────────────────────────────────────────────────

@@ -6,8 +6,8 @@
   <title>Workpads — Job Record</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="../js/lib/fflate.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -86,7 +86,7 @@
       flex-shrink: 0;
     }
     .demo-callout-text {
-      font-family: 'Libre Baskerville', serif;
+      font-family: system-ui, -apple-system, sans-serif;
       font-size: 13px;
       color: var(--ink-mid);
       line-height: 1.6;
@@ -271,14 +271,14 @@
     .action-body { flex: 1; }
 
     .action-title {
-      font-family: 'Libre Baskerville', serif;
+      font-family: system-ui, -apple-system, sans-serif;
       font-size: 15px;
       font-weight: 700;
       color: var(--ink);
       line-height: 1.3;
     }
     .action-notes {
-      font-family: 'Libre Baskerville', serif;
+      font-family: system-ui, -apple-system, sans-serif;
       font-size: 13.5px;
       font-style: italic;
       color: var(--ink-mid);
@@ -288,11 +288,18 @@
 
     /* ── Prose sections ────────────────────────────────────── */
     .prose {
-      font-family: 'Libre Baskerville', serif;
+      font-family: system-ui, -apple-system, sans-serif;
       font-size: 15.5px;
       color: var(--ink-mid);
       line-height: 1.75;
     }
+
+    .prose p { margin-bottom: .65em; }
+    .prose p:last-child { margin-bottom: 0; }
+    .prose ul, .prose ol { padding-left: 1.4em; margin-bottom: .6em; }
+    .prose li { margin-bottom: .2em; }
+    .prose strong { font-weight: 700; }
+    .prose em { font-style: italic; }
 
     /* ── Details grid ──────────────────────────────────────── */
     .details-grid {
@@ -318,11 +325,129 @@
       color: var(--ink);
     }
 
+    /* ── Financials section ─────────────────────────────────── */
+    .fin-action-subhead {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--stamp, #6b7c93);
+      padding: 6px 0 1px; opacity: 0.8;
+    }
+    .fin-sub-head {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--ink-muted);
+      margin-bottom: 8px;
+    }
+    .fin-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 3px 0; border-bottom: 1px solid var(--rule-light);
+    }
+    .fin-row:last-of-type { border-bottom: none; }
+    .fin-row-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: var(--ink-mid);
+    }
+    .fin-row-amount {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700; color: var(--ink);
+    }
+    .fin-row-total {
+      margin-top: 6px; padding-top: 5px;
+      border-top: 1px solid var(--rule) !important;
+      border-bottom: none !important;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; color: var(--ink-muted);
+      letter-spacing: 0.06em;
+    }
+    /* ── Viewer import bar ───────────────────────────────────── */
+    .viewer-import-bar {
+      display: none; align-items: center; gap: 12px; flex-wrap: wrap;
+      background: var(--stamp-light); border: 1px solid var(--stamp-border);
+      border-radius: 3px; padding: 10px 16px; margin-bottom: 14px;
+    }
+    .viewer-import-msg {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      color: var(--stamp); flex: 1;
+    }
+    .viewer-import-action {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      color: #fff; background: var(--stamp); border-radius: 3px;
+      padding: 5px 12px; cursor: pointer; white-space: nowrap;
+    }
+    .viewer-import-done {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--stamp);
+    }
+    /* ── Viewer add-expense form ─────────────────────────────── */
+    .viewer-add-expense { margin-top: 16px; }
+    .viewer-add-expense-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      color: var(--stamp); border: 1px solid var(--stamp-border);
+      border-radius: 3px; padding: 5px 12px; cursor: pointer; background: none;
+      transition: opacity .13s; opacity: 0.7;
+    }
+    .viewer-add-expense-btn:hover { opacity: 1; }
+    .viewer-expense-form { margin-top: 12px; }
+    .viewer-exp-field-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-muted);
+      margin: 10px 0 4px;
+    }
+    .viewer-exp-input, .viewer-exp-select {
+      display: block; width: 100%;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      border: 1px solid var(--rule); border-radius: 3px;
+      padding: 8px 10px; background: var(--card); color: var(--ink);
+    }
+    .viewer-exp-input:focus, .viewer-exp-select:focus { outline: none; border-color: var(--stamp-border); }
+    .viewer-exp-submit-btn {
+      margin-top: 12px;
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      color: #fff; background: var(--stamp); border-radius: 3px;
+      padding: 8px 16px; cursor: pointer; width: 100%; text-align: center;
+      transition: background .13s;
+    }
+    .viewer-exp-submit-btn:hover { background: #a33a06; }
+    .viewer-exp-feedback {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      color: var(--stamp); margin-top: 6px; min-height: 1em;
+    }
+    .viewer-share-updates { margin-top: 14px; }
+    .viewer-share-updates-btn {
+      display: block; width: 100%;
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.08em; text-align: center;
+      color: var(--stamp); background: none;
+      border: 1.5px solid var(--stamp-border); border-radius: 3px;
+      padding: 8px 12px; cursor: pointer; transition: background .13s, color .13s;
+    }
+    .viewer-share-updates-btn:hover { background: var(--stamp); color: #fff; }
+    .fin-owing-block {
+      margin-top: 14px; padding: 12px 16px;
+      background: var(--stamp-light);
+      border: 1px solid var(--stamp-border); border-radius: 3px;
+    }
+    .fin-owing-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .fin-owing-lbl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--stamp);
+    }
+    .fin-owing-amt {
+      font-family: var(--font-body); font-size: 22px; font-weight: 700; color: var(--ink);
+    }
+    .fin-owing-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: var(--ink-muted); margin-top: 3px; text-align: right;
+    }
+
     /* ── Document footer ───────────────────────────────────── */
     .doc-footer {
       padding: 20px 44px;
-      background: var(--rule-light);
+      background: linear-gradient(180deg, var(--rule-light) 0%, #e6ddd0 100%);
       border-top: 1px solid var(--rule);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(25,20,15,0.06);
       display: flex;
       flex-wrap: wrap;
       gap: 24px;
@@ -360,13 +485,15 @@
       font-weight: 700;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: var(--ink-muted);
+      color: #9e8e7c;
+      text-shadow:
+        0 1px 1px rgba(255,255,255,0.75),
+        0 -1px 0   rgba(25,20,15,0.14);
     }
     .footer-brand-sub {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 9px;
-      color: var(--ink-muted);
-      opacity: 0.7;
+      font-size: 9px; font-weight: 700;
+      color: var(--ink-faint);
     }
 
     /* ── About block (bottom) ──────────────────────────────── */
@@ -386,14 +513,17 @@
     }
     .about-wordmark {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
+      letter-spacing: 0.08em;
       color: var(--ink-muted);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: color 0.13s, border-color 0.13s;
     }
+    .about-wordmark:hover { color: var(--ink); border-bottom-color: var(--ink-faint); }
     .about-sub {
-      font-family: 'Libre Baskerville', serif;
+      font-family: system-ui, -apple-system, sans-serif;
       font-size: 12.5px;
       font-style: italic;
       color: var(--ink-muted);
@@ -411,6 +541,89 @@
       white-space: nowrap;
     }
     .about-link:hover { border-bottom-color: var(--stamp); }
+
+    /* ── Approve block ─────────────────────────────────────── */
+    .approve-block {
+      max-width: 680px;
+      width: 100%;
+      margin: 32px auto 24px;
+      padding: 0 4px;
+      text-align: center;
+    }
+    .approve-btn {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #fff;
+      background: var(--stamp); border-radius: 3px;
+      padding: 12px 28px; transition: background 0.13s;
+      cursor: pointer;
+    }
+    .approve-btn:hover { background: #a33a06; }
+    .approve-note {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9.5px; color: var(--ink-faint);
+      margin-top: 8px; letter-spacing: 0.04em;
+    }
+
+    /* ── Approve overlay ───────────────────────────────────── */
+    .p-overlay {
+      position: fixed; inset: 0;
+      background: rgba(25,20,15,0.45); backdrop-filter: blur(4px);
+      z-index: 500; display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .p-overlay-card {
+      background: var(--card); border: 1px solid var(--rule);
+      border-radius: 6px; padding: 36px 40px 32px;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 8px 40px rgba(25,20,15,.22);
+    }
+    .p-ov-wordmark {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--ink-muted); margin-bottom: 18px;
+    }
+    .p-ov-heading {
+      font-family: 'Fraunces', serif;
+      font-size: 26px; font-weight: 700; color: var(--ink);
+      line-height: 1.15; margin-bottom: 8px;
+    }
+    .p-ov-sub {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px; font-style: italic; color: var(--ink-muted);
+      line-height: 1.6; margin-bottom: 24px;
+    }
+    .p-ov-field {
+      display: block; width: 100%;
+      background: var(--card-raised); border: 1.5px solid var(--rule);
+      border-radius: 3px; padding: 9px 12px;
+      font-family: system-ui, -apple-system, sans-serif; font-size: 15px;
+      color: var(--ink); margin-bottom: 12px;
+      transition: border-color 0.13s;
+    }
+    .p-ov-field:focus { border-color: #d96020; outline: none; }
+    .p-ov-field::placeholder { color: var(--ink-faint); }
+    .p-ov-btn {
+      display: block; width: 100%;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #fff;
+      background: var(--stamp); border-radius: 3px;
+      padding: 11px 16px; transition: background 0.13s;
+    }
+    .p-ov-btn:hover { background: #a33a06; }
+    .p-ov-note {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; color: var(--ink-faint);
+      margin-top: 12px; letter-spacing: 0.04em; line-height: 1.5;
+    }
+    .p-ov-url-box {
+      background: var(--ink); border-radius: 4px; padding: 14px 16px;
+      margin: 16px 0; cursor: pointer;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      color: rgba(240,237,230,.85); word-break: break-all; line-height: 1.55;
+    }
 
     /* ── Error state ───────────────────────────────────────── */
     .error-card {
@@ -445,7 +658,7 @@
       margin-bottom: 12px;
     }
     .error-text {
-      font-family: 'Libre Baskerville', serif;
+      font-family: system-ui, -apple-system, sans-serif;
       font-size: 15px;
       color: var(--ink-mid);
       line-height: 1.7;
@@ -476,6 +689,11 @@
 (function() {
   'use strict';
 
+  // ── Viewer state ──────────────────────────────────────────
+  var _currentRecord  = null;
+  var _currentFin     = null;
+  var _viewerExpenses = [];  // expenses added by this viewer
+
   // ── Field definitions ─────────────────────────────────────
   var SCALAR_FIELDS = [
     'job', 'customer', 'date', 'location',
@@ -487,7 +705,6 @@
     worker:         'Worker',
     start_time:     'Start',
     end_time:       'End',
-    meeting_time:   'Meeting',
     customer_phone: 'Contact',
     location:       'Location',
   };
@@ -512,27 +729,103 @@
     return params;
   }
 
+  function decodeFin(str) {
+    try {
+      var b64    = str.replace(/-/g, '+').replace(/_/g, '/');
+      var pad    = (4 - b64.length % 4) % 4;
+      var binary = atob(b64 + '===='.slice(0, pad));
+      var bytes  = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      var inflated = fflate.inflateSync(bytes);
+      return JSON.parse(new TextDecoder().decode(inflated));
+    } catch(e) { return null; }
+  }
+
+  function appendFin(finObj, viewerExpenses) {
+    var obj = {
+      e: (finObj && finObj.e ? finObj.e.slice() : []),
+      p: (finObj && finObj.p ? finObj.p.slice() : []),
+    };
+    (viewerExpenses || []).forEach(function(e) {
+      var item = { a: String(e.amount || '0'), s: 'v' };
+      if (e.job)           item.l = e.job;
+      if (e.date)          item.d = e.date;
+      if (e.actionIdx != null) item.n = e.actionIdx;
+      obj.e.push(item);
+    });
+    var bytes = new TextEncoder().encode(JSON.stringify(obj));
+    var compressed = fflate.deflateSync(bytes, { level: 9 });
+    return bytesToBase64url(compressed);
+  }
+
+  function buildAugmentedUrl() {
+    var hash = window.location.hash.slice(1);
+    var segs = hash.split('&');
+    var payload = segs[0];
+    var otherParams = [];
+    segs.slice(1).forEach(function(seg) {
+      if (seg.indexOf('fin=') !== 0) otherParams.push(seg);
+    });
+    var newFin = appendFin(_currentFin, _viewerExpenses);
+    return 'https://workpads.me/p#' +
+      [payload].concat(otherParams).concat(['fin=' + newFin]).join('&');
+  }
+
+  function getLocalOwnerId(record) {
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf('wp_record_') !== 0) continue;
+        var stored = JSON.parse(localStorage.getItem(k) || 'null');
+        if (stored && !stored.parentId && !stored.receivedAt &&
+            stored.job === record.job && stored.customer === record.customer) return stored.id;
+      }
+    } catch(_) {}
+    return null;
+  }
+
+  function importViewerExpenses(ownerId, finItems, record) {
+    var imported = 0;
+    finItems.forEach(function(e) {
+      var expId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      var exp = {
+        id:              expId,
+        recordType:      'expense',
+        parentId:        ownerId,
+        job:             e.l || 'Expense',
+        amount:          e.a || '0',
+        currency:        record.currency || 'GBP',
+        expense_billing: 'customer',
+        createdAt:       Date.now(),
+        updatedAt:       Date.now(),
+        draft:           false,
+        importedFromViewer: true,
+      };
+      if (e.n != null) {
+        exp.actionIdx = e.n;
+        if (record.actions && record.actions[e.n]) exp.actionTitle = record.actions[e.n].title;
+      }
+      try { localStorage.setItem('wp_record_' + expId, JSON.stringify(exp)); imported++; } catch(_) {}
+    });
+    return imported;
+  }
+
   function decodeWorkpad(hashFragment) {
-    // Extract chain ref if present
+    // Split on '&' — first segment is codec payload, rest are key=value params
+    var segments = hashFragment.split('&');
+    var payload  = segments[0];
     var chainRef = null;
-    var cIdx = hashFragment.indexOf('&c=');
-    if (cIdx !== -1) {
-      chainRef = hashFragment.slice(cIdx + 3);
-      hashFragment = hashFragment.slice(0, cIdx);
+    for (var si = 1; si < segments.length; si++) {
+      var eq = segments[si].indexOf('=');
+      if (eq !== -1 && segments[si].slice(0, eq) === 'c') {
+        chainRef = segments[si].slice(eq + 1);
+      }
     }
 
-    var compressed, frame;
-
-    if (/^[0-9][a-z][a-z]\//.test(hashFragment)) {
-      compressed = base64urlToBytes(hashFragment.slice(4));
-      frame = fflate.inflateSync(compressed);
-    } else {
-      var params = parseHashParams(hashFragment);
-      if (params.alg !== 'bitpad-v1') throw new Error('Unsupported algorithm: ' + (params.alg || 'none'));
-      if (!params.d) throw new Error('Missing payload parameter');
-      compressed = base64urlToBytes(params.d);
-      frame = fflate.inflateSync(compressed);
-    }
+    if (!/^[0-9][a-z][a-z]\//.test(payload)) throw new Error('Unrecognised format');
+    hashFragment = payload;
+    var compressed = base64urlToBytes(hashFragment.slice(4));
+    var frame = fflate.inflateSync(compressed);
 
     // Flags: 16-bit big-endian uint16 at bytes 1–2
     var flags = (frame[1] << 8) | frame[2];
@@ -582,6 +875,61 @@
 
     if (chainRef) record._chainRef = chainRef;
     return record;
+  }
+
+  // ── Encoder (for ACK generation) ─────────────────────────
+  var _ENC_FIELDS = [
+    ['job',0],['customer',1],['date',2],['location',3],
+    ['meeting_time',4],['start_time',5],['end_time',6],
+    ['customer_phone',7],['worker',8],
+    ['details',10],['story',11],
+    ['amount',12],['currency',13],['vat',14],['record_type',15],
+  ];
+
+  function bytesToBase64url(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  function encodeWorkpad(record, chainRef) {
+    var te = new TextEncoder();
+    var flags = 0;
+    var fieldBytes = {};
+    for (var i = 0; i < _ENC_FIELDS.length; i++) {
+      var f = _ENC_FIELDS[i];
+      if (record[f[0]] != null && record[f[0]] !== '') {
+        fieldBytes[f[0]] = te.encode(String(record[f[0]]));
+        flags |= (1 << f[1]);
+      }
+    }
+    var size = 3;
+    for (var j = 0; j < _ENC_FIELDS.length; j++) {
+      var ef = _ENC_FIELDS[j];
+      if (ef[1] !== 9 && fieldBytes[ef[0]]) size += 2 + fieldBytes[ef[0]].length;
+    }
+    var buf = new Uint8Array(size);
+    var pos = 0;
+    buf[pos++] = 0x01;
+    buf[pos++] = (flags >>> 8) & 0xFF;
+    buf[pos++] = flags & 0xFF;
+    function writeField(bytes) {
+      buf[pos++] = (bytes.length >>> 8) & 0xFF;
+      buf[pos++] = bytes.length & 0xFF;
+      buf.set(bytes, pos); pos += bytes.length;
+    }
+    for (var k = 0; k < _ENC_FIELDS.length; k++) {
+      var kf = _ENC_FIELDS[k];
+      if (kf[1] < 9 && fieldBytes[kf[0]]) writeField(fieldBytes[kf[0]]);
+    }
+    for (var m = 0; m < _ENC_FIELDS.length; m++) {
+      var mf = _ENC_FIELDS[m];
+      if (mf[1] > 9 && fieldBytes[mf[0]]) writeField(fieldBytes[mf[0]]);
+    }
+    var compressed = fflate.deflateSync(buf, { level: 9 });
+    var hash = '1ag/' + bytesToBase64url(compressed);
+    if (chainRef) hash += '&c=' + chainRef;
+    return hash;
   }
 
   // ── Rendering ─────────────────────────────────────────────
@@ -638,7 +986,7 @@
   }
 
   function renderDetailsGrid(record) {
-    var detailFields = ['worker', 'start_time', 'end_time', 'meeting_time', 'customer_phone'];
+    var detailFields = ['worker', 'start_time', 'end_time', 'customer_phone'];
     var fields = [];
     for (var i = 0; i < detailFields.length; i++) {
       var key = detailFields[i];
@@ -659,6 +1007,36 @@
     '</div>';
   }
 
+  function mdInline(s) {
+    s = esc(s);
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*(.+?)\*/g,     '<em>$1</em>');
+    s = s.replace(/`(.+?)`/g,       '<code style="font-family:\'JetBrains Mono\',monospace;font-size:.85em;background:rgba(0,0,0,.06);border-radius:2px;padding:1px 4px;">$1</code>');
+    return s;
+  }
+
+  function md(text) {
+    if (!text) return '';
+    var lines = text.split('\n'), html = '', inUl = false, inOl = false;
+    function closeList() {
+      if (inUl) { html += '</ul>'; inUl = false; }
+      if (inOl) { html += '</ol>'; inOl = false; }
+    }
+    lines.forEach(function(line) {
+      var hm = line.match(/^(#{1,3})\s+(.+)/);
+      if (hm) { closeList(); var l=hm[1].length; html += '<h'+l+' style="font-weight:700;margin:.5em 0 .25em;">'+mdInline(hm[2])+'</h'+l+'>'; return; }
+      var ulm = line.match(/^[-*]\s+(.+)/);
+      if (ulm) { if (inOl) closeList(); if (!inUl) { html += '<ul>'; inUl = true; } html += '<li>'+mdInline(ulm[1])+'</li>'; return; }
+      var olm = line.match(/^\d+\.\s+(.+)/);
+      if (olm) { if (inUl) closeList(); if (!inOl) { html += '<ol>'; inOl = true; } html += '<li>'+mdInline(olm[1])+'</li>'; return; }
+      closeList();
+      if (line.trim() === '') { if (html.slice(-4) !== '<br>') html += '<br>'; return; }
+      html += '<p>'+mdInline(line)+'</p>';
+    });
+    closeList();
+    return html;
+  }
+
   function renderProse(label, text) {
     if (!text) return '';
     return '<div class="doc-section">' +
@@ -666,7 +1044,7 @@
         '<span class="section-label">' + label + '</span>' +
         '<span class="section-rule"></span>' +
       '</div>' +
-      '<p class="prose">' + esc(text) + '</p>' +
+      '<div class="prose">' + md(text) + '</div>' +
     '</div>';
   }
 
@@ -680,7 +1058,7 @@
     }
     if (record.customer_phone) {
       fields.push('<div class="footer-field">' +
-        '<div class="footer-field-label">Contact</div>' +
+        '<div class="footer-field-label">Customer</div>' +
         '<div class="footer-field-value">' + esc(record.customer_phone) + '</div>' +
       '</div>');
     }
@@ -690,14 +1068,132 @@
       '<div class="footer-brand">' +
         '<div>' +
           '<div class="footer-brand-text">Workpads</div>' +
-          '<div class="footer-brand-sub">workpads.me · bitpad-v1</div>' +
+          '<div class="footer-brand-sub">workpads.me</div>' +
         '</div>' +
       '</div>' +
     '</div>';
   }
 
-  function renderDocument(record, isDemo) {
+  function renderFinSection(fin, sym, record) {
+    if (!fin || (!fin.e && !fin.p)) return '';
+    var quoted = parseFloat(record && record.amount) || 0;
+    var html = '<div class="doc-section fin-section">' +
+      '<div class="section-header">' +
+        '<span class="section-label">Financials</span>' +
+        '<span class="section-rule"></span>' +
+      '</div>';
+
+    // Expenses + Live Work Charge
+    var totalExpenses = 0;
+    if (fin.e && fin.e.length) {
+      html += '<div class="fin-sub-head">Expenses</div>';
+      // Group by actionIdx (field 'n')
+      var expGroups = [];
+      var expGroupMap = {};
+      fin.e.forEach(function(e) {
+        var key = e.n != null ? String(e.n) : '';
+        if (!expGroupMap[key]) {
+          var title = '';
+          if (key !== '' && record && record.actions && record.actions[parseInt(key, 10)]) {
+            title = record.actions[parseInt(key, 10)].title;
+          }
+          var g = { key: key, title: title, items: [] };
+          expGroups.push(g);
+          expGroupMap[key] = g;
+        }
+        expGroupMap[key].items.push(e);
+      });
+      expGroups.forEach(function(g) {
+        if (g.title) {
+          html += '<div class="fin-action-subhead">' + esc(g.title) + '</div>';
+        }
+        g.items.forEach(function(e) {
+          var amt = parseFloat(e.a) || 0;
+          totalExpenses += amt;
+          html += '<div class="fin-row">' +
+            '<span class="fin-row-label">' + esc(e.l || 'Expense') + (e.d ? ' \xb7 ' + esc(e.d) : '') + '</span>' +
+            '<span class="fin-row-amount">' + sym + amt.toFixed(2) + '</span>' +
+          '</div>';
+        });
+      });
+    }
+
+    var liveCharge = 0;
+    if (quoted > 0 && totalExpenses < quoted) {
+      liveCharge    = quoted - totalExpenses;
+      totalExpenses = quoted;
+      html += '<div class="fin-row" style="opacity:.75;">' +
+        '<span class="fin-row-label" style="font-style:italic;">Live Work Charge</span>' +
+        '<span class="fin-row-amount">' + sym + liveCharge.toFixed(2) + '</span>' +
+      '</div>';
+    }
+
+    if (fin.e && fin.e.length) {
+      html += '<div class="fin-row fin-row-total">' +
+        '<span>Subtotal</span>' +
+        '<span>' + sym + totalExpenses.toFixed(2) + '</span>' +
+      '</div>';
+    }
+
+    // Payments
+    var totalPaid = 0;
+    if (fin.p && fin.p.length) {
+      html += '<div class="fin-sub-head" style="margin-top:12px;">Payments received</div>';
+      fin.p.forEach(function(p) {
+        var amt = parseFloat(p.a) || 0;
+        totalPaid += amt;
+        html += '<div class="fin-row">' +
+          '<span class="fin-row-label">' + esc(p.l || 'Payment') + (p.d ? ' \xb7 ' + esc(p.d) : '') + '</span>' +
+          '<span class="fin-row-amount">' + sym + amt.toFixed(2) + '</span>' +
+        '</div>';
+      });
+    }
+
+    // Amount owing
+    var billable = Math.max(totalExpenses, quoted);
+    var owing    = Math.max(0, billable - totalPaid);
+    html += '<div class="fin-owing-block">' +
+      '<div class="fin-owing-row">' +
+        '<span class="fin-owing-lbl">Amount owing</span>' +
+        '<span class="fin-owing-amt">' + sym + owing.toFixed(2) + '</span>' +
+      '</div>' +
+      (totalPaid > 0 ? '<div class="fin-owing-sub">' + sym + totalPaid.toFixed(2) + ' received</div>' : '') +
+    '</div>';
+
+    // "+ Add expense" form — only for job records and quotes, not invoices
+    if (record && record.record_type !== 'invoice') {
+      var actionOpts = '';
+      if (record.actions && record.actions.length) {
+        actionOpts = '<select class="viewer-exp-select" id="viewer-exp-action"><option value="">— no specific action —</option>';
+        record.actions.forEach(function(a, i) {
+          actionOpts += '<option value="' + i + '">' + esc(a.title) + '</option>';
+        });
+        actionOpts += '</select>';
+      }
+      html += '<div class="viewer-add-expense">' +
+        '<button class="viewer-add-expense-btn" id="viewer-add-expense-btn">+ Add expense</button>' +
+        '<div class="viewer-expense-form" id="viewer-expense-form" style="display:none;">' +
+          (actionOpts ? '<div class="viewer-exp-field-label">For action</div>' + actionOpts : '') +
+          '<div class="viewer-exp-field-label">Description</div>' +
+          '<input class="viewer-exp-input" id="viewer-exp-desc" type="text" placeholder="What is the expense?" autocomplete="off">' +
+          '<div class="viewer-exp-field-label">Amount</div>' +
+          '<input class="viewer-exp-input" id="viewer-exp-amount" type="number" step="0.01" min="0" placeholder="0.00" autocomplete="off">' +
+          '<button class="viewer-exp-submit-btn" id="viewer-expense-submit">Add expense</button>' +
+          '<div class="viewer-exp-feedback" id="viewer-exp-feedback"></div>' +
+        '</div>' +
+        '<div class="viewer-share-updates" id="viewer-share-updates" style="display:none;">' +
+          '<button class="viewer-share-updates-btn" id="viewer-share-updates-btn">Share Updates</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function renderDocument(record, isDemo, fin) {
     var main = document.getElementById('main');
+    var sym = record.currency === 'EUR' ? '\u20ac' : record.currency === 'USD' ? '$' : '\u00a3';
     var html = '';
 
     if (isDemo) {
@@ -708,6 +1204,14 @@
     }
 
     html += '<div class="document">';
+
+    // Import bar: shown when worker receives augmented link
+    if (!isDemo) {
+      html += '<div class="viewer-import-bar" id="viewer-import-btn" style="display:none;">' +
+        '<span class="viewer-import-msg" id="viewer-import-msg"></span>' +
+        '<button class="viewer-import-action">Import to records</button>' +
+      '</div>';
+    }
 
     // header
     html += '<div class="doc-header">';
@@ -724,6 +1228,7 @@
     html += renderDetailsGrid(record);
     html += renderProse('Story', record.story);
     html += renderProse('Notes', record.details);
+    if (!isDemo) html += renderFinSection(fin, sym, record);
 
     // footer
     if (record.worker || record.customer_phone) {
@@ -732,14 +1237,27 @@
 
     html += '</div>'; // .document
 
+    // Approve button for quotes
+    if (!isDemo && record.record_type === 'quote') {
+      html += '<div class="approve-block">' +
+        '<button class="approve-btn" id="approve-quote-btn">Approve this quote</button>' +
+        '<p class="approve-note">Generates a short link to send back as confirmation.</p>' +
+      '</div>';
+    }
+
     // About block
     html += '<div class="about-block">' +
-      '<span class="about-wordmark">Workpads</span>' +
+      '<a class="about-wordmark" href="https://workpads.org" target="_blank" rel="noopener">workpads.org</a>' +
       '<span class="about-sub">Job records that travel as links</span>' +
       '<a class="about-link" href="https://workpads.me/?start=1">Start yours</a>' +
     '</div>';
 
     main.innerHTML = html;
+
+    if (!isDemo && record.record_type === 'quote') {
+      var approveBtn = document.getElementById('approve-quote-btn');
+      if (approveBtn) approveBtn.addEventListener('click', function() { showApproveDialog(record); });
+    }
   }
 
   function renderError(message) {
@@ -796,26 +1314,219 @@
     }
   }
 
+  // ── Approve flow ──────────────────────────────────────────
+  function showApproveDialog(record) {
+    var overlay = document.createElement('div');
+    overlay.className = 'p-overlay';
+    overlay.innerHTML = (
+      '<div class="p-overlay-card">' +
+        '<div class="p-ov-wordmark">Workpads</div>' +
+        '<h2 class="p-ov-heading">Approve this quote</h2>' +
+        '<p class="p-ov-sub">Enter your name to confirm. You\'ll get a short link to send back to ' + esc(record.worker || 'the sender') + '.</p>' +
+        '<input class="p-ov-field" id="p-ov-name" type="text" placeholder="Your name" autocomplete="given-name">' +
+        '<button class="p-ov-btn" id="p-ov-submit">Generate approval link</button>' +
+        '<p class="p-ov-note">The link carries your name and date as proof of approval.</p>' +
+      '</div>'
+    );
+    document.body.appendChild(overlay);
+
+    var nameEl = document.getElementById('p-ov-name');
+    if (nameEl) nameEl.focus();
+
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+
+    document.getElementById('p-ov-submit').addEventListener('click', function() {
+      var name = (document.getElementById('p-ov-name').value || '').trim();
+      if (!name) {
+        var el = document.getElementById('p-ov-name');
+        el.style.borderColor = 'var(--stamp)';
+        el.focus();
+        setTimeout(function() { el.style.borderColor = ''; }, 1400);
+        return;
+      }
+      document.body.removeChild(overlay);
+      showAckResult(record, name);
+    });
+  }
+
+  function showAckResult(record, customerName) {
+    var ackRecord = {
+      record_type: 'ack',
+      job: 'ACK: ' + (record.job || 'quote'),
+      date: new Date().toISOString().slice(0, 10),
+      worker: customerName,
+    };
+    var ackHash = encodeWorkpad(ackRecord, record._chainRef || null);
+    var base    = window.location.href.replace(/#.*$/, '');
+    var ackUrl  = base + '#' + ackHash;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'p-overlay';
+    overlay.innerHTML = (
+      '<div class="p-overlay-card">' +
+        '<div class="p-ov-wordmark">Workpads</div>' +
+        '<h2 class="p-ov-heading">Quote approved</h2>' +
+        '<p class="p-ov-sub">Copy this link and send it back to ' + esc(record.worker || 'the sender') + '.</p>' +
+        '<div class="p-ov-url-box" id="p-ack-url">' + esc(ackUrl) + '</div>' +
+        '<button class="p-ov-btn" id="p-ack-copy">Copy link</button>' +
+        '<p class="p-ov-note">This link is a record of your approval. Nothing is sent automatically.</p>' +
+      '</div>'
+    );
+    document.body.appendChild(overlay);
+
+    function doCopy() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ackUrl).catch(function() { fallbackCopy(ackUrl); });
+      } else {
+        fallbackCopy(ackUrl);
+      }
+      var btn = document.getElementById('p-ack-copy');
+      if (btn) { btn.textContent = 'Copied!'; setTimeout(function() { if (btn) btn.textContent = 'Copy link'; }, 2000); }
+    }
+
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.cssText = 'position:fixed;top:-9999px;';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+    }
+
+    document.getElementById('p-ack-url').addEventListener('click', doCopy);
+    document.getElementById('p-ack-copy').addEventListener('click', doCopy);
+
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+  }
+
   // ── Boot ──────────────────────────────────────────────────
   function boot() {
     var hash = window.location.hash.slice(1);
 
-    if (!hash || (!/^[0-9][a-z][a-z]\//.test(hash) && !hash.includes('alg='))) {
-      // Landing / demo state
-      renderDocument(DEMO, true);
+    if (!hash || !/^[0-9][a-z][a-z]\//.test(hash)) {
+      renderDocument(DEMO, true, null);
       return;
+    }
+
+    var fin = null;
+    var segs = hash.split('&');
+    for (var si = 1; si < segs.length; si++) {
+      var eq = segs[si].indexOf('=');
+      if (eq !== -1 && segs[si].slice(0, eq) === 'fin') {
+        fin = decodeFin(segs[si].slice(eq + 1));
+      }
     }
 
     try {
       var record = decodeWorkpad(hash);
-
-      // Store to localStorage so the main app has it, then display inline
+      _currentRecord = record;
+      _currentFin    = fin;
       storeReceived(record);
-
-      // Display inline — no app UI, just the clean record
-      renderDocument(record, false);
+      renderDocument(record, false, fin);
+      _bindViewerExpenseForm(record, fin);
     } catch (e) {
       renderError(e.message);
+    }
+  }
+
+  function _effectiveFinIndex() {
+    var base = _currentFin || { e: [], p: [] };
+    if (!_viewerExpenses.length) return _currentFin;
+    return {
+      e: (base.e || []).concat(_viewerExpenses.map(function(e) {
+        var item = { a: String(e.amount || '0'), s: 'v' };
+        if (e.job) item.l = e.job;
+        if (e.actionIdx != null) item.n = e.actionIdx;
+        return item;
+      })),
+      p: base.p || [],
+    };
+  }
+
+  function _refreshFinSection() {
+    var r = _currentRecord;
+    if (!r) return;
+    var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+    var existing = document.querySelector('.fin-section');
+    if (existing) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = renderFinSection(_effectiveFinIndex(), sym, r);
+      existing.parentNode.replaceChild(tmp.firstChild, existing);
+      // Re-bind after DOM replacement
+      _bindViewerExpenseForm(r, _currentFin);
+    }
+    var shareBtn = document.getElementById('viewer-share-updates');
+    if (shareBtn && _viewerExpenses.length > 0) shareBtn.style.display = '';
+  }
+
+  function _bindViewerExpenseForm(record, fin) {
+    var btn = document.getElementById('viewer-add-expense-btn');
+    if (btn) {
+      btn.addEventListener('click', function() {
+        var form = document.getElementById('viewer-expense-form');
+        if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      });
+    }
+
+    var submitBtn = document.getElementById('viewer-expense-submit');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', function() {
+        var desc = (document.getElementById('viewer-exp-desc').value || '').trim();
+        var amt  = (document.getElementById('viewer-exp-amount').value || '').trim();
+        if (!desc) { document.getElementById('viewer-exp-desc').focus(); return; }
+        var viewerExp = { job: desc, amount: amt };
+        var actionSel = document.getElementById('viewer-exp-action');
+        if (actionSel && actionSel.value !== '') viewerExp.actionIdx = parseInt(actionSel.value, 10);
+        _viewerExpenses.push(viewerExp);
+
+        // Clear form and show feedback
+        var descEl = document.getElementById('viewer-exp-desc');
+        var amtEl  = document.getElementById('viewer-exp-amount');
+        if (descEl) descEl.value = '';
+        if (amtEl)  amtEl.value = '';
+        var feedback = document.getElementById('viewer-exp-feedback');
+        if (feedback) {
+          feedback.textContent = '\u2713 Added';
+          setTimeout(function() { feedback.textContent = ''; }, 2000);
+        }
+
+        // Refresh tally and show Share Updates
+        _refreshFinSection();
+      });
+    }
+
+    // Share Updates button
+    var shareBtn = document.getElementById('viewer-share-updates-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', function() {
+        var url = buildAugmentedUrl();
+        navigator.clipboard.writeText(url).then(function() {
+          shareBtn.textContent = 'Copied!';
+          setTimeout(function() { shareBtn.textContent = 'Share Updates'; }, 2000);
+        }).catch(function() {
+          shareBtn.textContent = 'Copy failed';
+          setTimeout(function() { shareBtn.textContent = 'Share Updates'; }, 2000);
+        });
+      });
+    }
+
+    // Import bar
+    var importBar = document.getElementById('viewer-import-btn');
+    if (importBar) {
+      var ownerId = getLocalOwnerId(record);
+      var viewerItems = (fin && fin.e) ? fin.e.filter(function(e) { return e.s === 'v'; }) : [];
+      if (ownerId && viewerItems.length) {
+        importBar.style.display = 'flex';
+        var msgEl = document.getElementById('viewer-import-msg');
+        if (msgEl) msgEl.textContent = viewerItems.length + ' expense' + (viewerItems.length !== 1 ? 's' : '') + ' added by recipient';
+        importBar.querySelector('button').addEventListener('click', function() {
+          var count = importViewerExpenses(ownerId, viewerItems, record);
+          importBar.innerHTML = '<span class="viewer-import-done">' + count + ' expense' + (count !== 1 ? 's' : '') + ' imported to your records.</span>';
+        });
+      }
     }
   }
 
