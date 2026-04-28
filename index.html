@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workpads</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+  <div id="shell">
+
+    <!-- ── Top bar ──────────────────────────────────────────── -->
+    <header id="topbar">
+      <div class="topbar-left">
+        <button class="btn-icon btn-mobile-panel" id="mobile-btn-left" aria-label="Open workpads panel">&#9776;</button>
+        <span class="logo">Workpads</span>
+      </div>
+      <div class="topbar-center" id="topbar-context">
+        <!-- screen title / breadcrumb injected by app.js -->
+      </div>
+      <div class="topbar-right">
+        <button class="btn-ghost" id="btn-manage" title="Manage">Manage</button>
+        <button class="btn-primary" id="btn-new">+ New</button>
+        <button class="btn-icon btn-mobile-panel" id="mobile-btn-right" aria-label="Open personal panel">&#8250;</button>
+      </div>
+    </header>
+
+    <!-- ── Three-column content area ───────────────────────── -->
+    <div id="content">
+
+      <!-- Left panel: Workpads -->
+      <aside id="panel-left" class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Workpads</span>
+          <button class="panel-toggle" id="toggle-left" title="Collapse panel" aria-label="Collapse workpads panel">
+            <span class="toggle-icon">‹</span>
+          </button>
+        </div>
+        <div class="panel-body" id="panel-left-body">
+          <!-- WorkpadsPanel.js renders here -->
+        </div>
+        <div class="panel-collapsed-label" aria-hidden="true">Workpads</div>
+      </aside>
+
+      <!-- Main screen area -->
+      <main id="main-area">
+        <div id="screen-onboarding" class="screen"></div>
+        <div id="screen-list"       class="screen"></div>
+        <div id="screen-wizard"     class="screen"></div>
+        <div id="screen-view"       class="screen"></div>
+        <div id="screen-share"      class="screen"></div>
+        <div id="screen-management" class="screen"></div>
+      </main>
+
+      <!-- Right panel: Personal -->
+      <aside id="panel-right" class="panel">
+        <div class="panel-header panel-header-right">
+          <button class="panel-toggle" id="toggle-right" title="Collapse panel" aria-label="Collapse personal panel">
+            <span class="toggle-icon">›</span>
+          </button>
+          <span class="panel-title">Personal</span>
+        </div>
+        <div class="panel-body" id="panel-right-body">
+          <!-- PersonalPanel.js renders here -->
+        </div>
+        <div class="panel-collapsed-label" aria-hidden="true">Personal</div>
+      </aside>
+
+    </div><!-- #content -->
+
+  </div><!-- #shell -->
+
+  <!-- ── Onboarding overlay ─────────────────────────────────── -->
+  <div id="overlay-onboarding" class="overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="onboard-heading">
+    <div class="overlay-card">
+      <div class="overlay-wordmark">Workpads</div>
+      <h1 class="overlay-heading" id="onboard-heading">Your records,<br>on your device.</h1>
+      <p class="overlay-sub">No account. No server. Everything lives here, in this browser.</p>
+      <div class="field-group">
+        <label class="field-label" for="onboard-name">Your name <span class="field-required">*</span></label>
+        <input class="field-input" id="onboard-name" type="text" placeholder="e.g. Alice Smith" autocomplete="name" autocorrect="off">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="onboard-phone">Phone / WhatsApp <span class="field-optional">(optional)</span></label>
+        <input class="field-input" id="onboard-phone" type="tel" placeholder="e.g. +44 7700 900123" autocomplete="tel">
+      </div>
+      <button class="btn-primary btn-full" id="onboard-submit">Start sending workpads</button>
+      <p class="overlay-footnote">Your name appears on records you create. You can change it later in Manage.</p>
+    </div>
+  </div>
+
+  <!-- ── Quick note overlay ─────────────────────────────────── -->
+  <div id="overlay-quicknote" class="overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="quicknote-heading">
+    <div class="overlay-card overlay-card-sm">
+      <h2 class="overlay-heading-sm" id="quicknote-heading">Quick note</h2>
+      <textarea class="field-input field-textarea" id="quicknote-input" placeholder="Capture a thought…" rows="5"></textarea>
+      <div class="overlay-actions">
+        <button class="btn-ghost" id="quicknote-cancel">Cancel</button>
+        <button class="btn-primary" id="quicknote-save">Save note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Scripts ───────────────────────────────────────────── -->
+  <script src="js/lib/fflate.js"></script>
+  <script src="js/lib/codec.js"></script>
+  <script src="js/services/StorageAdapter.js"></script>
+  <script src="js/services/ActivityService.js"></script>
+  <script src="js/services/RecordService.js"></script>
+  <script src="js/services/PersonalService.js"></script>
+  <script src="js/services/BlockRegistry.js"></script>
+  <script src="js/screens/list.js"></script>
+  <script src="js/screens/wizard.js"></script>
+  <script src="js/screens/view.js"></script>
+  <script src="js/screens/share.js"></script>
+  <script src="js/screens/management.js"></script>
+  <script src="js/panels/WorkpadsPanel.js"></script>
+  <script src="js/panels/PersonalPanel.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
