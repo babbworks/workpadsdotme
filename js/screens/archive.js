@@ -15,6 +15,12 @@ var ArchiveScreen = (function () {
     var s = document.createElement('style');
     s.textContent = [
       '.arc-wrap { max-width:680px; margin:0 auto; padding:36px 32px 80px; }',
+      '.arc-back-btn {',
+      '  font-family:var(--font-mono); font-size:11px; font-weight:700;',
+      '  color:var(--ink-muted); background:none; border:none; padding:0 0 20px;',
+      '  cursor:pointer; display:block; transition:color .13s;',
+      '}',
+      '.arc-back-btn:hover { color:var(--ink); }',
 
       '.arc-search {',
       '  display:block; width:100%; max-width:400px;',
@@ -99,6 +105,7 @@ var ArchiveScreen = (function () {
 
     el.innerHTML = (
       '<div class="arc-wrap">' +
+        '<button class="arc-back-btn" id="arc-back">\u2190 Back</button>' +
         '<h1 class="screen-title">Archive</h1>' +
         '<p class="screen-subtitle" style="margin-bottom:24px;">Archived workpad records</p>' +
         '<input class="arc-search" id="arc-search" type="search" ' +
@@ -106,6 +113,10 @@ var ArchiveScreen = (function () {
         '<div id="arc-body"></div>' +
       '</div>'
     );
+
+    document.getElementById('arc-back').addEventListener('click', function () {
+      App.showList();
+    });
 
     var searchEl = document.getElementById('arc-search');
     if (searchEl) {

@@ -63,6 +63,12 @@ var WizardScreen = (function () {
     var s = document.createElement('style');
     s.textContent = [
       '.wiz-wrap { max-width:680px; margin:0 auto; padding:36px 32px 80px; }',
+      '.wiz-cancel-top {',
+      '  font-family:var(--font-mono); font-size:11px; font-weight:700;',
+      '  color:var(--ink-muted); background:none; border:none; padding:0 0 20px;',
+      '  cursor:pointer; display:block; transition:color .13s;',
+      '}',
+      '.wiz-cancel-top:hover { color:var(--ink); }',
 
       '.wiz-header {',
       '  display:flex; align-items:flex-start;',
@@ -483,6 +489,7 @@ var WizardScreen = (function () {
     var el = document.getElementById('screen-wizard');
     el.innerHTML = (
       '<div class="wiz-wrap">' +
+        '<button class="wiz-cancel-top" id="wiz-cancel-top">\u2190 Cancel</button>' +
         _renderHeader() +
         (_mode === 'expense' || _mode === 'payment' ? _renderExpenseBanner() : '') +
         _renderTabBar() +

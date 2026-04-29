@@ -152,17 +152,113 @@ var PersonalPanel = (function () {
       '  text-decoration:underline; text-decoration-style:dotted;',
       '}',
       '.ppp-archive-link:hover { color:var(--ink-mid); }',
-      '.ppp-manage-btn {',
-      '  display:flex; align-items:center; justify-content:space-between;',
-      '  width:100%; padding:10px 14px; text-align:left;',
-      '  font-family:var(--font-mono); font-size:10px;',
-      '  font-weight:700; letter-spacing:.12em; text-transform:uppercase;',
-      '  color:var(--ink-mid); background:none; border:none;',
-      '  border-top:1px solid var(--rule-light);',
-      '  cursor:pointer; transition:color .12s, background .12s;',
+      /* Bottom bar: Workpads · theme · gear */
+      '.ppp-bottom-bar {',
+      '  display:flex; align-items:center;',
+      '  width:100%; border-top:1px solid var(--rule-light);',
+      '  position:relative;',
       '}',
-      '.ppp-manage-btn:hover { color:var(--ink); background:rgba(0,0,0,.03); }',
-      '.ppp-manage-gear { font-size:16px; line-height:1; margin-left:4px; }',
+      '.ppp-wordmark {',
+      '  flex:1; padding:10px 12px;',
+      '  font-family:var(--font-mono); font-size:10px;',
+      '  font-weight:700; letter-spacing:.16em; text-transform:uppercase;',
+      '  color:var(--ink-faint); user-select:none; pointer-events:none;',
+      '}',
+      '.ppp-theme-btn {',
+      '  flex-shrink:0; display:flex; align-items:center; gap:4px;',
+      '  padding:7px 8px; border:none; background:none;',
+      '  border-left:1px solid var(--rule-light);',
+      '  cursor:pointer; transition:background .12s;',
+      '}',
+      '.ppp-theme-btn:hover { background:rgba(0,0,0,.04); }',
+      '.ppp-theme-dot {',
+      '  width:14px; height:14px; border-radius:2px;',
+      '  background:#c0470a; flex-shrink:0; transition:background .2s;',
+      '}',
+      '.ppp-theme-arrow {',
+      '  font-size:9px; color:var(--ink-faint); line-height:1;',
+      '  transition:transform .2s;',
+      '}',
+      '.ppp-theme-btn.open .ppp-theme-arrow { transform:rotate(180deg); }',
+      '.ppp-gear-btn {',
+      '  flex-shrink:0; padding:7px 10px; border:none; background:none;',
+      '  border-left:1px solid var(--rule-light);',
+      '  font-size:15px; color:var(--ink-muted);',
+      '  cursor:pointer; transition:background .12s, color .12s;',
+      '}',
+      '.ppp-gear-btn:hover { background:rgba(0,0,0,.04); color:var(--ink); }',
+      /* Theme flyout */
+      '.ppp-theme-flyout {',
+      '  position:absolute; bottom:100%; right:0;',
+      '  background:var(--card); border:1px solid var(--rule);',
+      '  border-radius:4px; box-shadow:0 4px 20px rgba(0,0,0,.14);',
+      '  min-width:160px; overflow:hidden;',
+      '  display:none; z-index:500;',
+      '  animation:flyoutIn .14s ease forwards;',
+      '}',
+      '.ppp-theme-flyout.open { display:block; }',
+      '@keyframes flyoutIn {',
+      '  from { opacity:0; transform:translateY(4px); }',
+      '  to   { opacity:1; transform:translateY(0); }',
+      '}',
+      '.ppp-theme-option {',
+      '  display:flex; align-items:center; gap:10px;',
+      '  width:100%; padding:10px 14px; border:none; background:none;',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  letter-spacing:.1em; text-transform:uppercase;',
+      '  color:var(--ink-mid); cursor:pointer;',
+      '  border-bottom:1px solid var(--rule-light); text-align:left;',
+      '  transition:background .1s;',
+      '}',
+      '.ppp-theme-option:last-child { border-bottom:none; }',
+      '.ppp-theme-option:hover { background:var(--stamp-light); }',
+      '.ppp-theme-option.active { color:var(--stamp); }',
+      '.ppp-theme-pip {',
+      '  width:12px; height:12px; border-radius:2px; flex-shrink:0;',
+      '}',
+      /* BG picker button — mirrors theme button */
+      '.ppp-bg-btn {',
+      '  flex-shrink:0; display:flex; align-items:center; gap:4px;',
+      '  padding:7px 8px; border:none; background:none;',
+      '  border-left:1px solid var(--rule-light);',
+      '  cursor:pointer; transition:background .12s;',
+      '}',
+      '.ppp-bg-btn:hover { background:rgba(0,0,0,.04); }',
+      '.ppp-bg-icon {',
+      '  width:12px; height:12px; position:relative; flex-shrink:0;',
+      '  display:grid; grid-template-columns:1fr 1fr; gap:2px;',
+      '}',
+      '.ppp-bg-icon span {',
+      '  display:block; border-radius:1px;',
+      '  background:var(--ink-faint); transition:background .2s;',
+      '}',
+      '.ppp-bg-btn:hover .ppp-bg-icon span { background:var(--ink-mid); }',
+      /* BG flyout — same structure as theme flyout */
+      '.ppp-bg-flyout {',
+      '  position:absolute; bottom:100%; right:0;',
+      '  background:var(--card); border:1px solid var(--rule);',
+      '  border-radius:4px; box-shadow:0 4px 20px rgba(0,0,0,.14);',
+      '  min-width:170px; overflow:hidden;',
+      '  display:none; z-index:500;',
+      '  animation:flyoutIn .14s ease forwards;',
+      '}',
+      '.ppp-bg-flyout.open { display:block; }',
+      '.ppp-bg-option {',
+      '  display:flex; align-items:center; gap:10px;',
+      '  width:100%; padding:9px 14px; border:none; background:none;',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  letter-spacing:.1em; text-transform:uppercase;',
+      '  color:var(--ink-mid); cursor:pointer;',
+      '  border-bottom:1px solid var(--rule-light); text-align:left;',
+      '  transition:background .1s;',
+      '}',
+      '.ppp-bg-option:last-child { border-bottom:none; }',
+      '.ppp-bg-option:hover { background:var(--stamp-light); }',
+      '.ppp-bg-option.active { color:var(--stamp); }',
+      '.ppp-bg-swatch {',
+      '  width:28px; height:18px; border-radius:2px; flex-shrink:0;',
+      '  border:1px solid var(--rule);',
+      '}',
 
       '.overlay-note-header {',
       '  display:flex; align-items:center; justify-content:space-between;',
@@ -222,9 +318,49 @@ var PersonalPanel = (function () {
           '<span id="ppp-count-text"></span>' +
           '<button class="ppp-archive-link" id="ppp-archive-btn">Archive \u2192</button>' +
         '</div>' +
-        '<button class="ppp-manage-btn" id="ppp-manage-btn">' +
-          'Workpads<span class="ppp-manage-gear">\u2699</span>' +
-        '</button>' +
+        '<div class="ppp-bottom-bar">' +
+          '<span class="ppp-wordmark">Workpads</span>' +
+          '<div style="position:relative;">' +
+            '<button class="ppp-bg-btn" id="ppp-bg-btn" title="Background">' +
+              '<span class="ppp-bg-icon">' +
+                '<span></span><span></span><span></span><span></span>' +
+              '</span>' +
+              '<span class="ppp-theme-arrow">\u25b2</span>' +
+            '</button>' +
+            '<div class="ppp-bg-flyout" id="ppp-bg-flyout">' +
+              '<button class="ppp-bg-option" data-bg="americana">' +
+                '<span class="ppp-bg-swatch" id="ppp-bg-sw-americana" style="background:repeating-linear-gradient(45deg,#c9bfae 0,#c9bfae 1px,#f4ede0 1px,#f4ede0 6px);"></span>Americana' +
+              '</button>' +
+              '<button class="ppp-bg-option" data-bg="plain">' +
+                '<span class="ppp-bg-swatch" style="background:var(--paper);"></span>Plain' +
+              '</button>' +
+              '<button class="ppp-bg-option" data-bg="grid">' +
+                '<span class="ppp-bg-swatch" style="background:linear-gradient(rgba(0,0,0,.1) 1px,transparent 1px) 0 0/8px 8px,linear-gradient(90deg,rgba(0,0,0,.1) 1px,transparent 1px) 0 0/8px 8px,var(--paper);"></span>Grid' +
+              '</button>' +
+              '<button class="ppp-bg-option" data-bg="dots">' +
+                '<span class="ppp-bg-swatch" style="background:radial-gradient(rgba(0,0,0,.18) 1px,transparent 1px) 0 0/7px 7px,var(--paper);"></span>Dots' +
+              '</button>' +
+              '<button class="ppp-bg-option" data-bg="linen">' +
+                '<span class="ppp-bg-swatch" style="background:repeating-linear-gradient(45deg,rgba(0,0,0,.06) 0,rgba(0,0,0,.06) 1px,transparent 1px,transparent 6px),repeating-linear-gradient(-45deg,rgba(0,0,0,.04) 0,rgba(0,0,0,.04) 1px,transparent 1px,transparent 6px),var(--paper);"></span>Linen' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="position:relative;">' +
+            '<button class="ppp-theme-btn" id="ppp-theme-btn" title="Change theme">' +
+              '<span class="ppp-theme-dot" id="ppp-theme-dot"></span>' +
+              '<span class="ppp-theme-arrow">\u25b2</span>' +
+            '</button>' +
+            '<div class="ppp-theme-flyout" id="ppp-theme-flyout">' +
+              '<button class="ppp-theme-option" data-theme="telegram">' +
+                '<span class="ppp-theme-pip" style="background:#c0470a;"></span>The Telegram' +
+              '</button>' +
+              '<button class="ppp-theme-option" data-theme="classic">' +
+                '<span class="ppp-theme-pip" style="background:#1B3A6B;"></span>Classic' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+          '<button class="ppp-gear-btn" id="ppp-manage-btn" title="Settings">\u2699</button>' +
+        '</div>' +
       '</div>'
     );
 
@@ -241,7 +377,89 @@ var PersonalPanel = (function () {
     var manageBtn = document.getElementById('ppp-manage-btn');
     if (manageBtn) {
       manageBtn.addEventListener('click', function () {
-        if (typeof App !== 'undefined') App.showManage();
+        if (typeof App !== 'undefined') App.showManagement('settings');
+      });
+    }
+
+    // Theme button + flyout
+    var themeBtn    = document.getElementById('ppp-theme-btn');
+    var themeFlyout = document.getElementById('ppp-theme-flyout');
+    var themeDot    = document.getElementById('ppp-theme-dot');
+
+    function _syncThemeDot() {
+      var t = localStorage.getItem('wp_theme') || 'telegram';
+      if (themeDot) themeDot.style.background = (t === 'classic') ? '#1B3A6B' : '#c0470a';
+      if (themeFlyout) {
+        themeFlyout.querySelectorAll('.ppp-theme-option').forEach(function (opt) {
+          opt.classList.toggle('active', opt.dataset.theme === t);
+        });
+      }
+    }
+    _syncThemeDot();
+
+    if (themeBtn && themeFlyout) {
+      themeBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = themeFlyout.classList.toggle('open');
+        themeBtn.classList.toggle('open', open);
+      });
+      themeFlyout.querySelectorAll('.ppp-theme-option').forEach(function (opt) {
+        opt.addEventListener('click', function () {
+          var name = this.dataset.theme;
+          if (name === 'telegram') {
+            document.documentElement.removeAttribute('data-theme');
+          } else {
+            document.documentElement.setAttribute('data-theme', name);
+          }
+          localStorage.setItem('wp_theme', name);
+          _syncThemeDot();
+          themeFlyout.classList.remove('open');
+          themeBtn.classList.remove('open');
+        });
+      });
+      document.addEventListener('click', function () {
+        themeFlyout.classList.remove('open');
+        themeBtn.classList.remove('open');
+      });
+    }
+
+    // Background picker
+    var bgBtn    = document.getElementById('ppp-bg-btn');
+    var bgFlyout = document.getElementById('ppp-bg-flyout');
+
+    function _applyBg(name) {
+      if (name && name !== 'americana') {
+        document.documentElement.setAttribute('data-bg', name);
+      } else {
+        document.documentElement.removeAttribute('data-bg');
+      }
+      localStorage.setItem('wp_bg', name || 'americana');
+      if (bgFlyout) {
+        bgFlyout.querySelectorAll('.ppp-bg-option').forEach(function (opt) {
+          opt.classList.toggle('active', opt.dataset.bg === (name || 'americana'));
+        });
+      }
+    }
+    _applyBg(localStorage.getItem('wp_bg') || 'americana');
+
+    if (bgBtn && bgFlyout) {
+      bgBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        // close theme flyout if open
+        if (themeFlyout) { themeFlyout.classList.remove('open'); themeBtn && themeBtn.classList.remove('open'); }
+        var open = bgFlyout.classList.toggle('open');
+        bgBtn.querySelector('.ppp-theme-arrow').style.transform = open ? 'rotate(180deg)' : '';
+      });
+      bgFlyout.querySelectorAll('.ppp-bg-option').forEach(function (opt) {
+        opt.addEventListener('click', function () {
+          _applyBg(this.dataset.bg);
+          bgFlyout.classList.remove('open');
+          bgBtn.querySelector('.ppp-theme-arrow').style.transform = '';
+        });
+      });
+      document.addEventListener('click', function () {
+        bgFlyout.classList.remove('open');
+        if (bgBtn) bgBtn.querySelector('.ppp-theme-arrow').style.transform = '';
       });
     }
 

@@ -16,6 +16,12 @@ var ManagementScreen = (function () {
     var s = document.createElement('style');
     s.textContent = [
       '.mgmt-wrap { max-width:700px; margin:0 auto; padding:36px 32px 80px; }',
+      '.mgmt-back-btn {',
+      '  font-family:var(--font-mono); font-size:11px; font-weight:700;',
+      '  color:var(--ink-muted); background:none; border:none; padding:0 0 20px;',
+      '  cursor:pointer; display:block; transition:color .13s;',
+      '}',
+      '.mgmt-back-btn:hover { color:var(--ink); }',
 
       '.stat-grid {',
       '  display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr));',
@@ -83,6 +89,7 @@ var ManagementScreen = (function () {
     var el = document.getElementById('screen-management');
     el.innerHTML = (
       '<div class="mgmt-wrap">' +
+        '<button class="mgmt-back-btn" id="mgmt-back">\u2190 Back</button>' +
         '<h1 class="screen-title" style="text-align:center;">Workpads</h1>' +
         '<p class="screen-subtitle" style="margin-bottom:24px;text-align:center;">Your Local Workspace</p>' +
         '<div class="tab-bar" id="mgmt-tabs">' +
@@ -93,6 +100,10 @@ var ManagementScreen = (function () {
         '<div id="mgmt-body"></div>' +
       '</div>'
     );
+
+    document.getElementById('mgmt-back').addEventListener('click', function () {
+      App.showList();
+    });
 
     el.querySelectorAll('.tab-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {

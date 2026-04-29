@@ -1,4 +1,4 @@
-// WPCodec — browser-compatible workpads codec (bitpad-v1 + fflate)
+// WPCodec — browser-compatible workpads codec (pads-v1 + fflate)
 // Adapted from @workpads/codec for browser/KaiOS (no require/module.exports).
 // Depends on: fflate UMD loaded before this file (window.fflate must be present).
 // Exposes: window.WPCodec = { encode, decode, validate }
@@ -34,7 +34,7 @@
     return new TextDecoder().decode(bytes);
   }
 
-  // ── bitpad-v1 binary frame ──────────────────────────────────────────────────
+  // ── pads-v1 binary frame ─────────────────────────────────────────────────────
 
   var TEMPLATE_SVC_BASIC_V1 = 0x01;
   var ACTIONS_BIT = 9;
@@ -67,7 +67,7 @@
     return ((buf[offset] & 0xff) << 8) | (buf[offset + 1] & 0xff);
   }
 
-  function bitpadEncode(record) {
+  function padsEncode(record) {
     var flags = 0;
     var scalarBytes = {};
 
@@ -144,7 +144,7 @@
     return buf;
   }
 
-  function bitpadDecode(bytes) {
+  function padsDecode(bytes) {
     if (bytes.length < 3) throw new Error('WPCodec: frame too short');
     var pos = 0;
     var templateId = bytes[pos++];
@@ -197,7 +197,7 @@
   var SCHEME_TAG = '1ag';
 
   function encode(record, chainRef) {
-    var frame = bitpadEncode(record);
+    var frame = padsEncode(record);
     var compressed = global.fflate.deflateSync(frame, { level: 9 });
     var d = toBase64Url(compressed);
     var url = URL_PREFIX + SCHEME_TAG + '/' + d;
@@ -222,7 +222,7 @@
     if (!/^[0-9][a-z][a-z]\//.test(payload)) throw new Error('WPCodec.decode: unrecognised format');
     var compressed = fromBase64Url(payload.slice(4));
     var frame = global.fflate.inflateSync(compressed);
-    var record = bitpadDecode(frame);
+    var record = padsDecode(frame);
     if (chainRef) record._chainRef = chainRef;
     return record;
   }

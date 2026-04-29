@@ -223,10 +223,7 @@ var WorkpadsPanel = (function () {
       '</div>' +
       '<div id="wpp-ctx" style="display:none;"></div>' +
       '<div id="wpp-expenses" style="display:none;"></div>' +
-      '<div class="wpp-list" id="wpp-list"></div>' +
-      '<div class="wpp-footer">' +
-        '<button class="btn-primary" id="wpp-new-btn" style="width:100%;">+ New workpad</button>' +
-      '</div>'
+      '<div class="wpp-list" id="wpp-list"></div>'
     );
 
     var searchEl = document.getElementById('wpp-search');
@@ -236,9 +233,6 @@ var WorkpadsPanel = (function () {
         _renderList();
       });
     }
-
-    var newBtn = document.getElementById('wpp-new-btn');
-    if (newBtn) newBtn.addEventListener('click', function () { App.showWizard(); });
   }
 
   // ── Load + render ────────────────────────────────────────────

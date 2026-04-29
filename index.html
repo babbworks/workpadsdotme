@@ -6,7 +6,15 @@
   <title>Workpads</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,700;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    (function(){
+      var t = localStorage.getItem('wp_theme') || 'telegram';
+      if (t !== 'telegram') document.documentElement.setAttribute('data-theme', t);
+      var b = localStorage.getItem('wp_bg') || 'americana';
+      if (b !== 'americana') document.documentElement.setAttribute('data-bg', b);
+    }());
+  </script>
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -28,10 +36,28 @@
           <!-- WorkpadsPanel.js renders here -->
         </div>
         <div class="panel-collapsed-label" aria-hidden="true">Records</div>
+        <div class="left-panel-footer">
+          <div class="lpf-stats">
+            <span class="lpf-archive-link" id="lpf-archive-link">0 archived</span>
+          </div>
+          <button class="btn-primary lpf-new-btn" id="lpf-new-workpad">+ New Workpad</button>
+        </div>
       </aside>
 
       <!-- Main screen area -->
       <main id="main-area">
+        <div id="main-topbar">
+          <div class="main-topbar-left">
+            <span id="main-topbar-breadcrumb" class="main-topbar-breadcrumb"></span>
+          </div>
+          <div class="main-topbar-right">
+            <div class="view-variant-group" id="view-variant-group" style="display:none;">
+              <button class="view-variant-btn" data-variant="compact" title="Compact view">A</button>
+              <button class="view-variant-btn active" data-variant="default" title="Default view">1</button>
+              <button class="view-variant-btn" data-variant="large" title="Large view">a</button>
+            </div>
+          </div>
+        </div>
         <div id="screen-onboarding" class="screen"></div>
         <div id="screen-list"       class="screen"></div>
         <div id="screen-wizard"     class="screen"></div>
@@ -121,6 +147,35 @@
   <script src="js/panels/WorkpadsPanel.js"></script>
   <script src="js/panels/PersonalPanel.js"></script>
   <script src="js/app.js"></script>
+  <script>
+    /* ── Panel footer wiring ── */
+    (function () {
+      /* Left footer: New Workpad */
+      var newBtn = document.getElementById('lpf-new-workpad');
+      if (newBtn) newBtn.addEventListener('click', function () { App.showWizard(); });
+
+      /* Left footer: archive link + count */
+      var archLink = document.getElementById('lpf-archive-link');
+      if (archLink) {
+        archLink.addEventListener('click', function () { App.showArchive(); });
+        function refreshArchiveCount() {
+          if (typeof RecordService !== 'undefined' && RecordService.listArchived) {
+            RecordService.listArchived().then(function (r) {
+              archLink.textContent = (r || []).length + ' archived';
+            });
+          }
+        }
+        refreshArchiveCount();
+        setInterval(refreshArchiveCount, 8000);
+      }
+
+      /* Center topbar breadcrumb */
+      window.setTopbarBreadcrumb = function (text) {
+        var el = document.getElementById('main-topbar-breadcrumb');
+        if (el) el.textContent = text || '';
+      };
+    }());
+  </script>
 
 </body>
 </html>
