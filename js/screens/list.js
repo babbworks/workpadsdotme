@@ -20,6 +20,8 @@ var ListScreen = (function () {
     _stylesAdded = true;
     var s = document.createElement('style');
     s.textContent = [
+      '.list-wrap { max-width:760px; margin:0 auto; padding:36px 32px 80px; }',
+
       '.list-hd {',
       '  display: flex;',
       '  align-items: flex-end;',
@@ -243,7 +245,7 @@ var ListScreen = (function () {
     var filtered = _filtered();
     var total    = _records.length;
 
-    var html = '<div style="max-width:760px;margin:0 auto;padding:36px 32px 80px;">';
+    var html = '<div class="list-wrap">';
 
     // ── Header row
     html += '<div class="list-hd">';

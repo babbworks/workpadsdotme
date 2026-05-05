@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Workpads</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Workpads">
+  <meta name="theme-color" content="#1a3055">
+  <link rel="apple-touch-icon" href="/img/icon-192.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,700;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -48,6 +55,10 @@
       <main id="main-area">
         <div id="main-topbar">
           <div class="main-topbar-left">
+            <button id="mobile-btn-left" class="mobile-nav-btn mobile-nav-records" title="Open records panel" aria-label="Records">
+              <span class="mobile-nav-icon">&#9776;</span>
+              <span class="mobile-nav-label">Records</span>
+            </button>
             <span id="main-topbar-breadcrumb" class="main-topbar-breadcrumb"></span>
           </div>
           <div class="main-topbar-right">
@@ -56,6 +67,11 @@
               <button class="view-variant-btn active" data-variant="default" title="Default view">1</button>
               <button class="view-variant-btn" data-variant="large" title="Large view">a</button>
             </div>
+            <button id="btn-new" class="mobile-nav-btn mobile-nav-new" title="New workpad" aria-label="New workpad">+</button>
+            <button id="mobile-btn-right" class="mobile-nav-btn mobile-nav-personal" title="Open personal panel" aria-label="Personal">
+              <span class="mobile-nav-icon">&#9711;</span>
+              <span class="mobile-nav-label">You</span>
+            </button>
           </div>
         </div>
         <div id="screen-onboarding" class="screen"></div>
@@ -179,6 +195,13 @@
         if (el) el.textContent = text || '';
       };
     }());
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js');
+      });
+    }
   </script>
 
 </body>
