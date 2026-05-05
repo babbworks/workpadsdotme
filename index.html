@@ -46,6 +46,7 @@
         <div class="left-panel-footer">
           <div class="lpf-stats">
             <span class="lpf-archive-link" id="lpf-archive-link">0 archived</span>
+            <button class="lpf-settings-link" id="lpf-settings-btn">Settings</button>
           </div>
           <button class="btn-primary lpf-new-btn" id="lpf-new-workpad">+ New Workpad</button>
         </div>
@@ -57,6 +58,7 @@
           <div class="main-topbar-left">
             <button id="mobile-btn-left" class="mobile-nav-btn mobile-nav-records" title="Open records panel" aria-label="Records"></button>
             <button id="btn-new" class="mobile-nav-btn mobile-nav-new" title="New workpad" aria-label="New workpad">+</button>
+            <button id="mobile-btn-import" class="mobile-nav-btn mobile-nav-import" title="Import from link" aria-label="Import from link">&#8595;</button>
             <span id="main-topbar-breadcrumb" class="main-topbar-breadcrumb"></span>
           </div>
           <div class="main-topbar-right">
@@ -65,8 +67,8 @@
               <button class="view-variant-btn active" data-variant="default" title="Default view">1</button>
               <button class="view-variant-btn" data-variant="large" title="Large view">a</button>
             </div>
+            <button id="mobile-btn-right" class="mobile-nav-btn mobile-nav-personal" title="Open personal panel" aria-label="Personal"></button>
             <button id="mobile-btn-note" class="mobile-nav-btn mobile-nav-note" title="Quick note" aria-label="Quick note">&#9998;</button>
-            <button id="mobile-btn-import" class="mobile-nav-btn mobile-nav-import" title="Import from link" aria-label="Import from link">&#8595;</button>
           </div>
         </div>
         <div id="screen-onboarding" class="screen"></div>
@@ -208,6 +210,10 @@
         refreshArchiveCount();
         setInterval(refreshArchiveCount, 8000);
       }
+
+      /* Left footer: Settings link */
+      var settingsBtn = document.getElementById('lpf-settings-btn');
+      if (settingsBtn) settingsBtn.addEventListener('click', function () { App.showManagement('settings'); });
 
       /* Center topbar breadcrumb */
       window.setTopbarBreadcrumb = function (text) {

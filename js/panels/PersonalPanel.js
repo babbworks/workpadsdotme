@@ -180,13 +180,6 @@ var PersonalPanel = (function () {
       '  transition:transform .2s;',
       '}',
       '.ppp-theme-btn.open .ppp-theme-arrow { transform:rotate(180deg); }',
-      '.ppp-gear-btn {',
-      '  flex-shrink:0; padding:7px 10px; border:none; background:none;',
-      '  border-left:1px solid var(--rule-light);',
-      '  font-size:15px; color:var(--ink-muted);',
-      '  cursor:pointer; transition:background .12s, color .12s;',
-      '}',
-      '.ppp-gear-btn:hover { background:rgba(0,0,0,.04); color:var(--ink); }',
       /* Theme flyout */
       '.ppp-theme-flyout {',
       '  position:absolute; bottom:100%; right:0;',
@@ -359,7 +352,6 @@ var PersonalPanel = (function () {
               '</button>' +
             '</div>' +
           '</div>' +
-          '<button class="ppp-gear-btn" id="ppp-manage-btn" title="Settings">\u2699</button>' +
         '</div>' +
       '</div>'
     );
@@ -374,12 +366,6 @@ var PersonalPanel = (function () {
       });
     }
 
-    var manageBtn = document.getElementById('ppp-manage-btn');
-    if (manageBtn) {
-      manageBtn.addEventListener('click', function () {
-        if (typeof App !== 'undefined') App.showManagement('settings');
-      });
-    }
 
     // Theme button + flyout
     var themeBtn    = document.getElementById('ppp-theme-btn');

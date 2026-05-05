@@ -402,9 +402,10 @@ var App = (function () {
     el.overlayQuicknote  = document.getElementById('overlay-quicknote');
     el.btnNew            = document.getElementById('btn-new');          // may be null (topbar removed)
     el.btnManage         = document.getElementById('btn-manage');       // may be null (topbar removed)
-    el.mobileBtnLeft     = document.getElementById('mobile-btn-left');   // may be null (topbar removed)
-    el.mobileBtnNote     = document.getElementById('mobile-btn-note');   // quick-note circle
-    el.mobileBtnImport   = document.getElementById('mobile-btn-import'); // import-link circle
+    el.mobileBtnLeft     = document.getElementById('mobile-btn-left');   // filled disc — records panel
+    el.mobileBtnRight    = document.getElementById('mobile-btn-right');  // unfilled circle — personal panel
+    el.mobileBtnNote     = document.getElementById('mobile-btn-note');   // pencil — quick note
+    el.mobileBtnImport   = document.getElementById('mobile-btn-import'); // arrow — import link
     el.panelLeftTitle    = document.getElementById('panel-left-title');
 
     // Register screens — each file exposes a global screen object
@@ -430,18 +431,11 @@ var App = (function () {
     // Topbar buttons (may not exist if topbar removed)
     if (el.btnNew)    el.btnNew.addEventListener('click',    function() { showWizard(); });
     if (el.btnManage) el.btnManage.addEventListener('click', function() { showManagement(); });
-    if (el.mobileBtnLeft) el.mobileBtnLeft.addEventListener('click', function() { _openMobilePanel('left'); });
-
-    // Note button: open quick-note overlay
-    if (el.mobileBtnNote) el.mobileBtnNote.addEventListener('click', function() { showQuickNote(); });
-
-    // Import button: open right panel and focus the paste/note input
+    if (el.mobileBtnLeft)   el.mobileBtnLeft.addEventListener('click',   function() { _openMobilePanel('left'); });
+    if (el.mobileBtnRight)  el.mobileBtnRight.addEventListener('click',  function() { _openMobilePanel('right'); });
+    if (el.mobileBtnNote)   el.mobileBtnNote.addEventListener('click',   function() { showQuickNote(); });
     if (el.mobileBtnImport) el.mobileBtnImport.addEventListener('click', function() {
-      _openMobilePanel('right');
-      setTimeout(function() {
-        var inp = document.getElementById('ppp-add-input');
-        if (inp) { inp.focus(); inp.placeholder = 'Paste a workpads link\u2026'; }
-      }, 220);
+      showImport();
     });
 
     // Panel title — clicking "RECORDS" label shows all records (clears any context)
