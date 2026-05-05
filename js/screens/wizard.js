@@ -27,6 +27,32 @@ var WizardScreen = (function () {
 
   var TAB_INDEX = { process: 0, actions: 1, details: 2, story: 3 };
 
+  function _tabs() {
+    if (_mode === 'payment') {
+      return [
+        { key: 'process', label: 'Process' },
+        { key: 'story',   label: 'Note'    },
+      ];
+    }
+    if (_mode === 'expense') {
+      return [
+        { key: 'process', label: 'Process' },
+        { key: 'actions', label: 'Items'   },
+        { key: 'details', label: 'Details' },
+        { key: 'story',   label: 'Story'   },
+      ];
+    }
+    return TABS;
+  }
+
+  function _tabIndex(key) {
+    var tabs = _tabs();
+    for (var i = 0; i < tabs.length; i++) {
+      if (tabs[i].key === key) return i;
+    }
+    return 0;
+  }
+
   var ROLES = [
     { val: 'worker',     label: 'Worker' },
     { val: 'supervisor', label: 'Job owner / supervisor' },
@@ -537,7 +563,7 @@ var WizardScreen = (function () {
 
   function _renderTabBar() {
     var html = '<div class="tab-bar">';
-    TABS.forEach(function (t) {
+    _tabs().forEach(function (t) {
       html += '<button class="tab-btn' + (t.key === _tab ? ' active' : '') + '" data-tab="' + t.key + '">' +
                 t.label +
               '</button>';
@@ -546,9 +572,10 @@ var WizardScreen = (function () {
   }
 
   function _renderDots() {
-    var idx  = TAB_INDEX[_tab] || 0;
+    var tabs = _tabs();
+    var idx  = _tabIndex(_tab);
     var html = '<div class="wiz-dots">';
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < tabs.length; i++) {
       html += '<span class="wiz-dot' + (i === idx ? ' active' : '') + '">' +
               (i === idx ? '\u25cf' : '\u25cb') + '</span>';
     }
@@ -612,12 +639,14 @@ var WizardScreen = (function () {
   }
 
   function _renderProcess() {
-    var jobPlaceholder = (_mode === 'expense') ? 'What is the expense?' : 'What is the job?';
+    var jobPlaceholder = (_mode === 'expense') ? 'What is the expense?'
+                      : (_mode === 'payment') ? 'Payment description'
+                      : 'What is the job?';
 
     return (
       '<div class="card">' +
         '<div class="card-section">' +
-          (_mode !== 'expense' ? _renderRecordTypeSelector() : '') +
+          (_mode !== 'expense' && _mode !== 'payment' ? _renderRecordTypeSelector() : '') +
           _renderActionPicker() +
           _field('job',      'Job',      'text', _record.job      || '', true,  jobPlaceholder) +
           '<div class="field-group">' +
@@ -669,14 +698,18 @@ var WizardScreen = (function () {
     }).join('');
 
     var isExpense   = (_mode === 'expense');
+    var isPayment   = (_mode === 'payment');
     var billing     = _record.expense_billing || 'customer';
     var isCogs      = isExpense && billing === 'cogs';
-    var amtLabelTxt = isCogs ? 'Cost of Goods Sold' : 'Customer price';
+    var amtLabelTxt = isPayment ? 'Payment amount'
+                    : isCogs   ? 'Cost of Goods Sold'
+                    : isExpense ? 'Expense amount'
+                    : 'Customer price';
 
     var billingToggle = isExpense
       ? '<div class="wiz-billing-row">' +
           '<button type="button" class="wiz-billing-btn' + (billing === 'customer' ? ' active' : '') +
-            '" data-billing="customer">Customer Price</button>' +
+            '" data-billing="customer">Expense Amount</button>' +
           '<button type="button" class="wiz-billing-btn' + (billing === 'cogs' ? ' active' : '') +
             '" data-billing="cogs"' + (billing !== 'cogs' ? ' style="opacity:.55;"' : '') +
             '>COGS <span class="wiz-cogs-label">(Cost of Goods Sold)</span></button>' +
@@ -700,19 +733,23 @@ var WizardScreen = (function () {
           '<select class="wiz-field-select" id="f-currency">' + currencyOpts + '</select>' +
         '</div>' +
       '</div>' +
-      '<div class="field-group">' +
-        '<label class="field-label">Tax</label>' +
-        '<select class="field-input wiz-field-select" id="f-vat" style="width:100%;">' + vatOpts + '</select>' +
-      '</div>' +
-      '<div class="field-group">' +
-        '<label class="field-label">My cost <span class="field-optional">(not shared)</span></label>' +
-        '<div class="wiz-finance-row">' +
-          '<span class="wiz-finance-sym wiz-curr-sym">' + sym + '</span>' +
-          '<input class="field-input" id="f-worker_cost" type="text" inputmode="decimal"' +
-            ' value="' + _esc(workerCost) + '" placeholder="0.00">' +
-        '</div>' +
-        '<p class="wiz-internal-note">Stored locally only \u2014 never included in share link</p>' +
-      '</div>' +
+      (!isPayment
+        ? '<div class="field-group">' +
+            '<label class="field-label">Tax</label>' +
+            '<select class="field-input wiz-field-select" id="f-vat" style="width:100%;">' + vatOpts + '</select>' +
+          '</div>'
+        : '') +
+      (!isPayment
+        ? '<div class="field-group">' +
+            '<label class="field-label">My cost <span class="field-optional">(not shared)</span></label>' +
+            '<div class="wiz-finance-row">' +
+              '<span class="wiz-finance-sym wiz-curr-sym">' + sym + '</span>' +
+              '<input class="field-input" id="f-worker_cost" type="text" inputmode="decimal"' +
+                ' value="' + _esc(workerCost) + '" placeholder="0.00">' +
+            '</div>' +
+            '<p class="wiz-internal-note">Stored locally only \u2014 never included in share link</p>' +
+          '</div>'
+        : '') +
       '<div class="field-group" style="margin-bottom:0;">' +
         '<div class="wiz-parts-flag-row">' +
           '<input type="checkbox" id="f-parts_flag"' + (partsFlag ? ' checked' : '') + '>' +
@@ -808,14 +845,20 @@ var WizardScreen = (function () {
               '</div>';
     }
 
+    var isItems = (_mode === 'expense');
+    var emptyTitle = isItems ? 'No items yet' : 'No actions yet';
+    var emptySub   = isItems ? 'List the expense items' : 'Break the job into steps';
+    var titlePh    = isItems ? 'Item description' : 'Step title';
+    var addLabel   = isItems ? '+ Add item' : '+ Add action';
+
     if (actions.length === 0) {
       html += '<div class="wiz-actions-empty">' +
-                '<p class="empty-state-title" style="margin-bottom:6px;">No actions yet</p>' +
-                '<p class="empty-state-sub">Break the job into steps</p>' +
+                '<p class="empty-state-title" style="margin-bottom:6px;">' + emptyTitle + '</p>' +
+                '<p class="empty-state-sub">' + emptySub + '</p>' +
               '</div>';
     } else if (displayList.length === 0) {
       html += '<div class="wiz-actions-empty">' +
-                '<p class="empty-state-sub" style="padding:16px 0;">No actions match filter</p>' +
+                '<p class="empty-state-sub" style="padding:16px 0;">No ' + (isItems ? 'items' : 'actions') + ' match filter</p>' +
               '</div>';
     } else {
       html += '<div class="wiz-actions-list" id="wiz-actions-list">';
@@ -827,7 +870,7 @@ var WizardScreen = (function () {
             '<span class="wiz-action-num">' + num + '</span>' +
             '<div class="wiz-action-fields">' +
               '<input class="field-input wiz-action-title" type="text"' +
-                ' placeholder="Step title" value="' + _esc(a.title || '') + '"' +
+                ' placeholder="' + titlePh + '" value="' + _esc(a.title || '') + '"' +
                 ' data-action-title="' + i + '">' +
               '<input class="field-input wiz-action-notes" type="text"' +
                 ' placeholder="Notes \u2014 optional" value="' + _esc(a.notes || '') + '"' +
@@ -841,7 +884,7 @@ var WizardScreen = (function () {
     }
 
     html += '<div class="wiz-add-row">' +
-              '<button class="btn-ghost" id="wiz-add-action">+ Add action</button>' +
+              '<button class="btn-ghost" id="wiz-add-action">' + addLabel + '</button>' +
             '</div>';
     html += '</div>';
     return html;
@@ -1065,6 +1108,7 @@ var WizardScreen = (function () {
     _tryCollect('amount',         'f-amount');
     _tryCollect('currency',       'f-currency');
     _tryCollect('vat',            'f-vat');
+    if (_record.vat === 'none') delete _record.vat;
     _tryCollect('worker_cost',    'f-worker_cost');
     _tryCollect('charge_type',    'f-charge_type');
     // expense_billing is set via button click, already on _record — no DOM element to collect
@@ -1126,7 +1170,7 @@ var WizardScreen = (function () {
       btn.classList.toggle('active', btn.dataset.tab === tab);
     });
 
-    var newIdx = TAB_INDEX[tab] || 0;
+    var newIdx = _tabIndex(tab);
     document.querySelectorAll('.wiz-dot').forEach(function (dot, i) {
       dot.classList.toggle('active', i === newIdx);
       dot.textContent = (i === newIdx) ? '\u25cf' : '\u25cb';
@@ -1195,9 +1239,9 @@ var WizardScreen = (function () {
   }
 
   function _cancel() {
-    if (_mode === 'new' || _mode === 'expense') {
+    if (_mode === 'new' || _mode === 'expense' || _mode === 'payment') {
       RecordService.remove(_id).then(function () {
-        if (_mode === 'expense' && _record.parentId) {
+        if ((_mode === 'expense' || _mode === 'payment') && _record.parentId) {
           App.showView(_record.parentId);
         } else {
           App.showList();

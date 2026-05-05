@@ -119,7 +119,8 @@
 
   // Encode a record to a shareable workpads URL.
   // Strips internal fields (id, createdAt, updatedAt, draft) before encoding.
-  function encodeUrl(rec) {
+  // finOpts: optional { expenses: [], payments: [] } — line-item arrays for the financial block.
+  function encodeUrl(rec, finOpts) {
     var payload = {};
     var wireFields = [
       'job', 'customer', 'date', 'location', 'meeting_time',
@@ -130,12 +131,19 @@
     wireFields.forEach(function(f) {
       if (rec[f] !== null && rec[f] !== undefined) payload[f] = rec[f];
     });
-    // Ensure worker is set from active Activity if not already on record
     if (!payload.worker) {
       var name = ActivityService.getSenderIdentity().name;
       if (name) payload.worker = name;
     }
-    return WPCodec.encode(payload, rec.chainRef || null);
+    var chainRef = rec.chainRef || null;
+    if (finOpts) {
+      return WPCodec.encode(payload, {
+        chainRef: chainRef,
+        expenses: finOpts.expenses || [],
+        payments: finOpts.payments || [],
+      });
+    }
+    return WPCodec.encode(payload, chainRef);
   }
 
   // Decode a received URL into a record object (not stored automatically).
@@ -144,14 +152,66 @@
   }
 
   // Store a received record (from a decoded URL). Returns stored record.
+  // Inline expenses/payments from the fin block are persisted as child records
+  // so view.js and WorkpadsPanel can find them via parentId lookup.
   function storeReceived(decoded) {
     var id = genId();
-    var chainRef = decoded._chainRef || null;
+    var chainRef       = decoded._chainRef  || null;
+    var inlineExpenses = decoded._expenses  || [];
+    var inlinePayments = decoded._payments  || [];
+
     var data = Object.assign({}, decoded);
     delete data._chainRef;
+    delete data._expenses;
+    delete data._payments;
+
     var rec = Object.assign({ id: id, receivedAt: Date.now(), draft: false }, data);
     if (chainRef) rec.chainRef = chainRef;
-    return store.put(id, rec).then(function() { return rec; });
+
+    return store.put(id, rec).then(function() {
+      var children = [];
+      var now = Date.now();
+      var currSym = rec.currency || null;
+
+      inlineExpenses.forEach(function(ex) {
+        var eid = genId();
+        var child = {
+          id: eid, parentId: id,
+          recordType:      'expense',
+          job:             ex.job    || 'Expense',
+          amount:          ex.amount || '0',
+          currency:        currSym,
+          draft:           false,
+          createdAt:       now,
+          updatedAt:       now,
+          importedFromShare: true,
+        };
+        if (ex.date)          child.date          = ex.date;
+        if (ex.actionIdx != null) child.actionIdx = ex.actionIdx;
+        if (ex.billing)       child.expense_billing = ex.billing;
+        if (ex.is_viewer)     child.is_viewer     = true;
+        children.push(store.put(eid, child));
+      });
+
+      inlinePayments.forEach(function(py) {
+        var pid = genId();
+        var child = {
+          id: pid, parentId: id,
+          recordType:      'payment',
+          job:             py.job    || 'Payment',
+          amount:          py.amount || '0',
+          currency:        currSym,
+          draft:           false,
+          createdAt:       now,
+          updatedAt:       now,
+          importedFromShare: true,
+        };
+        if (py.date) child.date = py.date;
+        children.push(store.put(pid, child));
+      });
+
+      return Promise.all(children).then(function() { return rec; });
+    });
   }
 
   // Find all records sharing a chainRef (for ACK / approval lookup).

@@ -326,6 +326,19 @@ var WorkpadsPanel = (function () {
     }
     if (!record) { ctxEl.style.display = 'none'; return; }
 
+    // Child record (expense/payment) — show parent job below
+    if (record.parentId) {
+      var parent = null;
+      for (var j = 0; j < _records.length; j++) {
+        if (_records[j].id === record.parentId) { parent = _records[j]; break; }
+      }
+      _renderChildCtx(ctxEl, record, parent);
+      var expEl = document.getElementById('wpp-expenses');
+      if (expEl) { expEl.style.display = 'none'; expEl.innerHTML = ''; }
+      return;
+    }
+
+    // Main record
     var meta = [];
     if (record.customer) meta.push(_esc(record.customer));
     if (record.date)     meta.push(_fmtDate(record.date));
@@ -344,15 +357,57 @@ var WorkpadsPanel = (function () {
       '</div>'
     );
 
-    var aid     = activeId;
+    var aid      = activeId;
     var editBtn  = document.getElementById('wpp-ctx-edit');
     var shareBtn = document.getElementById('wpp-ctx-share');
-    if (editBtn)  editBtn.addEventListener('click',  function () { App.showWizard(aid); });
+    if (editBtn)  editBtn.addEventListener('click', function () { App.showWizard(aid); });
     if (shareBtn) shareBtn.addEventListener('click', function () { App.showShare(aid); });
 
-    // Render expense sub-records for this workpad
-    var expenses = _records.filter(function (r) { return r.parentId === activeId; });
-    _renderExpenses(expenses, activeId);
+    var children = _records.filter(function (r) { return r.parentId === activeId; });
+    _renderExpenses(children, activeId);
+  }
+
+  function _renderChildCtx(ctxEl, record, parent) {
+    var typeLabel = record.recordType === 'payment' ? 'Payment'
+                  : record.recordType === 'expense'  ? 'Expense'
+                  : 'Record';
+    var currSym = record.currency === 'EUR' ? '\u20ac'
+                : record.currency === 'USD' ? '$' : '\u00a3';
+    var amt = record.amount
+      ? currSym + parseFloat(record.amount || 0).toFixed(2)
+      : '';
+
+    var parentBlock = '';
+    if (parent) {
+      var pmeta = [];
+      if (parent.customer) pmeta.push(_esc(parent.customer));
+      if (parent.date)     pmeta.push(_fmtDate(parent.date));
+      parentBlock = (
+        '<div style="border-top:1px solid var(--panel-border);margin-top:10px;padding-top:10px;">' +
+          '<div class="wpp-ctx-label">Job</div>' +
+          '<div class="wpp-ctx-job">' + _esc(parent.job || 'Untitled') + '</div>' +
+          (pmeta.length ? '<div class="wpp-ctx-meta">' + pmeta.join(' \xb7 ') + '</div>' : '') +
+          '<div class="wpp-ctx-actions" style="margin-top:6px;">' +
+            '<button class="btn-ghost" id="wpp-ctx-parent" style="font-size:10px;padding:4px 10px;">\u2190 View Job</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    ctxEl.style.display = '';
+    ctxEl.innerHTML = (
+      '<div class="wpp-ctx">' +
+        '<div class="wpp-ctx-label">' + typeLabel + '</div>' +
+        '<div class="wpp-ctx-job">' + _esc(record.job || typeLabel) + '</div>' +
+        (amt ? '<div class="wpp-ctx-meta">' + amt + '</div>' : '') +
+        parentBlock +
+      '</div>'
+    );
+
+    var parentBtn = document.getElementById('wpp-ctx-parent');
+    if (parentBtn && parent) {
+      parentBtn.addEventListener('click', function () { App.showView(parent.id); });
+    }
   }
 
   function _renderWizardCtx(ctxEl) {
@@ -551,8 +606,10 @@ var WorkpadsPanel = (function () {
     var activeId = _activeId();
     var inRecordMode = (_screenName === 'view' || _screenName === 'edit' || _screenName === 'share');
 
-    // Filter: exclude child records (expenses, payments) from the main panel list
-    var mainRecords = _records.filter(function (r) { return !r.parentId; });
+    // Filter: exclude child records and ACK records (approvals shown in view screen)
+    var mainRecords = _records.filter(function (r) {
+      return !r.parentId && r.record_type !== 'ack';
+    });
 
     if (mainRecords.length === 0) {
       listEl.innerHTML = (
@@ -576,10 +633,17 @@ var WorkpadsPanel = (function () {
       return;
     }
 
+    // When viewing a child record, find its parent so we can suppress it from the list too
+    var activeRecord = null;
+    for (var ai = 0; ai < _records.length; ai++) {
+      if (_records[ai].id === activeId) { activeRecord = _records[ai]; break; }
+    }
+    var activeParentId = (activeRecord && activeRecord.parentId) || null;
+
     var html = '';
     filtered.forEach(function (r) {
-      // In record mode, the active record is shown in the context card — exclude from list
-      if (inRecordMode && r.id === activeId) return;
+      // Active record and its parent (when viewing a child) are shown in context card
+      if (inRecordMode && (r.id === activeId || r.id === activeParentId)) return;
       var isActive = r.id === activeId;
       var meta     = [];
       if (r.customer) meta.push(_esc(r.customer));

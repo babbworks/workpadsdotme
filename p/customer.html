@@ -755,19 +755,25 @@
   // ── Codec ─────────────────────────────────────────────────
 
   var SCALAR_FIELDS = [
-    ['job',0],['customer',1],['date',2],['location',3],
-    ['meeting_time',4],['start_time',5],['end_time',6],
-    ['customer_phone',7],['worker',8],
-    ['details',10],['story',11],
-    ['amount',12],['currency',13],['vat',14],['record_type',15],
+    {id:'job',bit:0},{id:'customer',bit:1},{id:'date',bit:2},{id:'location',bit:3},
+    {id:'meeting_time',bit:4},{id:'start_time',bit:5},{id:'end_time',bit:6},
+    {id:'customer_phone',bit:7},{id:'worker',bit:8},
+    {id:'details',bit:10},{id:'story',bit:11},
   ];
+  var SCALAR_FIELDS_A = SCALAR_FIELDS.concat([
+    {id:'amount',bit:12},{id:'currency',bit:13},{id:'vat',bit:14},{id:'record_type',bit:15},
+  ]);
+  var RECORD_TYPES  = ['quote','invoice','expense','payment'];
+  var CURRENCIES    = ['GBP','USD','EUR','CAD','AUD','NZD','ZAR'];
+  var VAT_RATES     = ['0','5','7.5','10','12.5','15','20','23','25'];
+  var BILLING_TYPES = ['billable','non-billable','absorbed','cogs'];
+  var FIN_BIT = 12;
 
   function b64uToBytes(str) {
-    var b64    = str.replace(/-/g, '+').replace(/_/g, '/');
-    var pad    = (4 - b64.length % 4) % 4;
-    var binary = atob(b64 + '===='.slice(0, pad));
-    var bytes  = new Uint8Array(binary.length);
-    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    var padded = str + '=='.slice(0, (4 - str.length % 4) % 4);
+    var bin = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return bytes;
   }
 
@@ -777,180 +783,244 @@
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   }
 
-  function decodeFin(str) {
-    try {
-      var b64    = str.replace(/-/g, '+').replace(/_/g, '/');
-      var pad    = (4 - b64.length % 4) % 4;
-      var binary = atob(b64 + '===='.slice(0, pad));
-      var bytes  = new Uint8Array(binary.length);
-      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      var inflated = fflate.inflateSync(bytes);
-      var json = new TextDecoder().decode(inflated);
-      return JSON.parse(json);
-    } catch(e) { return null; }
+  function ru16(frame, o) { return { v: (frame[o] << 8) | frame[o+1], o: o+2 }; }
+
+  function readFinBlock(frame, offset, td) {
+    var ff = frame[offset++];
+    var fin = { record_type:null, currency:null, vat:null, amount:null, expenses:[], payments:[] };
+    if (ff & 0x01) {
+      var rt = frame[offset++];
+      if (rt === 255) { var ra=ru16(frame,offset);offset=ra.o;fin.record_type=td.decode(frame.slice(offset,offset+ra.v));offset+=ra.v; }
+      else fin.record_type = RECORD_TYPES[rt] || null;
+    }
+    if (ff & 0x02) {
+      var ci = frame[offset++];
+      if (ci === 255) { var rb=ru16(frame,offset);offset=rb.o;fin.currency=td.decode(frame.slice(offset,offset+rb.v));offset+=rb.v; }
+      else fin.currency = CURRENCIES[ci] || null;
+    }
+    if (ff & 0x04) {
+      var vi = frame[offset++];
+      if (vi === 255) { var rc=ru16(frame,offset);offset=rc.o;fin.vat=td.decode(frame.slice(offset,offset+rc.v));offset+=rc.v; }
+      else fin.vat = VAT_RATES[vi] || null;
+    }
+    if (ff & 0x08) { var rd=ru16(frame,offset);offset=rd.o;fin.amount=td.decode(frame.slice(offset,offset+rd.v));offset+=rd.v; }
+    if (ff & 0x10) {
+      var ec = frame[offset++];
+      for (var ei=0; ei<ec; ei++) {
+        var ef=frame[offset++]; var re=ru16(frame,offset);offset=re.o;
+        var ex={amount:td.decode(frame.slice(offset,offset+re.v))};offset+=re.v;
+        if (ef&0x01){var rf=ru16(frame,offset);offset=rf.o;ex.job=td.decode(frame.slice(offset,offset+rf.v));offset+=rf.v;}
+        if (ef&0x02){var rg=ru16(frame,offset);offset=rg.o;ex.date=td.decode(frame.slice(offset,offset+rg.v));offset+=rg.v;}
+        if (ef&0x04){ex.billing=BILLING_TYPES[frame[offset++]]||null;}
+        if (ef&0x08){ex.actionIdx=frame[offset++];}
+        if (ef&0x10){ex.is_viewer=true;}
+        fin.expenses.push(ex);
+      }
+    }
+    if (ff & 0x20) {
+      var pc = frame[offset++];
+      for (var pi=0; pi<pc; pi++) {
+        var pf=frame[offset++]; var rh=ru16(frame,offset);offset=rh.o;
+        var py={amount:td.decode(frame.slice(offset,offset+rh.v))};offset+=rh.v;
+        if (pf&0x01){var ri=ru16(frame,offset);offset=ri.o;py.job=td.decode(frame.slice(offset,offset+ri.v));offset+=ri.v;}
+        if (pf&0x02){var rj=ru16(frame,offset);offset=rj.o;py.date=td.decode(frame.slice(offset,offset+rj.v));offset+=rj.v;}
+        fin.payments.push(py);
+      }
+    }
+    return { fin: fin, offset: offset };
   }
 
-  // Append viewer-added expenses to the current fin object and re-compress.
-  // viewerExpenses: [{job, amount, actionIdx, date}]
-  // Returns base64url string for use in &fin= URL param.
-  function appendFin(finObj, viewerExpenses) {
-    var obj = {
-      e: (finObj && finObj.e ? finObj.e.slice() : []),
-      p: (finObj && finObj.p ? finObj.p.slice() : []),
-    };
-    (viewerExpenses || []).forEach(function(e) {
-      var item = { a: String(e.amount || '0'), s: 'v' };
-      if (e.job)           item.l = e.job;
-      if (e.date)          item.d = e.date;
-      if (e.actionIdx != null) item.n = e.actionIdx;
-      obj.e.push(item);
+  function recordToFin(record) {
+    if (!record || (!record._expenses && !record._payments)) return null;
+    var fin = { e: [], p: [] };
+    (record._expenses || []).forEach(function(ex) {
+      var item = { a: String(ex.amount || '0') };
+      if (ex.job)           item.l = ex.job;
+      if (ex.date)          item.d = ex.date;
+      if (ex.actionIdx != null) item.n = ex.actionIdx;
+      if (ex.is_viewer)     item.s = 'v';
+      fin.e.push(item);
     });
-    var bytes = new TextEncoder().encode(JSON.stringify(obj));
-    var compressed = fflate.deflateSync(bytes, { level: 9 });
-    return bytesToB64u(compressed);
-  }
-
-  // Rebuild the current page URL with an updated fin= segment.
-  function buildAugmentedUrl() {
-    var hash = window.location.hash.slice(1);
-    var segs = hash.split('&');
-    var payload = segs[0];
-    var otherParams = [];
-    segs.slice(1).forEach(function(seg) {
-      if (seg.indexOf('fin=') !== 0) otherParams.push(seg);
+    (record._payments || []).forEach(function(py) {
+      var item = { a: String(py.amount || '0') };
+      if (py.job)  item.l = py.job;
+      if (py.date) item.d = py.date;
+      fin.p.push(item);
     });
-    var newFin = appendFin(_fin, _viewerExpenses);
-    return 'https://workpads.me/p/customer.html#' +
-      [payload].concat(otherParams).concat(['fin=' + newFin]).join('&');
+    return (fin.e.length || fin.p.length) ? fin : null;
   }
 
-  function decodeWorkpad(hashFragment) {
-    // Split on '&' — first segment is codec payload, rest are key=value params
-    var segments = hashFragment.split('&');
-    var payload  = segments[0];
-    var chainRef = null;
-    for (var pi = 1; pi < segments.length; pi++) {
-      var eq = segments[pi].indexOf('=');
-      if (eq === -1) continue;
-      var k = segments[pi].slice(0, eq), v = segments[pi].slice(eq + 1);
-      if (k === 'c')   chainRef = v;
-      if (k === 'fin') _fin = decodeFin(v);
+  function padsDecodeA(frame) {
+    var flags=(frame[1]<<8)|frame[2], offset=3, td=new TextDecoder(), rec={};
+    for (var i=0;i<SCALAR_FIELDS_A.length;i++){
+      var f=SCALAR_FIELDS_A[i];
+      if (f.bit<9&&(flags&(1<<f.bit))){var r=ru16(frame,offset);offset=r.o;rec[f.id]=td.decode(frame.slice(offset,offset+r.v));offset+=r.v;}
     }
-
-    if (!/^[0-9][a-z][a-z]\//.test(payload)) throw new Error('Unsupported format');
-    var hashFragment = payload;
-
-    var compressed = b64uToBytes(hashFragment.slice(4));
-    var frame      = fflate.inflateSync(compressed);
-    var flags      = (frame[1] << 8) | frame[2];  // big-endian uint16
-    var offset     = 3;
-    var td         = new TextDecoder();
-    var rec        = {};
-
-    // Low scalar fields (bits 0–8)
-    for (var i = 0; i < SCALAR_FIELDS.length; i++) {
-      var sf = SCALAR_FIELDS[i];
-      if (sf[1] < 9 && (flags & (1 << sf[1]))) {
-        var len = (frame[offset] << 8) | frame[offset+1]; offset += 2;
-        rec[sf[0]] = td.decode(frame.slice(offset, offset+len)); offset += len;
-      }
+    if (flags&(1<<9)){
+      var cnt=frame[offset++],acts=[];
+      for (var j=0;j<cnt;j++){var rt=ru16(frame,offset);offset=rt.o;var ti=td.decode(frame.slice(offset,offset+rt.v));offset+=rt.v;var rn=ru16(frame,offset);offset=rn.o;var ni=td.decode(frame.slice(offset,offset+rn.v));offset+=rn.v;acts.push({title:ti,notes:ni});}
+      rec.actions=acts;
     }
-
-    // Actions (bit 9)
-    if (flags & (1 << 9)) {
-      var count   = frame[offset++];
-      var actions = [];
-      for (var j = 0; j < count; j++) {
-        var tl = (frame[offset] << 8) | frame[offset+1]; offset += 2;
-        var ti = td.decode(frame.slice(offset, offset+tl)); offset += tl;
-        var nl = (frame[offset] << 8) | frame[offset+1]; offset += 2;
-        var ni = td.decode(frame.slice(offset, offset+nl)); offset += nl;
-        actions.push({ title: ti, notes: ni });
-      }
-      rec.actions = actions;
+    for (var k=0;k<SCALAR_FIELDS_A.length;k++){
+      var hf=SCALAR_FIELDS_A[k];
+      if (hf.bit>9&&(flags&(1<<hf.bit))){var r2=ru16(frame,offset);offset=r2.o;rec[hf.id]=td.decode(frame.slice(offset,offset+r2.v));offset+=r2.v;}
     }
-
-    // High scalar fields (bits 10+)
-    for (var k = 0; k < SCALAR_FIELDS.length; k++) {
-      var hf = SCALAR_FIELDS[k];
-      if (hf[1] > 9 && (flags & (1 << hf[1]))) {
-        var hl = (frame[offset] << 8) | frame[offset+1]; offset += 2;
-        rec[hf[0]] = td.decode(frame.slice(offset, offset+hl)); offset += hl;
-      }
-    }
-
-    if (chainRef) rec._chainRef = chainRef;
     return rec;
   }
 
-  function encodeWorkpad(record, chainRef) {
-    var te = new TextEncoder();
-    var flags = 0;
-    var scalarBytes = {};
+  function padsDecodeB(frame) {
+    var flags=(frame[1]<<8)|frame[2], offset=3, td=new TextDecoder(), rec={};
+    for (var i=0;i<SCALAR_FIELDS.length;i++){
+      var f=SCALAR_FIELDS[i];
+      if (f.bit<9&&(flags&(1<<f.bit))){var r=ru16(frame,offset);offset=r.o;rec[f.id]=td.decode(frame.slice(offset,offset+r.v));offset+=r.v;}
+    }
+    if (flags&(1<<9)){
+      var cnt=frame[offset++],acts=[];
+      for (var j=0;j<cnt;j++){var rt=ru16(frame,offset);offset=rt.o;var ti=td.decode(frame.slice(offset,offset+rt.v));offset+=rt.v;var rn=ru16(frame,offset);offset=rn.o;var ni=td.decode(frame.slice(offset,offset+rn.v));offset+=rn.v;acts.push({title:ti,notes:ni});}
+      rec.actions=acts;
+    }
+    for (var i2=0;i2<SCALAR_FIELDS.length;i2++){
+      var sf=SCALAR_FIELDS[i2];
+      if (sf.bit>9&&sf.bit<FIN_BIT&&(flags&(1<<sf.bit))){var r2=ru16(frame,offset);offset=r2.o;rec[sf.id]=td.decode(frame.slice(offset,offset+r2.v));offset+=r2.v;}
+    }
+    if (flags&(1<<FIN_BIT)){
+      var res=readFinBlock(frame,offset,td);offset=res.offset;
+      var fin=res.fin;
+      if (fin.record_type) rec.record_type=fin.record_type;
+      if (fin.currency)    rec.currency=fin.currency;
+      if (fin.vat)         rec.vat=fin.vat;
+      if (fin.amount)      rec.amount=fin.amount;
+      if (fin.expenses.length) rec._expenses=fin.expenses;
+      if (fin.payments.length) rec._payments=fin.payments;
+    }
+    return rec;
+  }
 
-    for (var i = 0; i < SCALAR_FIELDS.length; i++) {
-      var sf = SCALAR_FIELDS[i];
-      if (record[sf[0]] != null && record[sf[0]] !== '') {
-        scalarBytes[sf[0]] = te.encode(String(record[sf[0]]));
-        flags |= (1 << sf[1]);
+  function decodeWorkpad(hashFragment) {
+    var segs=hashFragment.split('&'), payload=segs[0], chainRef=null;
+    for (var pi=1;pi<segs.length;pi++){
+      var eq=segs[pi].indexOf('=');
+      if (eq===-1) continue;
+      var k2=segs[pi].slice(0,eq);
+      if (k2==='c') chainRef=segs[pi].slice(eq+1);
+    }
+    if (!/^[0-9][a-z][a-z]\//.test(payload)) throw new Error('Unsupported format');
+    var tag=payload.slice(0,3);
+    var frame=fflate.inflateSync(b64uToBytes(payload.slice(4)));
+    var rec=(tag==='1ag') ? padsDecodeA(frame) : padsDecodeB(frame);
+    if (chainRef) rec._chainRef=chainRef;
+    return rec;
+  }
+
+  function writeFinBlock(record, expenses, payments) {
+    var te=new TextEncoder(), parts=[], ff=0;
+    function pu16(n){return new Uint8Array([(n>>>8)&0xFF,n&0xFF]);}
+    if (record.record_type!=null){
+      ff|=0x01; var ri=RECORD_TYPES.indexOf(record.record_type);
+      parts.push(new Uint8Array([ri===-1?255:ri]));
+      if (ri===-1){var rb=te.encode(record.record_type);parts.push(pu16(rb.length));parts.push(rb);}
+    }
+    if (record.currency!=null){
+      ff|=0x02; var ci=CURRENCIES.indexOf(record.currency);
+      parts.push(new Uint8Array([ci===-1?255:ci]));
+      if (ci===-1){var cb=te.encode(record.currency);parts.push(pu16(cb.length));parts.push(cb);}
+    }
+    if (record.vat!=null){
+      ff|=0x04; var vi=VAT_RATES.indexOf(String(record.vat));
+      parts.push(new Uint8Array([vi===-1?255:vi]));
+      if (vi===-1){var vb=te.encode(String(record.vat));parts.push(pu16(vb.length));parts.push(vb);}
+    }
+    if (record.amount!=null&&record.amount!==''){
+      ff|=0x08; var ab=te.encode(String(record.amount));
+      parts.push(pu16(ab.length));parts.push(ab);
+    }
+    if (expenses&&expenses.length){
+      ff|=0x10; parts.push(new Uint8Array([expenses.length]));
+      expenses.forEach(function(ex){
+        var ef=0,ep=[];
+        var ea=te.encode(String(ex.amount||'0'));ep.push(pu16(ea.length));ep.push(ea);
+        if (ex.job){ef|=0x01;var jb=te.encode(ex.job);ep.push(pu16(jb.length));ep.push(jb);}
+        if (ex.date){ef|=0x02;var db=te.encode(ex.date);ep.push(pu16(db.length));ep.push(db);}
+        if (ex.billing){ef|=0x04;ep.push(new Uint8Array([Math.max(0,BILLING_TYPES.indexOf(ex.billing))]));}
+        if (ex.actionIdx!=null){ef|=0x08;ep.push(new Uint8Array([ex.actionIdx]));}
+        if (ex.is_viewer) ef|=0x10;
+        parts.push(new Uint8Array([ef]));
+        ep.forEach(function(p){parts.push(p);});
+      });
+    }
+    if (payments&&payments.length){
+      ff|=0x20; parts.push(new Uint8Array([payments.length]));
+      payments.forEach(function(py){
+        var pf=0,pp=[];
+        var pa=te.encode(String(py.amount||'0'));pp.push(pu16(pa.length));pp.push(pa);
+        if (py.job){pf|=0x01;var pjb=te.encode(py.job);pp.push(pu16(pjb.length));pp.push(pjb);}
+        if (py.date){pf|=0x02;var pdb=te.encode(py.date);pp.push(pu16(pdb.length));pp.push(pdb);}
+        parts.push(new Uint8Array([pf]));
+        pp.forEach(function(p){parts.push(p);});
+      });
+    }
+    if (!ff) return null;
+    var all=[new Uint8Array([ff])].concat(parts);
+    var tot=0;all.forEach(function(p){tot+=p.length;});
+    var out=new Uint8Array(tot),pos2=0;
+    all.forEach(function(p){out.set(p,pos2);pos2+=p.length;});
+    return out;
+  }
+
+  function buildAugmentedUrl() {
+    var record = _record;
+    if (!record) return window.location.href;
+    var finBase = _fin || { e: [], p: [] };
+    var expenses = (finBase.e || []).map(function(e) {
+      return { amount: e.a, job: e.l, date: e.d, actionIdx: e.n, is_viewer: e.s === 'v' };
+    }).concat(_viewerExpenses.map(function(e) {
+      return { amount: e.amount, job: e.job, date: e.date, actionIdx: e.actionIdx, is_viewer: true };
+    }));
+    var payments = (finBase.p || []).map(function(p) {
+      return { amount: p.a, job: p.l, date: p.d };
+    });
+    var hash = encodeWorkpad(record, record._chainRef || null, expenses, payments);
+    return 'https://workpads.me/p/customer.html#' + hash;
+  }
+
+  function encodeWorkpad(record, chainRef, expenses, payments) {
+    var te=new TextEncoder(), flags=0, lowFields=[], highFields=[];
+    SCALAR_FIELDS.forEach(function(f){
+      if (record[f.id]!=null&&record[f.id]!==''){
+        var b=te.encode(String(record[f.id]));
+        if (f.bit<9){flags|=(1<<f.bit);lowFields.push(b);}
+        else if (f.bit>9&&f.bit<FIN_BIT){flags|=(1<<f.bit);highFields.push(b);}
       }
+    });
+    var finBytes=writeFinBlock(record,expenses||[],payments||[]);
+    if (finBytes) flags|=(1<<FIN_BIT);
+    var actBytes=null;
+    if (record.actions&&record.actions.length){
+      flags|=(1<<9);
+      var ap=[new Uint8Array([record.actions.length])];
+      record.actions.forEach(function(a){
+        var tb=te.encode(a.title||'');ap.push(new Uint8Array([(tb.length>>>8)&0xFF,tb.length&0xFF]));ap.push(tb);
+        var nb=te.encode(a.notes||'');ap.push(new Uint8Array([(nb.length>>>8)&0xFF,nb.length&0xFF]));ap.push(nb);
+      });
+      var at=0;ap.forEach(function(p){at+=p.length;});
+      actBytes=new Uint8Array(at);var apos=0;
+      ap.forEach(function(p){actBytes.set(p,apos);apos+=p.length;});
     }
-
-    var actionItems = Array.isArray(record.actions) ? record.actions.slice(0, 20) : [];
-    if (actionItems.length) flags |= (1 << 9);
-
-    // Calculate size
-    var size = 3;
-    for (var j = 0; j < SCALAR_FIELDS.length; j++) {
-      var sf2 = SCALAR_FIELDS[j];
-      if (sf2[1] < 9 && scalarBytes[sf2[0]]) size += 2 + scalarBytes[sf2[0]].length;
-    }
-    if (actionItems.length) {
-      size += 1;
-      for (var k = 0; k < actionItems.length; k++) {
-        var tb = te.encode(actionItems[k].title || '');
-        var nb = te.encode(actionItems[k].notes || '');
-        size += 2 + tb.length + 2 + nb.length;
-      }
-    }
-    for (var m = 0; m < SCALAR_FIELDS.length; m++) {
-      var sf3 = SCALAR_FIELDS[m];
-      if (sf3[1] > 9 && scalarBytes[sf3[0]]) size += 2 + scalarBytes[sf3[0]].length;
-    }
-
-    var buf = new Uint8Array(size);
-    var pos = 0;
-    buf[pos++] = 0x01;                         // template svc-basic
-    buf[pos++] = (flags >>> 8) & 0xFF;         // flags high byte
-    buf[pos++] = flags & 0xFF;                 // flags low byte
-
-    function writeField(bytes) {
-      buf[pos++] = (bytes.length >>> 8) & 0xFF;
-      buf[pos++] = bytes.length & 0xFF;
-      buf.set(bytes, pos); pos += bytes.length;
-    }
-
-    for (var p = 0; p < SCALAR_FIELDS.length; p++) {
-      var sf4 = SCALAR_FIELDS[p];
-      if (sf4[1] < 9 && scalarBytes[sf4[0]]) writeField(scalarBytes[sf4[0]]);
-    }
-
-    if (actionItems.length) {
-      buf[pos++] = actionItems.length;
-      for (var q = 0; q < actionItems.length; q++) {
-        writeField(te.encode(actionItems[q].title || ''));
-        writeField(te.encode(actionItems[q].notes || ''));
-      }
-    }
-
-    for (var r = 0; r < SCALAR_FIELDS.length; r++) {
-      var sf5 = SCALAR_FIELDS[r];
-      if (sf5[1] > 9 && scalarBytes[sf5[0]]) writeField(scalarBytes[sf5[0]]);
-    }
-
-    var compressed = fflate.deflateSync(buf, { level: 9 });
-    var url = '1ag/' + bytesToB64u(compressed);
-    if (chainRef) url += '&c=' + chainRef;
+    var size=3;
+    lowFields.forEach(function(b){size+=2+b.length;});
+    if (actBytes) size+=actBytes.length;
+    highFields.forEach(function(b){size+=2+b.length;});
+    if (finBytes) size+=finBytes.length;
+    var buf=new Uint8Array(size),pos=0;
+    buf[pos++]=0x01;buf[pos++]=(flags>>>8)&0xFF;buf[pos++]=flags&0xFF;
+    function wf(b){buf[pos++]=(b.length>>>8)&0xFF;buf[pos++]=b.length&0xFF;buf.set(b,pos);pos+=b.length;}
+    lowFields.forEach(wf);
+    if (actBytes){buf.set(actBytes,pos);pos+=actBytes.length;}
+    highFields.forEach(wf);
+    if (finBytes){buf.set(finBytes,pos);pos+=finBytes.length;}
+    var compressed=fflate.deflateSync(buf,{level:9});
+    var url='1bg/'+bytesToB64u(compressed);
+    if (chainRef) url+='&c='+chainRef;
     return url;
   }
 
@@ -1801,6 +1871,7 @@
 
     try {
       _record = decodeWorkpad(_hash);
+      _fin    = recordToFin(_record);
       render(_record);
     } catch(e) {
       renderError(e.message);

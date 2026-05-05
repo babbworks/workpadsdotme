@@ -9,7 +9,8 @@ var ShareScreen = (function () {
   var _url         = '';
   var _shareType   = 'job';
   var _shareView   = 'simple';  // 'simple' (p/index.html) | 'full' (customer.html)
-  var _finRaw      = '';
+  var _expenses    = [];
+  var _payments    = [];
   var _includeFin  = false;
   var _finSummary  = '';
   var _stylesAdded = false;
@@ -137,7 +138,8 @@ var ShareScreen = (function () {
       _record     = r;
       _shareType  = r.record_type || 'job';
       _shareView  = 'simple';
-      _finRaw     = '';
+      _expenses   = [];
+      _payments   = [];
       _finSummary = '';
       _includeFin = (_shareType === 'quote' || _shareType === 'invoice');
       _loadFin().then(function () {
@@ -152,27 +154,24 @@ var ShareScreen = (function () {
     _url        = '';
     _shareType  = 'job';
     _shareView  = 'simple';
-    _finRaw     = '';
+    _expenses   = [];
+    _payments   = [];
     _finSummary = '';
     _includeFin = false;
   }
 
   function _loadFin() {
     return RecordService.list().then(function (all) {
-      var id       = _record.id;
+      var id = _record.id;
       // COGS expenses are internal — never expose to customer
-      var expenses = all.filter(function (r) {
+      _expenses = all.filter(function (r) {
         return r.parentId === id && r.recordType === 'expense' && r.expense_billing !== 'cogs';
       });
-      var payments = all.filter(function (r) { return r.parentId === id && r.recordType === 'payment'; });
-      if (!expenses.length && !payments.length) return;
-      try {
-        _finRaw = WPCodec.encodeFin(expenses, payments);
-        var parts = [];
-        if (expenses.length) parts.push(expenses.length + ' expense' + (expenses.length !== 1 ? 's' : ''));
-        if (payments.length) parts.push(payments.length + ' payment' + (payments.length !== 1 ? 's' : ''));
-        _finSummary = parts.join(' \xb7 ');
-      } catch(e) { _finRaw = ''; _finSummary = ''; }
+      _payments = all.filter(function (r) { return r.parentId === id && r.recordType === 'payment'; });
+      var parts = [];
+      if (_expenses.length) parts.push(_expenses.length + ' expense' + (_expenses.length !== 1 ? 's' : ''));
+      if (_payments.length) parts.push(_payments.length + ' payment' + (_payments.length !== 1 ? 's' : ''));
+      _finSummary = parts.join(' \xb7 ');
     });
   }
 
@@ -181,13 +180,14 @@ var ShareScreen = (function () {
       var recForEncode = Object.assign({}, _record, {
         record_type: _shareType === 'job' ? undefined : _shareType,
       });
-      var fragment = RecordService.encodeUrl(recForEncode);
-      // fragment = 'workpads.me/p#1ag/...' — swap path for full/customer view
+      var finOpts = (_includeFin && (_expenses.length || _payments.length))
+        ? { expenses: _expenses, payments: _payments }
+        : null;
+      var fragment = RecordService.encodeUrl(recForEncode, finOpts);
       if (_shareView === 'full') {
         fragment = fragment.replace('workpads.me/p#', 'workpads.me/p/customer.html#');
       }
-      var fin = (_includeFin && _finRaw) ? '&fin=' + _finRaw : '';
-      _url = 'https://' + fragment + fin;
+      _url = 'https://' + fragment;
     } catch (e) {
       _url = '';
     }
@@ -249,7 +249,7 @@ var ShareScreen = (function () {
     html += '</div>';
 
     // Financials toggle (only when fin data available)
-    if (_finRaw) {
+    if (_expenses.length || _payments.length) {
       html += '<div class="share-fin-row' + (_includeFin ? ' active' : '') + '" id="share-fin-toggle">' +
         '<div class="share-fin-check">' + (_includeFin ? '\u2713' : '') + '</div>' +
         '<div class="share-fin-text">' +
@@ -273,7 +273,7 @@ var ShareScreen = (function () {
     html += '<div class="share-meta-row">';
     html += _metaItem('Characters', String(charCount));
     html += _metaItem('Payload', dataLen + '\u00a0chars');
-    html += _metaItem('Codec', 'pads-v1 \xb7 1ag');
+    html += _metaItem('Codec', 'pads-v1 \xb7 1bg');
     html += '</div>';
 
     // Action buttons
@@ -285,7 +285,7 @@ var ShareScreen = (function () {
 
     // Attribution
     html += '<div class="share-attribution">';
-    html += 'Workpads v0.1.0 \xb7 pads-v1 \xb7 1ag \xb7 workpads.me';
+    html += 'Workpads v0.1.0 \xb7 pads-v1 \xb7 1bg \xb7 workpads.me';
     html += '</div>';
 
     html += '</div>'; // .share-wrap
@@ -325,7 +325,7 @@ var ShareScreen = (function () {
           b.classList.toggle('active', b.dataset.type === _shareType);
         });
         // Auto-enable fin for financial document types
-        if (_finRaw) {
+        if (_expenses.length || _payments.length) {
           _includeFin = (_shareType === 'quote' || _shareType === 'invoice');
           _syncFinToggle();
         }
