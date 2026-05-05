@@ -11,9 +11,11 @@ var ShareScreen = (function () {
   var _shareView   = 'simple';  // 'simple' (p/index.html) | 'full' (customer.html)
   var _expenses    = [];
   var _payments    = [];
-  var _includeFin  = false;
-  var _finSummary  = '';
-  var _stylesAdded = false;
+  var _includeFin     = false;
+  var _includeStory   = true;
+  var _includeDetails = true;
+  var _finSummary     = '';
+  var _stylesAdded    = false;
 
   // ── Styles ───────────────────────────────────────────────────
 
@@ -140,8 +142,10 @@ var ShareScreen = (function () {
       _shareView  = 'simple';
       _expenses   = [];
       _payments   = [];
-      _finSummary = '';
-      _includeFin = (_shareType === 'quote' || _shareType === 'invoice');
+      _finSummary     = '';
+      _includeFin     = (_shareType === 'quote' || _shareType === 'invoice');
+      _includeStory   = true;
+      _includeDetails = true;
       _loadFin().then(function () {
         _encodeUrl();
         _render();
@@ -156,8 +160,10 @@ var ShareScreen = (function () {
     _shareView  = 'simple';
     _expenses   = [];
     _payments   = [];
-    _finSummary = '';
-    _includeFin = false;
+    _finSummary     = '';
+    _includeFin     = false;
+    _includeStory   = true;
+    _includeDetails = true;
   }
 
   function _loadFin() {
@@ -180,6 +186,8 @@ var ShareScreen = (function () {
       var recForEncode = Object.assign({}, _record, {
         record_type: _shareType === 'job' ? undefined : _shareType,
       });
+      if (!_includeStory)   delete recForEncode.story;
+      if (!_includeDetails) delete recForEncode.details;
       var finOpts = (_includeFin && (_expenses.length || _payments.length))
         ? { expenses: _expenses, payments: _payments }
         : null;
@@ -259,6 +267,28 @@ var ShareScreen = (function () {
       '</div>';
     }
 
+    // Story opt-in (only when record has story)
+    if (_record.story) {
+      html += '<div class="share-fin-row' + (_includeStory ? ' active' : '') + '" id="share-story-toggle">' +
+        '<div class="share-fin-check">' + (_includeStory ? '\u2713' : '') + '</div>' +
+        '<div class="share-fin-text">' +
+          '<div class="share-fin-label">Include story</div>' +
+          '<div class="share-fin-meta">' + _esc(_record.story.slice(0, 60)) + (_record.story.length > 60 ? '\u2026' : '') + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    // Details opt-in (only when record has details)
+    if (_record.details) {
+      html += '<div class="share-fin-row' + (_includeDetails ? ' active' : '') + '" id="share-details-toggle">' +
+        '<div class="share-fin-check">' + (_includeDetails ? '\u2713' : '') + '</div>' +
+        '<div class="share-fin-text">' +
+          '<div class="share-fin-label">Include details</div>' +
+          '<div class="share-fin-meta">' + _esc(_record.details.slice(0, 60)) + (_record.details.length > 60 ? '\u2026' : '') + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
     // URL box
     var urlPrefix = _shareView === 'full' ? 'https://workpads.me/p/customer.html#' : 'https://workpads.me/p#';
     html += '<div class="share-url-box" id="share-url-box" title="Click to copy">';
@@ -273,7 +303,7 @@ var ShareScreen = (function () {
     html += '<div class="share-meta-row">';
     html += _metaItem('Characters', String(charCount));
     html += _metaItem('Payload', dataLen + '\u00a0chars');
-    html += _metaItem('Codec', 'pads-v1 \xb7 1bg');
+    html += _metaItem('Codec', 'pads-v1 \xb7 1cg');
     html += '</div>';
 
     // Action buttons
@@ -285,7 +315,7 @@ var ShareScreen = (function () {
 
     // Attribution
     html += '<div class="share-attribution">';
-    html += 'Workpads v0.1.0 \xb7 pads-v1 \xb7 1bg \xb7 workpads.me';
+    html += 'Workpads v0.1.0 \xb7 pads-v1 \xb7 1cg \xb7 workpads.me';
     html += '</div>';
 
     html += '</div>'; // .share-wrap
@@ -358,6 +388,30 @@ var ShareScreen = (function () {
       finToggle.addEventListener('click', function () {
         _includeFin = !_includeFin;
         _syncFinToggle();
+        _encodeUrl();
+        _syncUrlDisplay();
+      });
+    }
+
+    var storyToggle = document.getElementById('share-story-toggle');
+    if (storyToggle) {
+      storyToggle.addEventListener('click', function () {
+        _includeStory = !_includeStory;
+        storyToggle.classList.toggle('active', _includeStory);
+        var check = storyToggle.querySelector('.share-fin-check');
+        if (check) check.textContent = _includeStory ? '\u2713' : '';
+        _encodeUrl();
+        _syncUrlDisplay();
+      });
+    }
+
+    var detailsToggle = document.getElementById('share-details-toggle');
+    if (detailsToggle) {
+      detailsToggle.addEventListener('click', function () {
+        _includeDetails = !_includeDetails;
+        detailsToggle.classList.toggle('active', _includeDetails);
+        var check = detailsToggle.querySelector('.share-fin-check');
+        if (check) check.textContent = _includeDetails ? '\u2713' : '';
         _encodeUrl();
         _syncUrlDisplay();
       });

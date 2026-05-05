@@ -10,6 +10,7 @@ var WorkpadsPanel = (function () {
   var _stylesAdded  = false;
   var _screenName   = 'list';
   var _screenParams = {};
+  var _cogsOpen     = false;
 
   // ── Styles ───────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ var WorkpadsPanel = (function () {
       '}',
 
       '.wpp-search {',
-      '  flex-shrink:0;',
+      '  flex-shrink:0; display:flex; align-items:center;',
       '  padding:8px 10px;',
       '  border-bottom:1px solid var(--panel-border);',
       '}',
@@ -106,6 +107,47 @@ var WorkpadsPanel = (function () {
       '  border-top:1px solid var(--panel-border);',
       '}',
 
+      /* Back arrow in search bar */
+      '.wpp-back-btn {',
+      '  flex-shrink:0; padding:0 8px 0 2px;',
+      '  background:none; border:none; cursor:pointer;',
+      '  font-family:var(--font-mono); font-size:13px;',
+      '  color:var(--ink-muted); line-height:1; transition:color .12s;',
+      '  display:none;',  // shown via JS in record mode
+      '}',
+      '.wpp-back-btn:hover { color:var(--stamp); }',
+      '.wpp-search-input { flex:1; }',
+
+      /* Add buttons row above Financial header */
+      '.wpp-exp-add-top {',
+      '  padding:6px 10px;',
+      '  border-bottom:1px solid var(--rule-light);',
+      '  display:flex; gap:4px; overflow:hidden;',
+      '}',
+      '.wpp-exp-add-top .btn-ghost {',
+      '  flex:1; min-width:0; overflow:hidden;',
+      '  font-size:10px !important; padding:4px 4px !important;',
+      '  white-space:nowrap; text-overflow:ellipsis;',
+      '}',
+
+      /* My cost confirm row */
+      '.wpp-my-cost-row {',
+      '  display:flex; align-items:center; justify-content:space-between;',
+      '  padding:3px 14px 4px;',
+      '  background:rgba(120,100,80,.03);',
+      '}',
+      '.wpp-my-cost-label {',
+      '  font-family:var(--font-mono); font-size:9px;',
+      '  color:var(--ink-muted); letter-spacing:.04em;',
+      '}',
+      '.wpp-my-cost-confirm {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.06em; text-transform:uppercase;',
+      '  color:var(--stamp); background:none; border:none; cursor:pointer;',
+      '  padding:2px 4px; flex-shrink:0; transition:color .12s;',
+      '}',
+      '.wpp-my-cost-confirm:hover { color:var(--ink); }',
+
       /* Context block */
       '.wpp-ctx {',
       '  padding:10px 14px 12px;',
@@ -164,14 +206,31 @@ var WorkpadsPanel = (function () {
       '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
       '  letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint);',
       '}',
+      '.wpp-fin-summary-link {',
+      '  background:none; border:none; padding:0; cursor:pointer;',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.12em; text-transform:uppercase;',
+      '  color:#1a3055; text-decoration:underline; text-decoration-style:dotted;',
+      '}',
+      '.wpp-fin-summary-link:hover { text-decoration-style:solid; }',
       '.wpp-fin-subtitle {',
       '  padding:5px 14px 3px;',
       '  font-family:var(--font-mono); font-size:8.5px; font-weight:700;',
       '  letter-spacing:.10em; text-transform:uppercase;',
-      '  color:rgba(100,90,80,.38);',
+      '  color:rgba(80,70,60,.60);',
       '  border-top:1px solid var(--rule-light);',
       '}',
       '.wpp-fin-subtitle:first-of-type { border-top:none; }',
+
+      '.wpp-exp-action-head {',
+      '  padding:5px 14px 3px;',
+      '  font-family:var(--font-mono); font-size:8px; font-weight:700;',
+      '  letter-spacing:.08em; text-transform:uppercase;',
+      '  color:var(--ink-faint); border-top:1px solid var(--rule-light);',
+      '  pointer-events:none;',
+      '}',
+      '.wpp-exp-group:first-child .wpp-exp-action-head { border-top:none; }',
+      '.wpp-exp-group:nth-child(even) { background:rgba(120,100,80,.03); }',
       '.wpp-exp-item {',
       '  padding:5px 14px;',
       '  display:flex; justify-content:space-between; align-items:center;',
@@ -199,6 +258,38 @@ var WorkpadsPanel = (function () {
       '  border-top:1px solid var(--rule-light);',
       '  display:flex; gap:6px;',
       '}',
+
+      '.wpp-cogs-section {',
+      '  border-top:1px solid var(--rule-light);',
+      '}',
+      '.wpp-cogs-toggle {',
+      '  display:flex; align-items:center; gap:6px;',
+      '  width:100%; padding:4px 14px;',
+      '  background:none; border:none; cursor:pointer;',
+      '  font-family:var(--font-mono); font-size:8.5px; font-weight:700;',
+      '  letter-spacing:.10em; text-transform:uppercase;',
+      '  color:rgba(80,70,60,.60); transition:color .12s;',
+      '}',
+      '.wpp-cogs-toggle:hover { color:var(--ink-muted); }',
+      '.wpp-cogs-amt {',
+      '  font-family:var(--font-mono); font-size:10px;',
+      '  color:#b84040; margin-left:auto;',
+      '}',
+      '.wpp-cogs-add {',
+      '  padding:5px 14px 6px;',
+      '  border-top:1px solid var(--rule-light);',
+      '}',
+      '.wpp-cogs-chevron {',
+      '  font-size:9px; color:var(--ink-faint);',
+      '  transition:transform .15s;',
+      '}',
+      '.wpp-cogs-body { background:rgba(120,100,80,.025); }',
+
+      '.wpp-calc-row {',
+      '  font-weight:400; border-top:none;',
+      '  color:var(--ink-mid); font-size:10.5px;',
+      '}',
+      '.wpp-calc-row span:first-child { color:var(--ink-mid); }',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -218,6 +309,7 @@ var WorkpadsPanel = (function () {
 
     body.innerHTML = (
       '<div class="wpp-search">' +
+        '<button class="wpp-back-btn" id="wpp-back-btn" title="Back to list">\u2190</button>' +
         '<input class="wpp-search-input" id="wpp-search" type="search"' +
           ' placeholder="Search\u2026" autocomplete="off" spellcheck="false">' +
       '</div>' +
@@ -233,6 +325,9 @@ var WorkpadsPanel = (function () {
         _renderList();
       });
     }
+
+    var backBtn = document.getElementById('wpp-back-btn');
+    if (backBtn) backBtn.addEventListener('click', function () { App.showList(); });
   }
 
   // ── Load + render ────────────────────────────────────────────
@@ -258,12 +353,20 @@ var WorkpadsPanel = (function () {
   // ── Context rendering ────────────────────────────────────────
 
   function _renderContext() {
-    var ctxEl  = document.getElementById('wpp-ctx');
-    var expEl  = document.getElementById('wpp-expenses');
+    var ctxEl   = document.getElementById('wpp-ctx');
+    var expEl   = document.getElementById('wpp-expenses');
+    var listEl  = document.getElementById('wpp-list');
+    var backBtn = document.getElementById('wpp-back-btn');
     if (!ctxEl) return;
 
+    var inRecordMode = (_screenName === 'view' || _screenName === 'edit' || _screenName === 'share');
+
+    // Show/hide back arrow and record list based on mode
+    if (backBtn) backBtn.style.display = inRecordMode ? '' : 'none';
+    if (listEl)  listEl.style.display  = inRecordMode ? 'none' : '';
+
     // Always hide expenses unless in record mode
-    if (expEl && _screenName !== 'view' && _screenName !== 'edit' && _screenName !== 'share') {
+    if (expEl && !inRecordMode) {
       expEl.style.display = 'none';
       expEl.innerHTML = '';
     }
@@ -457,8 +560,10 @@ var WorkpadsPanel = (function () {
 
     expEl.style.display = '';
 
-    var payments = children.filter(function (r) { return r.recordType === 'payment'; });
-    var expenses = children.filter(function (r) { return r.recordType !== 'payment'; });
+    var payments     = children.filter(function (r) { return r.recordType === 'payment'; });
+    var allExpenses  = children.filter(function (r) { return r.recordType !== 'payment'; });
+    var cogsExpenses = allExpenses.filter(function (r) { return r.expense_billing === 'cogs'; });
+    var expenses     = allExpenses.filter(function (r) { return r.expense_billing !== 'cogs'; });
 
     // Determine currency symbol from children or parent
     var currSym = '\u00a3';
@@ -479,6 +584,16 @@ var WorkpadsPanel = (function () {
       return list.map(function (r) {
         var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
         var amt = r.amount ? (sym + parseFloat(r.amount).toFixed(2)) : '';
+        var myCost = r.worker_cost && parseFloat(r.worker_cost) > 0
+          ? parseFloat(r.worker_cost).toFixed(2) : null;
+        // Hide "My Cost" row if a COGS record is already linked to this expense
+        var alreadyCosted = cogsExpenses.some(function (c) { return c.linkedExpenseId === r.id; });
+        var myCostRow = (myCost && !alreadyCosted)
+          ? '<div class="wpp-my-cost-row">' +
+              '<span class="wpp-my-cost-label">my cost: ' + sym + myCost + '</span>' +
+              '<button class="wpp-my-cost-confirm" data-amount="' + _esc(myCost) + '" data-expid="' + _esc(r.id) + '" title="Record as COGS">COGS?</button>' +
+            '</div>'
+          : '';
         return (
           '<div class="wpp-exp-item" data-exp-id="' + _esc(r.id) + '" style="padding-right:6px;">' +
             '<span class="wpp-exp-job">' + _esc(r.job || defaultLabel) + '</span>' +
@@ -487,10 +602,14 @@ var WorkpadsPanel = (function () {
               '<button class="wpp-item-opts wpp-exp-opts" data-id="' + _esc(r.id) + '" ' +
                 'style="position:static;opacity:1;font-size:8px;" title="Options">\u25be</button>' +
               '<div class="wpp-item-menu" id="wpp-exp-menu-' + _esc(r.id) + '" style="display:none;top:auto;right:0;">' +
+                (r.expense_billing !== 'cogs'
+                  ? '<button class="wpp-item-menu-opt" data-action="cogs" data-id="' + _esc(r.id) + '" data-parent="' + _esc(parentId) + '" data-expid="' + _esc(r.id) + '">Record COGS</button>'
+                  : '') +
                 '<button class="wpp-item-menu-opt danger" data-action="archive" data-id="' + _esc(r.id) + '">Archive</button>' +
               '</div>' +
             '</div>' +
-          '</div>'
+          '</div>' +
+          myCostRow
         );
       }).join('');
     }
@@ -500,59 +619,363 @@ var WorkpadsPanel = (function () {
       bodyHtml += '<div class="wpp-fin-subtitle">Payment</div>' + itemsFor(payments, 'Payment');
     }
     if (expenses.length) {
-      bodyHtml += '<div class="wpp-fin-subtitle">Expense</div>' + itemsFor(expenses, 'Expense');
+      // Group billable expenses by actionIdx
+      var expGroups = [];
+      var expGroupMap = {};
+      expenses.forEach(function (r) {
+        var key = r.actionIdx != null ? String(r.actionIdx) : '';
+        if (!expGroupMap[key]) {
+          var actionTitle = '';
+          if (key !== '' && parentRecord && parentRecord.actions && parentRecord.actions[parseInt(key, 10)]) {
+            actionTitle = parentRecord.actions[parseInt(key, 10)].title;
+          }
+          var grp = { key: key, title: actionTitle, items: [] };
+          expGroups.push(grp);
+          expGroupMap[key] = grp;
+        }
+        expGroupMap[key].items.push(r);
+      });
+
+      var hasActionGroups = expGroups.some(function (g) { return g.title; });
+      if (hasActionGroups) {
+        bodyHtml += '<div class="wpp-fin-subtitle">Expenses</div>';
+        expGroups.forEach(function (g) {
+          var head = g.title
+            ? '<div class="wpp-exp-action-head">' + _esc(g.title) + '</div>'
+            : '';
+          bodyHtml += '<div class="wpp-exp-group">' + head + itemsFor(g.items, 'Expense') + '</div>';
+        });
+      } else {
+        bodyHtml += '<div class="wpp-fin-subtitle">Expense</div>' + itemsFor(expenses, 'Expense');
+      }
     }
 
-    // Profit formula
-    var totalExpenses = expenses.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
+    // ── COGS calculations ─────────────────────────────────────
+    var totalBillable = expenses.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
+    var totalCogs     = cogsExpenses.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
     var totalReceived = payments.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
     var quotedPrice   = parseFloat((parentRecord && parentRecord.amount) || 0);
-    var profit        = totalReceived - totalExpenses;
 
-    var summaryRows = '';
-    if (quotedPrice > 0) {
-      summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:1px solid var(--rule-light);">' +
-        '<span style="color:var(--ink-muted);">Quoted</span>' +
-        '<span>' + fmt(quotedPrice) + '</span>' +
-      '</div>';
+    // COGS calculation — four tiers (priority order):
+    // 1. linkedExpenseId → compare vs linked expense amount
+    // 2. actionIdx → sum billed expenses with same actionIdx as reference
+    // 3. action_quoted → compare vs manually entered quoted price
+    // 4. free-floating → adds fully to effective cost
+    var cogsOverrun = 0;
+    var cogsWithinBudget = 0;
+    var cogsUnlinked = 0;
+
+    cogsExpenses.forEach(function (r) {
+      var c = parseFloat(r.amount) || 0;
+      if (r.linkedExpenseId) {
+        var linked = null;
+        for (var li = 0; li < expenses.length; li++) {
+          if (expenses[li].id === r.linkedExpenseId) { linked = expenses[li]; break; }
+        }
+        var expAmt = linked ? (parseFloat(linked.amount) || 0) : 0;
+        cogsOverrun      += Math.max(0, c - expAmt);
+        cogsWithinBudget += Math.min(c, expAmt);
+      } else if (r.actionIdx != null && r.actionIdx !== undefined && r.actionIdx !== '') {
+        // Sum all billed expenses sharing the same actionIdx
+        var actionRef = expenses.reduce(function (s, e) {
+          return String(e.actionIdx) === String(r.actionIdx) ? s + (parseFloat(e.amount) || 0) : s;
+        }, 0);
+        if (actionRef > 0) {
+          cogsOverrun      += Math.max(0, c - actionRef);
+          cogsWithinBudget += Math.min(c, actionRef);
+        } else {
+          cogsUnlinked += c;
+        }
+      } else if (r.action_quoted != null && r.action_quoted !== '') {
+        var q = parseFloat(r.action_quoted) || 0;
+        cogsOverrun      += Math.max(0, c - q);
+        cogsWithinBudget += Math.min(c, q);
+      } else {
+        cogsUnlinked += c;
+      }
+    });
+
+    // My Cost (worker_cost) on billable expenses — unconfirmed projected COGS
+    // Suppress for expenses already costed via linkedExpenseId or actionIdx
+    var projectedCogs = expenses.reduce(function (s, r) {
+      var costedByLink = cogsExpenses.some(function (c) { return c.linkedExpenseId === r.id; });
+      var costedByAction = r.actionIdx != null && cogsExpenses.some(function (c) {
+        return c.actionIdx != null && String(c.actionIdx) === String(r.actionIdx);
+      });
+      if (costedByLink || costedByAction) return s;
+      return s + (parseFloat(r.worker_cost) || 0);
+    }, 0);
+
+    // Effective cost: billable expenses + unlinked COGS + overruns (self-funded COGS is already covered by its expense)
+    var effectiveCost = totalBillable + cogsUnlinked + cogsOverrun;
+    var effectiveCostWithProjected = (totalCogs === 0 && projectedCogs > 0)
+      ? effectiveCost + projectedCogs
+      : effectiveCost;
+    var revenue = totalReceived > 0 ? totalReceived : quotedPrice;
+    var profit  = revenue - (totalCogs > 0 ? effectiveCost : effectiveCostWithProjected);
+
+    var COGS_CHARGE_LABELS = {
+      '': 'Labour', '1': 'Urgency / emergency', '2': 'After-hours',
+      '3': 'Travel / mileage', '4': 'Delivery / courier', '5': 'Equipment hire',
+      '6': 'Materials', '7': 'Subcontractor', '8': 'Cancellation fee',
+      '9': 'Deposit / retainer', '10': 'Credit / discount', '11': 'Warranty',
+      '12': 'Regulatory levy', '13': 'FX adjustment',
+    };
+
+    // ── COGS section (collapsed by default, creator-only) ─────
+    var cogsTotal = totalCogs;
+    if (cogsExpenses.length) {
+        var cogsItemsHtml = cogsExpenses.map(function (r) {
+          var sym   = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+          var cAmt  = parseFloat(r.amount) || 0;
+
+          // Primary display label: charge type if set, then job (skip generic default), then "COGS"
+          var chargeLabel = r.charge_type != null && COGS_CHARGE_LABELS[String(r.charge_type)]
+            ? COGS_CHARGE_LABELS[String(r.charge_type)]
+            : null;
+          var jobText = r.job && r.job !== 'Cost of goods sold' ? r.job : null;
+          var displayLabel = chargeLabel || jobText || 'COGS';
+
+          // Determine reference amount + label (priority: linkedExpenseId > actionIdx > action_quoted)
+          var refAmt = null;
+          var refLabel = null;
+          if (r.linkedExpenseId) {
+            var lExp = null;
+            for (var li = 0; li < expenses.length; li++) {
+              if (expenses[li].id === r.linkedExpenseId) { lExp = expenses[li]; break; }
+            }
+            if (lExp) { refAmt = parseFloat(lExp.amount) || 0; refLabel = lExp.job || 'Expense'; }
+          } else if (r.actionIdx != null && r.actionIdx !== undefined && r.actionIdx !== '') {
+            refAmt = expenses.reduce(function (s, e) {
+              return String(e.actionIdx) === String(r.actionIdx) ? s + (parseFloat(e.amount) || 0) : s;
+            }, 0);
+            if (!refAmt) refAmt = null;
+            // Use action title if available
+            if (parentRecord && parentRecord.actions && parentRecord.actions[parseInt(r.actionIdx, 10)]) {
+              refLabel = parentRecord.actions[parseInt(r.actionIdx, 10)].title;
+            }
+          } else if (r.action_quoted != null && r.action_quoted !== '') {
+            refAmt = parseFloat(r.action_quoted) || 0;
+          }
+
+          var qAmt  = refAmt;
+          var pct   = qAmt ? Math.round(cAmt / qAmt * 100) : null;
+          var over  = qAmt && cAmt > qAmt;
+          var badge = qAmt
+            ? '<span style="font-family:var(--font-mono);font-size:9px;font-weight:700;padding:2px 5px;border-radius:2px;flex-shrink:0;' +
+              'background:' + (over ? 'rgba(184,64,64,.12)' : 'var(--stamp-light)') + ';' +
+              'color:' + (over ? '#b84040' : 'var(--stamp)') + ';">' +
+              pct + '%' + (over ? '\u2191' : '') +
+              '</span>'
+            : '';
+          var subline = qAmt
+            ? '<div style="font-family:var(--font-mono);font-size:9px;color:' + (over ? '#b84040' : 'var(--ink-muted)') + ';padding-left:2px;margin-top:1px;">' +
+                sym + cAmt.toFixed(2) + ' of ' + sym + qAmt.toFixed(2) +
+                (r.linkedExpenseId ? ' charged' : r.actionIdx != null ? ' charged' : ' quoted') +
+                (over ? ' \u2014 ' + sym + (cAmt - qAmt).toFixed(2) + ' over' : '') +
+              '</div>'
+            : '';
+          var refNote = refLabel
+            ? '<div style="font-family:var(--font-mono);font-size:8px;color:var(--ink-muted);padding:1px 14px 0;letter-spacing:.04em;">for: ' + _esc(refLabel) + '</div>'
+            : '';
+          return (
+            refNote +
+            '<div class="wpp-exp-item" data-exp-id="' + _esc(r.id) + '" style="padding-right:6px;flex-wrap:wrap;">' +
+              '<span class="wpp-exp-job" style="flex:1;">' + _esc(displayLabel) + '</span>' +
+              '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">' +
+                (badge) +
+                '<span class="wpp-exp-amount" style="color:#b84040;margin-right:4px;">' + sym + cAmt.toFixed(2) + '</span>' +
+                '<button class="wpp-item-opts wpp-exp-opts" data-id="' + _esc(r.id) + '" ' +
+                  'style="position:static;opacity:1;font-size:8px;" title="Options">\u25be</button>' +
+                '<div class="wpp-item-menu" id="wpp-exp-menu-' + _esc(r.id) + '" style="display:none;top:auto;right:0;">' +
+                  '<button class="wpp-item-menu-opt danger" data-action="archive" data-id="' + _esc(r.id) + '">Archive</button>' +
+                '</div>' +
+              '</div>' +
+              (subline ? '<div style="width:100%;padding:0 0 2px;">' + subline + '</div>' : '') +
+            '</div>'
+          );
+        }).join('');
+
+        var cogsBodyDisplay = _cogsOpen ? '' : 'none';
+        var cogsChevRot    = _cogsOpen ? 'rotate(-90deg)' : '';
+        bodyHtml += (
+          '<div class="wpp-cogs-section">' +
+            '<button class="wpp-cogs-toggle" id="wpp-cogs-toggle">' +
+              '<span style="flex:1;text-align:left;">Cost of Goods Sold</span>' +
+              (cogsOverrun > 0
+                ? '<span style="font-family:var(--font-mono);font-size:9px;color:#b84040;margin-right:6px;">\u2191 ' + fmt(cogsOverrun) + ' over</span>'
+                : '') +
+              '<span class="wpp-cogs-amt">' + _esc(fmt(cogsTotal)) + '</span>' +
+              '<span class="wpp-cogs-chevron" id="wpp-cogs-chevron" style="transform:' + cogsChevRot + '">\u25be</span>' +
+            '</button>' +
+            '<div class="wpp-cogs-body" id="wpp-cogs-body" style="display:' + cogsBodyDisplay + ';">' +
+              cogsItemsHtml +
+              '<div class="wpp-cogs-add">' +
+                '<button class="btn-ghost" id="wpp-add-cogs" style="width:100%;font-size:11px;padding:5px 8px;">+ Record COGS</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>'
+        );
     }
-    if (totalExpenses > 0 || totalReceived > 0) {
-      if (totalExpenses > 0) {
-        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
-          '<span style="color:var(--ink-muted);">Costs</span>' +
-          '<span>' + fmt(totalExpenses) + '</span>' +
+
+    // ── Tally ─────────────────────────────────────────────────
+    var summaryRows = '';
+    if (quotedPrice > 0 || effectiveCost > 0 || totalReceived > 0 || totalCogs > 0) {
+      if (quotedPrice > 0) {
+        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:1px solid var(--rule-light);">' +
+          '<span style="color:var(--ink-muted);">Quoted</span>' +
+          '<span>' + fmt(quotedPrice) + '</span>' +
         '</div>';
       }
+      if (totalBillable > 0) {
+        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+          '<span style="color:var(--ink-muted);">Costs</span>' +
+          '<span>' + fmt(totalBillable) + '</span>' +
+        '</div>';
+        if (quotedPrice > 0) {
+          var diff = quotedPrice - totalBillable;
+          summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+            '<span style="color:var(--ink-faint);font-size:10px;">' + (diff >= 0 ? 'Under by' : 'Over by') + '</span>' +
+            '<span style="color:' + (diff >= 0 ? '#2a6e2a' : '#b84040') + ';font-size:10px;">' + fmt(Math.abs(diff)) + '</span>' +
+          '</div>';
+        }
+      }
+      if (totalCogs > 0) {
+        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+          '<span style="color:#b84040;">COGS</span>' +
+          '<span style="color:#b84040;">\u2212\u00a0' + fmt(totalCogs) + '</span>' +
+        '</div>';
+        // Show the split: within-budget portion is self-funded; only overruns hit the bottom line
+        if (cogsOverrun > 0) {
+          summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+            '<span style="color:#b84040;font-size:10px;">Overrun</span>' +
+            '<span style="color:#b84040;font-size:10px;">' + fmt(cogsOverrun) + ' hits P&amp;L</span>' +
+          '</div>';
+        } else if (cogsWithinBudget > 0) {
+          summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+            '<span style="color:var(--ink-muted);font-size:10px;">Within budget</span>' +
+            '<span style="color:#2a6e2a;font-size:10px;">self-funded</span>' +
+          '</div>';
+        }
+        // Net of COGS against charged items — how much margin the charged items generate after COGS
+        if (totalBillable > 0) {
+          var cogsVsCharged = totalBillable - totalCogs;
+          summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+            '<span style="color:var(--ink-muted);font-size:10px;">COGS \u00b1 Charged</span>' +
+            '<span style="font-size:10px;color:' + (cogsVsCharged >= 0 ? '#2a6e2a' : '#b84040') + ';">' +
+              (cogsVsCharged >= 0 ? '+' : '') + fmt(cogsVsCharged) +
+            '</span>' +
+          '</div>';
+        }
+      }
+      // Projected COGS from unconfirmed worker_cost (only shown when no actual COGS)
+      if (projectedCogs > 0 && totalCogs === 0) {
+        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;border-top:1px dashed var(--rule-light);">' +
+          '<span style="color:var(--ink-muted);font-size:10px;">COGS (projected)</span>' +
+          '<span style="color:var(--ink-muted);font-size:10px;">\u2212\u00a0' + fmt(projectedCogs) + '</span>' +
+        '</div>';
+      } else if (projectedCogs > 0 && totalCogs > 0) {
+        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+          '<span style="color:var(--ink-muted);font-size:10px;">+ unconf. COGS</span>' +
+          '<span style="color:var(--ink-muted);font-size:10px;">' + fmt(projectedCogs) + '</span>' +
+        '</div>';
+      }
+
       if (totalReceived > 0) {
         summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
           '<span style="color:var(--ink-muted);">Received</span>' +
           '<span>' + fmt(totalReceived) + '</span>' +
         '</div>';
+      } else if (quotedPrice > 0) {
+        summaryRows += '<div class="wpp-exp-total" style="font-weight:400;border-top:none;">' +
+          '<span style="color:var(--ink-muted);font-size:10px;">Projected</span>' +
+          '<span style="color:var(--ink-muted);font-size:10px;">(no payment yet)</span>' +
+        '</div>';
       }
+      var profitLabel = totalReceived > 0 ? 'Profit' : 'Projected';
       summaryRows += '<div class="wpp-exp-total" style="border-top:1px solid var(--rule);">' +
-        '<span>Profit</span>' +
+        '<span>' + profitLabel + '</span>' +
         '<span style="color:' + (profit >= 0 ? '#2a6e2a' : '#b84040') + ';">' + fmt(profit) + '</span>' +
       '</div>';
+
+      // ── Business metrics ──────────────────────────────────
+      var revForCalc = revenue; // received or quoted
+      if (revForCalc > 0) {
+        var grossMargin = (profit / revForCalc) * 100;
+        summaryRows += '<div class="wpp-exp-total wpp-calc-row">' +
+          '<span>Margin</span>' +
+          '<span style="color:' + (grossMargin >= 0 ? 'var(--ink-muted)' : '#b84040') + ';">' + grossMargin.toFixed(1) + '%</span>' +
+        '</div>';
+      }
+      if (totalCogs > 0 && quotedPrice > 0) {
+        var cogsRatio = (totalCogs / quotedPrice) * 100;
+        summaryRows += '<div class="wpp-exp-total wpp-calc-row">' +
+          '<span>COGS ratio</span>' +
+          '<span>' + cogsRatio.toFixed(1) + '%</span>' +
+        '</div>';
+      }
+      if (totalBillable > 0 && revForCalc > 0) {
+        var overheadRatio = (totalBillable / revForCalc) * 100;
+        summaryRows += '<div class="wpp-exp-total wpp-calc-row">' +
+          '<span>Pass-through</span>' +
+          '<span>' + overheadRatio.toFixed(1) + '%</span>' +
+        '</div>';
+      }
     }
 
     expEl.innerHTML = (
+      '<div class="wpp-exp-add-top">' +
+        '<button class="btn-ghost" id="wpp-add-pay">+ Payment</button>' +
+        '<button class="btn-ghost" id="wpp-add-exp">+ Expense</button>' +
+        '<button class="btn-ghost" id="wpp-add-cogs-top">+ COGS</button>' +
+      '</div>' +
       '<div class="wpp-exp-header">' +
-        '<span>Financial</span>' +
+        '<button class="wpp-fin-summary-link" id="wpp-fin-summary-link" data-parent="' + _esc(parentId) + '">Financial Summary</button>' +
         '<span>' + children.length + '</span>' +
       '</div>' +
       bodyHtml +
-      summaryRows +
-      '<div class="wpp-exp-add">' +
-        '<button class="btn-ghost" id="wpp-add-pay" style="flex:1;font-size:11px;padding:5px 8px;">+ Payment</button>' +
-        '<button class="btn-ghost" id="wpp-add-exp" style="flex:1;font-size:11px;padding:5px 8px;">+ Expense</button>' +
-      '</div>'
+      summaryRows
     );
+
+    // Financial Summary link
+    var finSummaryLink = document.getElementById('wpp-fin-summary-link');
+    if (finSummaryLink) {
+      finSummaryLink.addEventListener('click', function () {
+        App.showFinancial(this.dataset.parent);
+      });
+    }
+
+    // COGS toggle
+    var cogsToggle = document.getElementById('wpp-cogs-toggle');
+    if (cogsToggle) {
+      cogsToggle.addEventListener('click', function () {
+        var body = document.getElementById('wpp-cogs-body');
+        var chev = document.getElementById('wpp-cogs-chevron');
+        if (!body) return;
+        _cogsOpen = body.style.display !== 'none' ? false : true;
+        body.style.display = _cogsOpen ? '' : 'none';
+        if (chev) chev.style.transform = _cogsOpen ? 'rotate(-90deg)' : '';
+      });
+    }
+
+    var addCogsBtn    = document.getElementById('wpp-add-cogs');
+    var addCogsTopBtn = document.getElementById('wpp-add-cogs-top');
+    if (addCogsBtn)    addCogsBtn.addEventListener('click',    function () { App.showCogs(parentId); });
+    if (addCogsTopBtn) addCogsTopBtn.addEventListener('click', function () { App.showCogs(parentId); });
 
     var addPayBtn = document.getElementById('wpp-add-pay');
     if (addPayBtn) addPayBtn.addEventListener('click', function () { App.showPayment(parentId); });
 
     var addExpBtn = document.getElementById('wpp-add-exp');
     if (addExpBtn) addExpBtn.addEventListener('click', function () { App.showExpense(parentId); });
+
+    // My Cost confirm buttons
+    expEl.querySelectorAll('.wpp-my-cost-confirm').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        App.showCogs(parentId, this.dataset.amount, this.dataset.expid);
+      });
+    });
 
     // Item click → navigate (not on opts button)
     expEl.querySelectorAll('.wpp-exp-item').forEach(function (item) {
@@ -579,13 +1002,16 @@ var WorkpadsPanel = (function () {
       });
     });
 
-    // Archive option
+    // Dropdown menu actions
     expEl.querySelectorAll('.wpp-item-menu-opt').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
-        var id = this.dataset.id;
+        var id     = this.dataset.id;
+        var action = this.dataset.action;
         expEl.querySelectorAll('.wpp-item-menu').forEach(function (m) { m.style.display = 'none'; });
-        if (this.dataset.action === 'archive') {
+        if (action === 'cogs') {
+          App.showCogs(parentId, null, this.dataset.expid || null);
+        } else if (action === 'archive') {
           if (window.confirm('Archive this record?')) {
             RecordService.archive(id).then(function () {
               App.toast('Archived');
@@ -652,7 +1078,15 @@ var WorkpadsPanel = (function () {
       html += (
         '<div class="wpp-item' + (isActive ? ' active' : '') + '"' +
             ' data-id="' + _esc(r.id) + '" tabindex="0" role="button">' +
-          '<div class="wpp-item-job">' + _esc(r.job || 'Untitled') + '</div>' +
+          '<div class="wpp-item-job">' + _esc(r.job || 'Untitled') +
+            (r.receivedAt
+              ? '<span style="display:inline-block;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;padding:1px 5px;border-radius:2px;margin-left:6px;vertical-align:middle;background:rgba(192,71,10,.10);color:var(--stamp);">Rcvd</span>'
+              : r.record_type === 'quote'
+              ? '<span style="display:inline-block;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;padding:1px 5px;border-radius:2px;margin-left:6px;vertical-align:middle;background:rgba(20,80,180,.08);color:#3a6abf;">Qte</span>'
+              : r.record_type === 'invoice'
+              ? '<span style="display:inline-block;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;padding:1px 5px;border-radius:2px;margin-left:6px;vertical-align:middle;background:rgba(10,140,60,.08);color:#1a7a40;">Inv</span>'
+              : '') +
+          '</div>' +
           (meta.length ? '<div class="wpp-item-meta">' + meta.join(' \xb7 ') + '</div>' : '') +
           '<button class="wpp-item-opts" data-id="' + _esc(r.id) + '" ' +
               'title="Options" aria-label="Record options">\u25be</button>' +

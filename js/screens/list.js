@@ -7,6 +7,7 @@ var ListScreen = (function () {
 
   var _records     = [];
   var _query       = '';
+  var _filter      = 'all'; // 'all' | 'received' | 'quote' | 'invoice'
   var _stylesAdded = false;
   var _density     = 1; // 0=title, 1=title+date, 2=title+date+customer, 3=all
 
@@ -171,6 +172,52 @@ var ListScreen = (function () {
       '  letter-spacing: .06em;',
       '  margin-bottom: 24px;',
       '}',
+
+      '.list-filter-bar {',
+      '  display: flex; gap: 6px; flex-wrap: wrap;',
+      '  margin-bottom: 20px;',
+      '}',
+      '.list-filter-btn {',
+      '  font-family: var(--font-mono); font-size: 10px; font-weight: 700;',
+      '  letter-spacing: .08em; text-transform: uppercase;',
+      '  color: var(--ink-muted); border: 1.5px solid var(--rule);',
+      '  border-radius: 3px; padding: 5px 12px; cursor: pointer;',
+      '  background: none; transition: color .13s, border-color .13s, background .13s;',
+      '}',
+      '.list-filter-btn.active {',
+      '  color: var(--stamp); border-color: var(--stamp-border); background: var(--stamp-light);',
+      '}',
+      '.list-filter-btn:hover:not(.active) { border-color: var(--ink-faint); color: var(--ink-mid); }',
+
+      '.list-type-tag {',
+      '  display: inline-block;',
+      '  font-family: var(--font-mono); font-size: 9px; font-weight: 700;',
+      '  letter-spacing: .10em; text-transform: uppercase;',
+      '  padding: 2px 6px; border-radius: 2px; margin-left: 8px;',
+      '  vertical-align: middle;',
+      '}',
+      '.list-type-tag-received { background: rgba(192,71,10,.10); color: var(--stamp); }',
+      '.list-type-tag-quote    { background: rgba(20,80,180,.08);  color: #3a6abf; }',
+      '.list-type-tag-invoice  { background: rgba(10,140,60,.08);  color: #1a7a40; }',
+
+      /* Overviews bar */
+      '.list-overviews {',
+      '  display:flex; align-items:center; gap:6px; flex-wrap:wrap;',
+      '  margin-bottom:20px;',
+      '}',
+      '.list-overviews-label {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint);',
+      '  margin-right:2px;',
+      '}',
+      '.list-overview-btn {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.08em; text-transform:uppercase;',
+      '  background:#f0f4fa; color:#1a3055; border:1.5px solid #c2cfe0;',
+      '  border-radius:3px; padding:4px 11px; cursor:pointer;',
+      '  transition:background .12s, border-color .12s;',
+      '}',
+      '.list-overview-btn:hover { background:#dbe6f5; border-color:#8aaad4; }',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -180,6 +227,7 @@ var ListScreen = (function () {
   function onShow() {
     _addStyles();
     _query   = '';
+    _filter  = 'all';
     _density = parseInt(localStorage.getItem(_DENSITY_KEY) || '1', 10);
     RecordService.list().then(function (records) {
       // Exclude expense sub-records from the main list — they appear under their parent
@@ -212,6 +260,26 @@ var ListScreen = (function () {
               'autocomplete="off" spellcheck="false">';
     html += '</div>';
     html += '</div>';
+
+    // ── Overviews bar
+    html += '<div class="list-overviews">' +
+      '<span class="list-overviews-label">Overviews:</span>' +
+      '<button class="list-overview-btn" id="list-overview-basic">$ Basic</button>' +
+      '<button class="list-overview-btn" id="list-overview-advanced">$ Advanced</button>' +
+    '</div>';
+
+    // ── Filter bar (only when there's something to filter)
+    var hasReceived = _records.some(function (r) { return r.receivedAt; });
+    var hasQuotes   = _records.some(function (r) { return r.record_type === 'quote'; });
+    var hasInvoices = _records.some(function (r) { return r.record_type === 'invoice'; });
+    if (hasReceived || hasQuotes || hasInvoices) {
+      html += '<div class="list-filter-bar" id="list-filter-bar">';
+      html += '<button class="list-filter-btn' + (_filter === 'all'      ? ' active' : '') + '" data-filter="all">All</button>';
+      if (hasReceived) html += '<button class="list-filter-btn' + (_filter === 'received' ? ' active' : '') + '" data-filter="received">Received</button>';
+      if (hasQuotes)   html += '<button class="list-filter-btn' + (_filter === 'quote'    ? ' active' : '') + '" data-filter="quote">Quotes</button>';
+      if (hasInvoices) html += '<button class="list-filter-btn' + (_filter === 'invoice'  ? ' active' : '') + '" data-filter="invoice">Invoices</button>';
+      html += '</div>';
+    }
 
     // ── Records list
     if (total === 0) {
@@ -255,7 +323,13 @@ var ListScreen = (function () {
         '<div class="list-row-main">' +
           '<div class="list-row-job">' +
             jobHtml +
-            (r.receivedAt ? '<span class="record-item-tag" style="margin-left:8px;">Received</span>' : '') +
+            (r.receivedAt
+              ? '<span class="list-type-tag list-type-tag-received">Received</span>'
+              : r.record_type === 'quote'
+              ? '<span class="list-type-tag list-type-tag-quote">Quote</span>'
+              : r.record_type === 'invoice'
+              ? '<span class="list-type-tag list-type-tag-invoice">Invoice</span>'
+              : '') +
           '</div>' +
           (metaItems.length
             ? '<div class="list-row-meta">' + metaItems.join(' \xb7 ') + '</div>'
@@ -291,6 +365,23 @@ var ListScreen = (function () {
   // ── Events ───────────────────────────────────────────────────
 
   function _bindEvents(screenEl) {
+    // Overview buttons
+    var ovBasic = document.getElementById('list-overview-basic');
+    var ovAdv   = document.getElementById('list-overview-advanced');
+    if (ovBasic)    ovBasic.addEventListener('click',    function () { App.showFinanceOverview('basic'); });
+    if (ovAdv)      ovAdv.addEventListener('click',      function () { App.showFinanceOverview('advanced'); });
+
+    // Filter bar
+    var filterBar = document.getElementById('list-filter-bar');
+    if (filterBar) {
+      filterBar.addEventListener('click', function (e) {
+        var btn = e.target.closest('.list-filter-btn');
+        if (!btn) return;
+        _filter = btn.dataset.filter;
+        _render();
+      });
+    }
+
     // Density dots
     screenEl.querySelectorAll('.list-density-dot').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
@@ -347,9 +438,15 @@ var ListScreen = (function () {
   // ── Helpers ──────────────────────────────────────────────────
 
   function _filtered() {
-    if (!_query) return _records;
+    var base = _records.filter(function (r) {
+      if (_filter === 'received') return !!r.receivedAt;
+      if (_filter === 'quote')    return r.record_type === 'quote';
+      if (_filter === 'invoice')  return r.record_type === 'invoice';
+      return true;
+    });
+    if (!_query) return base;
     var q = _query.toLowerCase();
-    return _records.filter(function (r) {
+    return base.filter(function (r) {
       return (r.job      || '').toLowerCase().indexOf(q) !== -1 ||
              (r.customer || '').toLowerCase().indexOf(q) !== -1 ||
              (r.location || '').toLowerCase().indexOf(q) !== -1 ||

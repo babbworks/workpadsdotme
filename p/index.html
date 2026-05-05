@@ -733,6 +733,51 @@
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
   }
 
+  // ── base91 (1cg/ only) ────────────────────────────────────────
+  var B91C='!"$\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
+  var B91D=(function(){var d=new Int8Array(128).fill(-1);for(var i=0;i<B91C.length;i++)d[B91C.charCodeAt(i)]=i;return d;}());
+  function fromBase91(str){var v=-1,b=0,n=0,o=[];for(var i=0;i<str.length;i++){var c=str.charCodeAt(i);var p=(c<128)?B91D[c]:-1;if(p===-1)continue;if(v<0){v=p;}else{v+=p*91;b|=v<<n;n+=(v&8191)>88?13:14;do{o.push(b&0xff);b>>=8;n-=8;}while(n>7);v=-1;}}if(v>=0)o.push((b|(v<<n))&0xff);return new Uint8Array(o);}
+
+  // ── WORKPADS_DICT (1cg/ deflate preset dictionary) ────────────
+  var WORKPADS_DICT_C=(function(){var s=[' Ltd Limited Company Services Solutions Group',' customer worker supervisor contractor colleague site',' Street Road Avenue Lane Drive Close Crescent Place Court Way',' plumbing electrical heating drainage guttering insulation',' front back garden yard driveway gate roof wall floor ceiling door window',' fence install repair replace service maintain check inspect clean paint fix',' invoice quote payment expense received approved pending complete outstanding',' labour materials parts delivery callout emergency',' January February March April May June July August September October November December',' Monday Tuesday Wednesday Thursday Friday Saturday Sunday',' 09:00 10:00 11:00 12:00 13:00 14:00 15:00 16:00 17:00 18:00'].join('');return new TextEncoder().encode(s);}());
+
+  // ── Date / amount helpers (1cg/ only) ─────────────────────────
+  var DATE_EPOCH_C=Date.UTC(2020,0,1),MS_DAY_C=86400000;
+  function u16ToDateC(days){var ms=DATE_EPOCH_C+days*MS_DAY_C;var d=new Date(ms);var y=d.getUTCFullYear();var m=('0'+(d.getUTCMonth()+1)).slice(-2);var dy=('0'+d.getUTCDate()).slice(-2);return y+'-'+m+'-'+dy;}
+  function u32ToAmountC(u){if(!u)return'0';var p=u%100;var w=(u-p)/100;if(!p)return String(w);return w+'.'+(p<10?'0':'')+p;}
+  function ru32C(f,o){return{v:((f[o]&0xff)*0x1000000)+((f[o+1]&0xff)<<16)+((f[o+2]&0xff)<<8)+(f[o+3]&0xff),o:o+4};}
+
+  // ── padsDecodeC (1cg/ frame decoder) ─────────────────────────
+  function padsDecodeC(frame){
+    var pos=0,td=new TextDecoder(),rec={};
+    if(frame[pos++]!==0x01)throw new Error('bad template');
+    var flags=(frame[pos]<<8)|frame[pos+1];pos+=2;
+    function rf(){var r=ru16(frame,pos);pos=r.o;var s=td.decode(frame.slice(pos,pos+r.v));pos+=r.v;return s;}
+    // bits 0-1 (job, customer)
+    for(var i=0;i<SCALAR_FIELDS.length;i++){var f=SCALAR_FIELDS[i];if(f.bit>=2)break;if(flags&(1<<f.bit))rec[f.id]=rf();}
+    // bit 2 (date) uint16
+    if(flags&(1<<2)){rec.date=u16ToDateC((frame[pos]<<8)|frame[pos+1]);pos+=2;}
+    // bits 3-8
+    for(var i2=0;i2<SCALAR_FIELDS.length;i2++){var f2=SCALAR_FIELDS[i2];if(f2.bit<=2||f2.bit>=9)continue;if(flags&(1<<f2.bit))rec[f2.id]=rf();}
+    // bit 9 (actions) — per-action flags, conditional notes
+    if(flags&(1<<9)){var cnt=frame[pos++],acts=[];for(var j=0;j<cnt;j++){var af=frame[pos++];var ti=rf();var ni=(af&0x01)?rf():'';acts.push({title:ti,notes:ni});}rec.actions=acts;}
+    // bits 10-11 (details, story)
+    for(var j2=0;j2<SCALAR_FIELDS.length;j2++){var sf=SCALAR_FIELDS[j2];if(sf.bit>9&&sf.bit<12&&(flags&(1<<sf.bit)))rec[sf.id]=rf();}
+    // bit 12 (FIN) — uint32 amounts
+    if(flags&(1<<12)){
+      var ff=frame[pos++];rec.record_type='job';
+      if(ff&0x01){var ri=frame[pos++];rec.record_type=RECORD_TYPES[ri]||'job';}
+      if(ff&0x02){var ci=frame[pos++];rec.currency=ci===255?rf():(CURRENCIES[ci]||'');}
+      if(ff&0x04){var vi=frame[pos++];rec.vat=vi===255?rf():(VAT_RATES[vi]||'');}
+      if(ff&0x08){var ra=ru32C(frame,pos);rec.amount=u32ToAmountC(ra.v);pos=ra.o;}
+      if(ff&0x10){var ec=frame[pos++],exps=[];for(var ei=0;ei<ec;ei++){var ef=frame[pos++];var ramt=ru32C(frame,pos);var ex={amount:u32ToAmountC(ramt.v)};pos=ramt.o;if(ef&0x01)ex.job=rf();if(ef&0x02)ex.date=rf();if(ef&0x04)ex.expense_billing=BILLING_TYPES[frame[pos++]]||'billable';if(ef&0x08)ex.actionIdx=frame[pos++];if(ef&0x10)ex.is_viewer=true;exps.push(ex);}rec._expenses=exps;}
+      if(ff&0x20){var pc=frame[pos++],pays=[];for(var pi=0;pi<pc;pi++){var pf=frame[pos++];var pramt=ru32C(frame,pos);var py={amount:u32ToAmountC(pramt.v)};pos=pramt.o;if(pf&0x01)py.job=rf();if(pf&0x02)py.date=rf();pays.push(py);}rec._payments=pays;}
+    }
+    // bit 13 (chainRef): 3 raw bytes → base64url
+    if(flags&(1<<13)){rec._chainRef=bytesToBase64url(frame.slice(pos,pos+3));pos+=3;}
+    return rec;
+  }
+
   function ru16(frame, o) { return { v: (frame[o] << 8) | frame[o+1], o: o+2 }; }
 
   // ── Fin block decoder ─────────────────────────────────────
@@ -857,9 +902,15 @@
     }
     if (!/^[0-9][a-z][a-z]\//.test(payload)) throw new Error('Unrecognised format');
     var tag=payload.slice(0,3);
-    var frame=fflate.inflateSync(base64urlToBytes(payload.slice(4)));
-    var rec=(tag==='1ag') ? padsDecodeA(frame) : padsDecodeB(frame);
-    if (chainRef) rec._chainRef=chainRef;
+    var rec;
+    if (tag==='1cg') {
+      var frame=fflate.inflateSync(fromBase91(payload.slice(4)));
+      rec=padsDecodeC(frame);
+    } else {
+      var frame2=fflate.inflateSync(base64urlToBytes(payload.slice(4)));
+      rec=(tag==='1ag') ? padsDecodeA(frame2) : padsDecodeB(frame2);
+      if (chainRef) rec._chainRef=chainRef;
+    }
     return rec;
   }
 

@@ -58,6 +58,10 @@ var App = (function () {
         if (!seg1) { navigate('/'); return; }
         _showScreen('wizard', { mode: 'expense', parentId: seg1, amount: seg2 || null, actionIdx: seg3 != null ? parseInt(seg3, 10) : null });
         break;
+      case 'cogs':
+        if (!seg1) { navigate('/'); return; }
+        _showScreen('wizard', { mode: 'expense', parentId: seg1, billing: 'cogs', amount: seg2 || null, linkedExpenseId: seg3 || null });
+        break;
       case 'archive':
         _showScreen('archive', {});
         break;
@@ -71,6 +75,13 @@ var App = (function () {
         break;
       case 'manage':
         _showScreen('management', { tab: seg1 || 'records' });
+        break;
+      case 'financial':
+        if (!seg1) { navigate('/'); return; }
+        _showScreen('financial', { id: seg1, tab: seg2 || 'summary' });
+        break;
+      case 'finance':
+        _showScreen('finance-overview', { mode: seg1 || 'basic' });
         break;
       default:
         navigate('/');
@@ -163,6 +174,14 @@ var App = (function () {
     if (actionIdx != null) path += '/' + actionIdx;
     navigate(path);
   }
+  function showCogs(parentId, amount, linkedExpenseId) {
+    var path = '/cogs/' + parentId;
+    if (amount || linkedExpenseId) path += '/' + (amount || '_');
+    if (linkedExpenseId) path += '/' + linkedExpenseId;
+    navigate(path);
+  }
+  function showFinancial(id, tab)       { navigate('/financial/' + id + (tab ? '/' + tab : '')); }
+  function showFinanceOverview(mode)    { navigate('/finance/' + (mode || 'basic')); }
   function showArchive()               { navigate('/archive'); }
   function showArchivedView(id)        { navigate('/archived/' + id); }
   function showPayment(parentId)       { navigate('/payment/' + parentId); }
@@ -392,6 +411,8 @@ var App = (function () {
       share:      (typeof ShareScreen      !== 'undefined') ? ShareScreen      : null,
       management: (typeof ManagementScreen !== 'undefined') ? ManagementScreen : null,
       archive:    (typeof ArchiveScreen    !== 'undefined') ? ArchiveScreen    : null,
+      financial:  (typeof FinancialScreen  !== 'undefined') ? FinancialScreen  : null,
+      'finance-overview': (typeof FinanceOverviewScreen !== 'undefined') ? FinanceOverviewScreen : null,
     };
 
     // Panels
@@ -467,9 +488,12 @@ var App = (function () {
     showView:       showView,
     showShare:      showShare,
     showExpense:    showExpense,
+    showCogs:       showCogs,
     showPayment:    showPayment,
     showManagement: showManagement,
     showManage:     showManagement,
+    showFinancial:      showFinancial,
+    showFinanceOverview: showFinanceOverview,
     showArchive:    showArchive,
     showArchivedView: showArchivedView,
     showQuickNote:  showQuickNote,

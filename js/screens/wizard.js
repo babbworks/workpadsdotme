@@ -322,6 +322,22 @@ var WizardScreen = (function () {
       '  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint);',
       '}',
 
+      /* COGS quoted context */
+      '.wiz-cogs-quoted-row {',
+      '  display:flex; gap:8px; align-items:center;',
+      '}',
+      '.wiz-cogs-pct-badge {',
+      '  font-family:var(--font-mono); font-size:11px; font-weight:700;',
+      '  padding:5px 9px; border-radius:3px; flex-shrink:0;',
+      '  background:var(--stamp-light); color:var(--stamp);',
+      '  transition:background .15s, color .15s;',
+      '}',
+      '.wiz-cogs-pct-badge.over { background:rgba(184,64,64,.1); color:#b84040; }',
+      '.wiz-cogs-pct-note {',
+      '  font-family:var(--font-mono); font-size:9px; color:var(--ink-faint);',
+      '  margin-top:4px; letter-spacing:.03em;',
+      '}',
+
       '.wiz-finance-row {',
       '  display:flex; gap:8px; align-items:center;',
       '}',
@@ -446,19 +462,30 @@ var WizardScreen = (function () {
       var parentId = params.parentId;
       var preAmount = (params.amount && params.amount !== '_') ? params.amount : null;
       var preActionIdx = (params.actionIdx != null && !isNaN(params.actionIdx)) ? params.actionIdx : null;
+      var linkedExpenseId = params.linkedExpenseId || null;
       RecordService.get(parentId).then(function (parent) {
         _parentRecord = parent || null;
         var identity  = (typeof ActivityService !== 'undefined') ? ActivityService.getSenderIdentity() : null;
         var action = (preActionIdx != null && parent && parent.actions) ? parent.actions[preActionIdx] : null;
+
+        // If linked to a specific expense, look it up for default job name
+        var linkedExpenseJob = '';
+        if (linkedExpenseId) {
+          RecordService.get(linkedExpenseId).then(function (linkedExp) {
+            if (linkedExp && linkedExp.job) linkedExpenseJob = linkedExp.job;
+          });
+        }
+
         var fields = {
-          recordType:      'expense',
-          parentId:        parentId,
-          job:             preAmount ? 'Difference' : (action ? action.title : 'Expense'),
-          customer:        parent ? (parent.customer || '') : '',
-          worker:          (identity && identity.name) || '',
-          expense_billing: 'customer',
+          recordType:       'expense',
+          parentId:         parentId,
+          job:              params.billing === 'cogs' ? 'Cost of goods sold' : (action ? action.title : 'Expense'),
+          customer:         parent ? (parent.customer || '') : '',
+          worker:           (identity && identity.name) || '',
+          expense_billing:  params.billing || 'customer',
+          amount:           preAmount || undefined,
         };
-        if (preAmount) fields.amount = preAmount;
+        if (linkedExpenseId) fields.linkedExpenseId = linkedExpenseId;
         if (preActionIdx != null) {
           fields.actionIdx   = preActionIdx;
           fields.actionTitle = action ? action.title : '';
@@ -639,7 +666,8 @@ var WizardScreen = (function () {
   }
 
   function _renderProcess() {
-    var jobPlaceholder = (_mode === 'expense') ? 'What is the expense?'
+    var jobLabel       = (_mode === 'expense') ? 'Short description' : 'Job';
+    var jobPlaceholder = (_mode === 'expense') ? 'Brief description of this item'
                       : (_mode === 'payment') ? 'Payment description'
                       : 'What is the job?';
 
@@ -648,7 +676,7 @@ var WizardScreen = (function () {
         '<div class="card-section">' +
           (_mode !== 'expense' && _mode !== 'payment' ? _renderRecordTypeSelector() : '') +
           _renderActionPicker() +
-          _field('job',      'Job',      'text', _record.job      || '', true,  jobPlaceholder) +
+          _field('job', jobLabel, 'text', _record.job || '', true, jobPlaceholder) +
           '<div class="field-group">' +
             '<label class="field-label" for="f-customer">Customer</label>' +
             '<div class="wiz-customer-row">' +
@@ -739,17 +767,59 @@ var WizardScreen = (function () {
             '<select class="field-input wiz-field-select" id="f-vat" style="width:100%;">' + vatOpts + '</select>' +
           '</div>'
         : '') +
-      (!isPayment
-        ? '<div class="field-group">' +
-            '<label class="field-label">My cost <span class="field-optional">(not shared)</span></label>' +
-            '<div class="wiz-finance-row">' +
-              '<span class="wiz-finance-sym wiz-curr-sym">' + sym + '</span>' +
-              '<input class="field-input" id="f-worker_cost" type="text" inputmode="decimal"' +
-                ' value="' + _esc(workerCost) + '" placeholder="0.00">' +
-            '</div>' +
-            '<p class="wiz-internal-note">Stored locally only \u2014 never included in share link</p>' +
+      (isCogs && _record.linkedExpenseId
+        ? '<div style="padding:6px 12px;margin-bottom:2px;background:rgba(120,100,80,.06);border-radius:3px;font-family:var(--font-mono);font-size:9px;color:var(--ink-muted);">' +
+            'Costing for expense \u2014 COGS within the expense amount is self-funded (covered by your charge to the customer). Only overruns affect P&amp;L.' +
           '</div>'
         : '') +
+      (isCogs && !_record.linkedExpenseId && _record.amount
+        ? '<div style="padding:5px 12px;margin-bottom:2px;font-family:var(--font-mono);font-size:9px;color:var(--ink-faint);">Pre-filled from My Cost estimate</div>'
+        : '') +
+      (isCogs
+        ? '<div class="field-group" id="wiz-cogs-context">' +
+            '<label class="field-label">Quoted for this action <span class="field-optional">(the customer price)</span></label>' +
+            '<div class="wiz-cogs-quoted-row">' +
+              '<div class="wiz-finance-row" style="flex:1;">' +
+                '<span class="wiz-finance-sym wiz-curr-sym">' + sym + '</span>' +
+                '<input class="field-input" id="f-action_quoted" type="text" inputmode="decimal"' +
+                  ' value="' + _esc(_record.action_quoted || '') + '" placeholder="0.00" style="flex:1;">' +
+              '</div>' +
+              '<div class="wiz-cogs-pct-badge' + (function() {
+                  var c = parseFloat(_record.amount || '0');
+                  var q = parseFloat(_record.action_quoted || '0');
+                  if (!q) return '';
+                  return c / q > 1 ? ' over' : '';
+                }()) + '" id="wiz-cogs-pct-badge">' +
+                (function() {
+                  var c = parseFloat(_record.amount || '0');
+                  var q = parseFloat(_record.action_quoted || '0');
+                  if (!q || !c) return '\u2014';
+                  return Math.round(c / q * 100) + '%';
+                }()) +
+              '</div>' +
+            '</div>' +
+            '<p class="wiz-cogs-pct-note" id="wiz-cogs-pct-note">' +
+              (function() {
+                var c = parseFloat(_record.amount || '0');
+                var q = parseFloat(_record.action_quoted || '0');
+                if (!q || !c) return 'Enter COGS amount and quoted price to see coverage %';
+                var pct = c / q * 100;
+                if (pct <= 100) return 'Within budget \u2014 ' + (100 - pct).toFixed(1) + '% margin on this action';
+                return 'Over budget by ' + sym + (c - q).toFixed(2) + ' (' + (pct - 100).toFixed(1) + '% over)';
+              }()) +
+            '</p>' +
+          '</div>'
+        : (!isPayment
+            ? '<div class="field-group">' +
+                '<label class="field-label">My cost <span class="field-optional">(not shared)</span></label>' +
+                '<div class="wiz-finance-row">' +
+                  '<span class="wiz-finance-sym wiz-curr-sym">' + sym + '</span>' +
+                  '<input class="field-input" id="f-worker_cost" type="text" inputmode="decimal"' +
+                    ' value="' + _esc(workerCost) + '" placeholder="0.00">' +
+                '</div>' +
+                '<p class="wiz-internal-note">Stored locally only \u2014 never included in share link</p>' +
+              '</div>'
+            : '')) +
       '<div class="field-group" style="margin-bottom:0;">' +
         '<div class="wiz-parts-flag-row">' +
           '<input type="checkbox" id="f-parts_flag"' + (partsFlag ? ' checked' : '') + '>' +
@@ -1110,8 +1180,9 @@ var WizardScreen = (function () {
     _tryCollect('vat',            'f-vat');
     if (_record.vat === 'none') delete _record.vat;
     _tryCollect('worker_cost',    'f-worker_cost');
+    _tryCollect('action_quoted',  'f-action_quoted');
     _tryCollect('charge_type',    'f-charge_type');
-    // expense_billing is set via button click, already on _record — no DOM element to collect
+    // linkedExpenseId and expense_billing are set from params, already on _record
     _collectParticipants();
     _collectPartsFlag();
     _collectActions();
@@ -1461,6 +1532,39 @@ var WizardScreen = (function () {
         }
         RecordService.save(_id, _record);
       });
+    }
+
+    // ── COGS quoted context — live % indicator ───────────────
+    function _updateCogsPct() {
+      var badge = document.getElementById('wiz-cogs-pct-badge');
+      var note  = document.getElementById('wiz-cogs-pct-note');
+      if (!badge && !note) return;
+      var sym  = (document.getElementById('f-currency') || {}).value;
+      sym = sym === 'EUR' ? '\u20ac' : sym === 'USD' ? '$' : '\u00a3';
+      var c = parseFloat((document.getElementById('f-amount') || {}).value || '0');
+      var q = parseFloat((document.getElementById('f-action_quoted') || {}).value || '0');
+      if (!q || !c) {
+        if (badge) { badge.textContent = '\u2014'; badge.className = 'wiz-cogs-pct-badge'; }
+        if (note) note.textContent = 'Enter COGS amount and quoted price to see coverage %';
+        return;
+      }
+      var pct  = c / q * 100;
+      var over = pct > 100;
+      if (badge) {
+        badge.textContent = Math.round(pct) + '%';
+        badge.className   = 'wiz-cogs-pct-badge' + (over ? ' over' : '');
+      }
+      if (note) {
+        note.textContent = over
+          ? 'Over budget by ' + sym + (c - q).toFixed(2) + ' (' + (pct - 100).toFixed(1) + '% over)'
+          : 'Within budget \u2014 ' + (100 - pct).toFixed(1) + '% margin on this action';
+      }
+    }
+    var cogsAmtEl = document.getElementById('f-amount');
+    var cogsQtdEl = document.getElementById('f-action_quoted');
+    if (cogsQtdEl) {
+      if (cogsAmtEl) cogsAmtEl.addEventListener('input', _updateCogsPct);
+      cogsQtdEl.addEventListener('input', _updateCogsPct);
     }
 
     // ── Currency change → update symbols ─────────────────────

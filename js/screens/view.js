@@ -9,10 +9,13 @@ var ViewScreen = (function () {
   var _approval      = null;
   var _expenses      = [];
   var _payments      = [];
-  var _finTab        = 'expenses';
+  var _finTab        = 'expenses';  // kept for compat but unused
   var _stylesAdded   = false;
   var _actionsFilter = '';
   var _isArchived    = false;
+  var _expOpen       = true;
+  var _payOpen       = true;
+  var _cogsViewOpen  = false;
 
   // ── Styles ───────────────────────────────────────────────────
 
@@ -85,8 +88,9 @@ var ViewScreen = (function () {
       '  color:var(--ink); line-height:1.3;',
       '}',
       '.view-action-notes {',
-      '  font-family:var(--font-body); font-size:13.5px; font-style:italic;',
-      '  color:var(--ink-mid); margin-top:3px; line-height:1.5;',
+      '  font-family:var(--font-body); font-size:13px; font-style:italic;',
+      '  color:var(--ink-muted); margin-top:4px; line-height:1.5;',
+      '  padding-left:10px; border-left:2px solid var(--rule);',
       '}',
       '.view-action-body { flex:1; min-width:0; }',
       '.view-action-exp-btn {',
@@ -219,7 +223,11 @@ var ViewScreen = (function () {
       /* Expense tally */
       '.view-exp-action-header {',
       '  font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:0.06em;',
-      '  color:var(--ink-faint); text-transform:uppercase; padding:8px 0 2px;',
+      '  color:var(--ink-faint); text-transform:uppercase; padding:4px 0 2px;',
+      '}',
+      '.view-exp-group { padding-bottom:6px; }',
+      '.view-exp-group + .view-exp-group {',
+      '  border-top:1px solid var(--rule); padding-top:10px; margin-top:6px;',
       '}',
       '.view-exp-list { margin-bottom:12px; }',
       '.view-exp-row {',
@@ -311,6 +319,48 @@ var ViewScreen = (function () {
       '  transition:background .13s;',
       '}',
       '.view-parent-link:hover { background:var(--stamp-border); color:#fff; }',
+
+      /* Financial summary header */
+      '.view-fin-header { display:flex; align-items:center; margin-bottom:10px; }',
+      '.view-fin-summary-link {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.16em; text-transform:uppercase;',
+      '  color:#1a3055; text-decoration:underline; cursor:pointer;',
+      '  background:none; border:none; padding:0;',
+      '}',
+      '.view-fin-summary-link:hover { color:#0e1f38; }',
+      '.view-fin-count-badge {',
+      '  font-family:var(--font-mono); font-size:8.5px; font-weight:700;',
+      '  color:var(--stamp); background:var(--stamp-light); border:1px solid var(--stamp-border);',
+      '  border-radius:10px; padding:1px 6px; margin-left:8px; cursor:pointer;',
+      '  transition:background .12s;',
+      '}',
+      '.view-fin-count-badge:hover { background:var(--stamp-border); color:#fff; }',
+
+      /* Collapsible section headers */
+      '.view-fin-section-hd {',
+      '  display:flex; align-items:center; gap:5px;',
+      '  padding:5px 0 4px; cursor:pointer; user-select:none;',
+      '  border-top:1px solid var(--rule-light); margin-top:6px;',
+      '}',
+      '.view-fin-section-hd:first-of-type { border-top:none; margin-top:0; }',
+      '.view-fin-section-arrow {',
+      '  font-family:var(--font-mono); font-size:8px; color:var(--ink-faint);',
+      '  width:10px; flex-shrink:0; display:inline-block; text-align:center;',
+      '}',
+      '.view-fin-section-name {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-muted);',
+      '}',
+      '.view-fin-section-ct {',
+      '  font-family:var(--font-mono); font-size:8px; color:var(--ink-faint);',
+      '  background:var(--rule-light); border-radius:8px; padding:0 5px;',
+      '  margin-left:2px;',
+      '}',
+      '.view-fin-section-body { padding-bottom:4px; }',
+
+      /* Summary totals block */
+      '.view-fin-totals { margin-top:8px; border-top:1.5px solid var(--rule); padding-top:8px; }',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -336,6 +386,18 @@ var ViewScreen = (function () {
       _approval = null;
       _expenses = [];
 
+      // ACK return flow: redirect to the original record with a confirmation toast
+      if (r.record_type === 'ack' && r._chainRef) {
+        RecordService.findByChainRef(r._chainRef).then(function (linked) {
+          var original = linked.filter(function (lr) { return lr.record_type !== 'ack'; })[0];
+          if (original) {
+            App.showView(original.id);
+            App.toast('Acknowledgement received \u2014 ' + (r.worker || 'customer'));
+          }
+        });
+        return;
+      }
+
       var expenseLoad = RecordService.list().then(function (all) {
         _expenses = all.filter(function (rec) {
           return rec.parentId === r.id && rec.recordType === 'expense';
@@ -358,7 +420,7 @@ var ViewScreen = (function () {
     });
   }
 
-  function onHide() { _record = null; _approval = null; _expenses = []; _payments = []; _finTab = 'expenses'; _actionsFilter = ''; _isArchived = false; }
+  function onHide() { _record = null; _approval = null; _expenses = []; _payments = []; _finTab = 'expenses'; _actionsFilter = ''; _isArchived = false; _expOpen = true; _payOpen = true; _cogsViewOpen = false; }
 
   // ── Render ───────────────────────────────────────────────────
 
@@ -403,6 +465,9 @@ var ViewScreen = (function () {
       }
       if (r.recordType !== 'expense') {
         html += '<button class="btn-primary" id="view-btn-share">Share</button>';
+      }
+      if (r.recordType === 'expense' && r.expense_billing !== 'cogs') {
+        html += '<button class="btn-ghost" id="view-btn-cogs">Record COGS</button>';
       }
       html += '<button class="btn-ghost" id="view-btn-edit">Edit</button>';
       html += '<button class="btn-ghost" id="view-btn-archive">Archive</button>';
@@ -576,77 +641,72 @@ var ViewScreen = (function () {
     return html + '</div>';
   }
 
+  var COGS_CHARGE_LABELS_V = {
+    '': 'Labour', '1': 'Urgency / emergency', '2': 'After-hours',
+    '3': 'Travel / mileage', '4': 'Delivery / courier', '5': 'Equipment hire',
+    '6': 'Materials', '7': 'Subcontractor', '8': 'Cancellation fee',
+    '9': 'Deposit / retainer', '10': 'Credit / discount', '11': 'Warranty',
+    '12': 'Regulatory levy', '13': 'FX adjustment',
+  };
+
   function _renderFinancialCard(r) {
-    var expActive = _finTab === 'expenses';
-    var tabsHtml =
-      '<div class="view-fin-tabs">' +
-        '<button class="view-fin-tab' + ( expActive ? ' active' : '') + '" data-tab="expenses">Expenses</button>' +
-        '<button class="view-fin-tab' + (!expActive ? ' active' : '') + '" data-tab="income">Income</button>' +
-      '</div>';
-
-    var content = expActive
-      ? _renderExpensesTab(r, _expenses, _payments)
-      : _renderIncomeTab(r, _expenses, _payments);
-
-    return (
-      '<div class="card view-financial-card">' +
-        '<div class="card-section">' +
-          '<div class="section-label-row" style="margin-bottom:16px;">' +
-            tabsHtml +
-            '<span class="section-rule"></span>' +
-          '</div>' +
-          content +
-        '</div>' +
-      '</div>'
-    );
-  }
-
-  function _renderExpensesTab(r, expenses, payments) {
     var sym      = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
     var vatLabel = r.vat === 'standard' ? 'inc. 20% VAT'
                  : r.vat === 'reduced'  ? 'inc. 5% VAT'
                  : r.vat === 'zero'     ? 'zero-rated' : '';
-    var fmt = function (n) { return sym + n.toFixed(2); };
+    var fmt      = function (n) { return sym + n.toFixed(2); };
 
-    var billedExp = (expenses || []).filter(function (e) { return e.expense_billing !== 'cogs' && e.amount; });
-    var cogsExp   = (expenses || []).filter(function (e) { return e.expense_billing === 'cogs'  && e.amount; });
-    var total     = parseFloat(r.amount) || 0;
+    var billedExp = (_expenses || []).filter(function (e) { return e.expense_billing !== 'cogs' && e.amount; });
+    var cogsExp   = (_expenses || []).filter(function (e) { return e.expense_billing === 'cogs'  && e.amount; });
+    var pays      = _payments || [];
+    var totalCount = billedExp.length + cogsExp.length + pays.length;
 
-    // Simple display when no expense line items
-    if (!billedExp.length && !cogsExp.length) {
-      var html = '<div class="view-financial"><div>';
-      html += '<div class="view-financial-amount">' + sym + _esc(r.amount || '0') + '</div>';
-      if (vatLabel) html += '<div class="view-financial-tax">' + vatLabel + '</div>';
-      if (r.parts_flag) html += '<div class="view-parts-flag">Parts / materials involved</div>';
-      html += '</div></div>';
-      html += _renderFinCross(payments, null, r, 'expenses');
-      return html;
+    var customerPrice = parseFloat(r.amount) || 0;
+
+    // ── Simple display: no sub-records
+    if (!billedExp.length && !cogsExp.length && !pays.length) {
+      var simpleHtml = '<div class="card view-financial-card"><div class="card-section">';
+      simpleHtml += '<div class="view-fin-header"><a href="#" class="view-fin-summary-link" id="view-fin-summary-link">Financial Summary</a><span class="section-rule" style="margin-left:10px;flex:1;"></span></div>';
+      simpleHtml += '<div class="view-financial"><div>';
+      simpleHtml += '<div class="view-financial-amount">' + sym + _esc(r.amount || '0') + '</div>';
+      if (vatLabel) simpleHtml += '<div class="view-financial-tax">' + vatLabel + '</div>';
+      if (r.parts_flag) simpleHtml += '<div class="view-parts-flag">Parts / materials involved</div>';
+      simpleHtml += '</div></div>';
+      simpleHtml += '</div></div>';
+      return simpleHtml;
     }
 
-    var subtotal   = billedExp.reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
-    var diff       = total - subtotal;
-    var diffRecord = billedExp.filter(function (e) { return e.isDifference; })[0] || null;
+    var html = '<div class="card view-financial-card"><div class="card-section">';
 
-    var expRows = (function () {
-      var groups = [];
-      var groupMap = {};
+    // ── Header
+    html += '<div class="view-fin-header">' +
+      '<a href="#" class="view-fin-summary-link" id="view-fin-summary-link">Financial Summary</a>' +
+      (totalCount > 0
+        ? '<span class="view-fin-count-badge" id="view-fin-count-badge" title="All records">' + totalCount + '</span>'
+        : '') +
+      '<span class="section-rule" style="margin-left:10px;flex:1;"></span>' +
+    '</div>';
+
+    // ── Expenses section
+    if (billedExp.length) {
+      var subtotal = billedExp.reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+      var diff = customerPrice - subtotal;
+      var diffRecord = billedExp.filter(function (e) { return e.isDifference; })[0] || null;
+
+      // Group by actionIdx
+      var groups = [], groupMap = {};
       billedExp.forEach(function (e) {
         var key = e.actionIdx != null ? String(e.actionIdx) : '';
         if (!groupMap[key]) {
-          var title = '';
-          if (key !== '' && r.actions && r.actions[parseInt(key, 10)]) {
-            title = r.actions[parseInt(key, 10)].title;
-          }
+          var title = (key !== '' && r.actions && r.actions[parseInt(key, 10)]) ? r.actions[parseInt(key, 10)].title : '';
           var g = { key: key, title: title, items: [] };
           groups.push(g);
           groupMap[key] = g;
         }
         groupMap[key].items.push(e);
       });
-      return groups.map(function (g) {
-        var header = g.title
-          ? '<div class="view-exp-action-header">' + _esc(g.title) + '</div>'
-          : '';
+      var expRows = groups.map(function (g) {
+        var header = g.title ? '<div class="view-exp-action-header">' + _esc(g.title) + '</div>' : '';
         var rows = g.items.map(function (e) {
           var label = e.isDifference
             ? '<span style="color:var(--ink-faint);font-style:italic;">Difference</span>'
@@ -656,127 +716,178 @@ var ViewScreen = (function () {
                    '<span class="view-exp-amount">' + fmt(parseFloat(e.amount) || 0) + '</span>' +
                  '</div>';
         }).join('');
-        return header + rows;
+        return '<div class="view-exp-group">' + header + rows + '</div>';
       }).join('');
-    }());
 
-    var cogsRows = cogsExp.map(function (e) {
-      return '<div class="view-exp-row">' +
-               '<span class="view-exp-label"><a href="#" class="view-exp-nav" data-id="' + _esc(e.id) + '">' +
-                 _esc(e.job || 'Expense') + '</a> <span style="font-size:9px;color:var(--ink-faint);">COGS</span></span>' +
-               '<span class="view-exp-amount cogs">' + fmt(parseFloat(e.amount) || 0) + '</span>' +
-             '</div>';
-    }).join('');
-
-    var diffLine = (Math.abs(diff) > 0.001)
-      ? '<div class="view-diff-row">' +
-          '<span class="view-diff-label">Difference</span>' +
-          '<span>' +
-            '<span class="view-diff-value">' + fmt(Math.abs(diff)) +
-              (diff < 0 ? ' <span style="color:#b84040;">\u25b2</span>' : '') +
+      var diffLine = (Math.abs(diff) > 0.001 && billedExp.length)
+        ? '<div class="view-diff-row">' +
+            '<span class="view-diff-label">Difference</span>' +
+            '<span>' +
+              '<span class="view-diff-value">' + fmt(Math.abs(diff)) +
+                (diff < 0 ? ' <span style="color:#b84040;">\u25b2</span>' : '') +
+              '</span>' +
+              (diffRecord
+                ? '<button class="view-diff-link" id="view-diff-btn" data-id="' + _esc(diffRecord.id) + '">View</button>'
+                : '<button class="view-diff-link" id="view-diff-btn" data-diff="' + Math.abs(diff).toFixed(2) + '">+ Absorb</button>') +
             '</span>' +
-            (diffRecord
-              ? '<button class="view-diff-link" id="view-diff-btn" data-id="' + _esc(diffRecord.id) + '">View</button>'
-              : '<button class="view-diff-link" id="view-diff-btn" data-diff="' + Math.abs(diff).toFixed(2) + '">+ Absorb</button>') +
-          '</span>' +
-        '</div>'
-      : '';
+          '</div>'
+        : '';
 
-    return (
-      '<div class="view-exp-list">' + expRows + cogsRows + '</div>' +
-      '<div class="view-tally-row">' +
-        '<span class="view-tally-label">Subtotal</span>' +
-        '<span class="view-tally-value">' + fmt(subtotal) + '</span>' +
+      html += '<div class="view-fin-section-hd" data-section="exp">' +
+        '<span class="view-fin-section-arrow">' + (_expOpen ? '\u25be' : '\u25b8') + '</span>' +
+        '<span class="view-fin-section-name">Expenses</span>' +
+        '<span class="view-fin-section-ct">' + billedExp.length + '</span>' +
+        '<span style="flex:1;"></span>' +
+        '<span style="font-family:var(--font-mono);font-size:9px;color:var(--ink-muted);">' + fmt(subtotal) + '</span>' +
       '</div>' +
-      '<div class="view-tally-row view-tally-total">' +
-        '<span class="view-tally-label">Customer price</span>' +
-        '<span class="view-tally-value">' + fmt(total) +
-          (vatLabel ? ' <span style="font-family:var(--font-mono);font-size:9px;font-weight:400;color:var(--ink-muted);">' + vatLabel + '</span>' : '') +
-        '</span>' +
-      '</div>' +
-      diffLine +
-      _renderFinCross(payments, subtotal, r, 'expenses')
-    );
-  }
-
-  function _renderIncomeTab(r, expenses, payments) {
-    var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
-    var fmt = function (n) { return sym + n.toFixed(2); };
-
-    var payRows = (payments && payments.length)
-      ? payments.map(function (p) {
-          var label = p.date
-            ? _esc(p.date) + (p.job ? ' \xb7 ' + _esc(p.job) : '')
-            : _esc(p.job || 'Payment');
-          return '<div class="view-pay-row">' +
-                   '<span class="view-pay-label"><a href="#" class="view-pay-nav" data-id="' + _esc(p.id) + '">' + label + '</a></span>' +
-                   '<span class="view-pay-amount">' + fmt(parseFloat(p.amount) || 0) + '</span>' +
-                 '</div>';
-        }).join('')
-      : '<div class="view-pay-empty">No payments recorded.' +
-          ' <button class="view-diff-link" id="view-add-payment">+ Record</button>' +
-        '</div>';
-
-    var totalPaid   = (payments || []).reduce(function (s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
-    var billedTotal = (expenses || [])
-      .filter(function (e) { return e.expense_billing !== 'cogs' && e.amount; })
-      .reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
-
-    var tallyHtml = payments && payments.length
-      ? '<div class="view-tally-row view-tally-total">' +
-          '<span class="view-tally-label">Total received</span>' +
-          '<span class="view-tally-value">' + fmt(totalPaid) + '</span>' +
-        '</div>' +
-        '<div style="text-align:right;padding:4px 0;">' +
-          '<button class="view-diff-link" id="view-add-payment">+ Record</button>' +
-        '</div>'
-      : '';
-
-    return (
-      '<div class="view-exp-list">' + payRows + '</div>' +
-      tallyHtml +
-      _renderFinCross(payments, billedTotal, r, 'income')
-    );
-  }
-
-  function _renderFinCross(payments, expSubtotal, r, activeTab) {
-    var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
-    var fmt = function (n) { return sym + n.toFixed(2); };
-
-    var totalPaid     = (payments || []).reduce(function (s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
-    var customerPrice = parseFloat(r.amount) || 0;
-    var outstanding   = customerPrice - totalPaid;
-
-    // Cross-panel total row
-    var crossLabel = activeTab === 'expenses' ? 'Income received' : 'Expenses';
-    var crossValue = activeTab === 'expenses' ? totalPaid : (expSubtotal || 0);
-
-    var outLabel, outClass;
-    if (Math.abs(outstanding) < 0.001 && (customerPrice > 0 || totalPaid > 0)) {
-      outLabel = '\u2713 Paid in full';
-      outClass = 'style="color:#2a6e2a;"';
-    } else if (outstanding < 0) {
-      outLabel = 'Overpayment \u00b7 ' + fmt(Math.abs(outstanding));
-      outClass = 'style="color:#b84040;"';
-    } else if (outstanding > 0) {
-      outLabel = 'Outstanding';
-      outClass = '';
-    } else {
-      return '';
+      '<div class="view-fin-section-body" id="fin-sec-exp" style="' + (_expOpen ? '' : 'display:none') + '">' +
+        '<div class="view-exp-list">' + expRows + '</div>' +
+        diffLine +
+      '</div>';
     }
 
-    return (
-      '<div class="view-fin-cross">' +
-        '<span class="view-fin-cross-label">' + crossLabel + '</span>' +
-        '<span class="view-fin-cross-value">' + fmt(crossValue) + '</span>' +
+    // ── COGS section
+    if (cogsExp.length) {
+      var totalCogs = cogsExp.reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+      var cogsRows = cogsExp.map(function (e) {
+        var chargeLabel = e.charge_type != null && COGS_CHARGE_LABELS_V[String(e.charge_type)]
+          ? COGS_CHARGE_LABELS_V[String(e.charge_type)] : null;
+        var jobText = e.job && e.job !== 'Cost of goods sold' ? e.job : null;
+        var displayLabel = chargeLabel || jobText || 'COGS';
+        var refNote = '';
+        if (e.linkedExpenseId) {
+          var lExp = null;
+          for (var bi = 0; bi < billedExp.length; bi++) {
+            if (billedExp[bi].id === e.linkedExpenseId) { lExp = billedExp[bi]; break; }
+          }
+          if (lExp) refNote = '<span style="font-family:var(--font-mono);font-size:8.5px;color:var(--ink-muted);margin-left:5px;">for: ' + _esc(lExp.job || 'expense') + '</span>';
+        } else if (e.actionIdx != null && e.actionIdx !== undefined && r.actions && r.actions[parseInt(e.actionIdx, 10)]) {
+          refNote = '<span style="font-family:var(--font-mono);font-size:8.5px;color:var(--ink-muted);margin-left:5px;">for: ' + _esc(r.actions[parseInt(e.actionIdx, 10)].title || 'action') + '</span>';
+        } else if (e.action_quoted) {
+          refNote = '<span style="font-family:var(--font-mono);font-size:8.5px;color:var(--ink-muted);margin-left:5px;">of ' + sym + parseFloat(e.action_quoted).toFixed(2) + ' quoted</span>';
+        }
+        return '<div class="view-exp-row">' +
+                 '<span class="view-exp-label"><a href="#" class="view-exp-nav" data-id="' + _esc(e.id) + '">' +
+                   _esc(displayLabel) + '</a>' +
+                   '<span style="font-family:var(--font-mono);font-size:8.5px;color:var(--ink-muted);margin-left:5px;">COGS</span>' +
+                   refNote +
+                 '</span>' +
+                 '<span class="view-exp-amount cogs">' + fmt(parseFloat(e.amount) || 0) + '</span>' +
+               '</div>';
+      }).join('');
+
+      html += '<div class="view-fin-section-hd" data-section="cogs">' +
+        '<span class="view-fin-section-arrow">' + (_cogsViewOpen ? '\u25be' : '\u25b8') + '</span>' +
+        '<span class="view-fin-section-name">COGS</span>' +
+        '<span class="view-fin-section-ct">' + cogsExp.length + '</span>' +
+        '<span style="flex:1;"></span>' +
+        '<span style="font-family:var(--font-mono);font-size:9px;color:var(--ink-faint);">' + fmt(totalCogs) + '</span>' +
       '</div>' +
-      '<div class="view-fin-cross view-fin-outstanding">' +
-        '<span class="view-fin-cross-label" ' + outClass + '>' + outLabel + '</span>' +
-        (outstanding > 0
-          ? '<span class="view-fin-cross-value">' + fmt(outstanding) + '</span>'
-          : '') +
-      '</div>'
-    );
+      '<div class="view-fin-section-body" id="fin-sec-cogs" style="' + (_cogsViewOpen ? '' : 'display:none') + '">' +
+        '<div class="view-exp-list">' + cogsRows + '</div>' +
+      '</div>';
+    }
+
+    // ── Payments section
+    if (pays.length) {
+      var totalPaid = pays.reduce(function (s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
+      var payRows = pays.map(function (p) {
+        var label = p.date
+          ? _esc(p.date) + (p.job ? ' \xb7 ' + _esc(p.job) : '')
+          : _esc(p.job || 'Payment');
+        return '<div class="view-pay-row">' +
+                 '<span class="view-pay-label"><a href="#" class="view-pay-nav" data-id="' + _esc(p.id) + '">' + label + '</a></span>' +
+                 '<span class="view-pay-amount">' + fmt(parseFloat(p.amount) || 0) + '</span>' +
+               '</div>';
+      }).join('');
+
+      html += '<div class="view-fin-section-hd" data-section="pay">' +
+        '<span class="view-fin-section-arrow">' + (_payOpen ? '\u25be' : '\u25b8') + '</span>' +
+        '<span class="view-fin-section-name">Payments</span>' +
+        '<span class="view-fin-section-ct">' + pays.length + '</span>' +
+        '<span style="flex:1;"></span>' +
+        '<span style="font-family:var(--font-mono);font-size:9px;color:var(--ink-muted);">' + fmt(totalPaid) + '</span>' +
+      '</div>' +
+      '<div class="view-fin-section-body" id="fin-sec-pay" style="' + (_payOpen ? '' : 'display:none') + '">' +
+        '<div class="view-exp-list">' + payRows + '</div>' +
+        '<div style="text-align:right;padding:4px 0 2px;">' +
+          '<button class="view-diff-link" id="view-add-payment">+ Record</button>' +
+        '</div>' +
+      '</div>';
+    } else if (!pays.length && customerPrice > 0) {
+      html += '<div style="font-family:var(--font-mono);font-size:10px;color:var(--ink-faint);padding:6px 0;">' +
+        'No payments recorded. <button class="view-diff-link" id="view-add-payment">+ Record</button>' +
+      '</div>';
+    }
+
+    // ── Summary totals (always visible)
+    html += _renderFinTotals(r, billedExp, cogsExp, pays, sym, vatLabel);
+
+    html += '</div></div>';
+    return html;
+  }
+
+  function _renderFinTotals(r, billedExp, cogsExp, pays, sym, vatLabel) {
+    var fmt = function (n) { return sym + n.toFixed(2); };
+    var customerPrice = parseFloat(r.amount) || 0;
+    var subtotal = billedExp.reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+    var totalCogs = cogsExp.reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+    var totalPaid = pays.reduce(function (s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
+    var outstanding = customerPrice - totalPaid;
+
+    var html = '<div class="view-fin-totals">';
+
+    if (subtotal > 0) {
+      html += '<div class="view-tally-row">' +
+        '<span class="view-tally-label">Expenses</span>' +
+        '<span class="view-tally-value">' + fmt(subtotal) + '</span>' +
+      '</div>';
+    }
+    if (totalCogs > 0) {
+      html += '<div class="view-tally-row" style="opacity:0.6;">' +
+        '<span class="view-tally-label">COGS (cost)</span>' +
+        '<span class="view-tally-value" style="font-weight:400;">' + fmt(totalCogs) + '</span>' +
+      '</div>';
+    }
+    if (customerPrice > 0) {
+      html += '<div class="view-tally-row view-tally-total">' +
+        '<span class="view-tally-label">' +
+          (r.record_type === 'quote' ? 'Quote total'
+         : r.record_type === 'invoice' ? 'Invoice total'
+         : 'Customer price') +
+        '</span>' +
+        '<span class="view-tally-value">' + fmt(customerPrice) +
+          (vatLabel ? ' <span style="font-family:var(--font-mono);font-size:9px;font-weight:400;color:var(--ink-muted);">' + vatLabel + '</span>' : '') +
+        '</span>' +
+      '</div>';
+    }
+
+    if (pays.length > 0) {
+      html += '<div class="view-tally-row">' +
+        '<span class="view-tally-label">Received</span>' +
+        '<span class="view-tally-value" style="font-weight:400;">' + fmt(totalPaid) + '</span>' +
+      '</div>';
+    }
+
+    if (Math.abs(outstanding) < 0.001 && (customerPrice > 0 || totalPaid > 0)) {
+      html += '<div class="view-tally-row" style="color:#2a6e2a;">' +
+        '<span class="view-tally-label" style="color:#2a6e2a;">\u2713 Paid in full</span>' +
+        '<span></span>' +
+      '</div>';
+    } else if (outstanding < 0) {
+      html += '<div class="view-tally-row" style="color:#b84040;">' +
+        '<span class="view-tally-label" style="color:#b84040;">Overpayment</span>' +
+        '<span class="view-tally-value">' + fmt(Math.abs(outstanding)) + '</span>' +
+      '</div>';
+    } else if (outstanding > 0 && pays.length > 0) {
+      html += '<div class="view-tally-row">' +
+        '<span class="view-tally-label">Outstanding</span>' +
+        '<span class="view-tally-value">' + fmt(outstanding) + '</span>' +
+      '</div>';
+    }
+
+    html += '</div>';
+    return html;
   }
 
   function _renderDetailGrid(r, keys) {
@@ -816,11 +927,13 @@ var ViewScreen = (function () {
 
     var parentBtn  = document.getElementById('view-btn-parent');
     var shareBtn   = document.getElementById('view-btn-share');
+    var cogsBtn    = document.getElementById('view-btn-cogs');
     var editBtn    = document.getElementById('view-btn-edit');
     var archiveBtn = document.getElementById('view-btn-archive');
 
     if (parentBtn)  parentBtn.addEventListener('click',  function () { App.showView(parentId); });
     if (shareBtn)   shareBtn.addEventListener('click',   function () { App.showShare(id); });
+    if (cogsBtn)    cogsBtn.addEventListener('click',    function () { App.showCogs(_record.parentId); });
     if (editBtn)    editBtn.addEventListener('click',    function () { App.showWizard(id); });
     if (archiveBtn) archiveBtn.addEventListener('click', _doArchive);
 
@@ -837,23 +950,40 @@ var ViewScreen = (function () {
   }
 
   function _bindFinancialEvents(id) {
-    // Tab toggle
-    document.querySelectorAll('.view-fin-tab').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var tab = this.dataset.tab;
-        if (tab === _finTab) return;
-        _finTab = tab;
-        var card = document.querySelector('.view-financial-card');
-        if (card) {
-          var newCard = document.createElement('div');
-          newCard.innerHTML = _renderFinancialCard(_record);
-          card.parentNode.replaceChild(newCard.firstChild, card);
-          _bindFinancialEvents(id);
-        }
+    // Financial summary link
+    var summaryLink = document.getElementById('view-fin-summary-link');
+    if (summaryLink) {
+      summaryLink.addEventListener('click', function (e) {
+        e.preventDefault();
+        App.showFinancial(id);
+      });
+    }
+
+    // Record count badge → records view
+    var countBadge = document.getElementById('view-fin-count-badge');
+    if (countBadge) {
+      countBadge.addEventListener('click', function () {
+        App.showFinancial(id, 'records');
+      });
+    }
+
+    // Section collapse/expand toggles (in-place, no re-render)
+    document.querySelectorAll('.view-fin-section-hd').forEach(function (hd) {
+      hd.addEventListener('click', function () {
+        var section = this.dataset.section;
+        var body  = document.getElementById('fin-sec-' + section);
+        var arrow = this.querySelector('.view-fin-section-arrow');
+        if (!body) return;
+        var open = body.style.display !== 'none';
+        body.style.display = open ? 'none' : '';
+        if (arrow) arrow.textContent = open ? '\u25b8' : '\u25be';
+        if (section === 'exp')  _expOpen      = !open;
+        if (section === 'cogs') _cogsViewOpen = !open;
+        if (section === 'pay')  _payOpen      = !open;
       });
     });
 
-    // Expense navigation
+    // Expense / COGS navigation
     document.querySelectorAll('.view-exp-nav').forEach(function (a) {
       a.addEventListener('click', function (e) {
         e.preventDefault();
