@@ -1,4 +1,4 @@
-var CACHE = 'workpads-v1';
+var CACHE = 'workpads-v2';
 var ASSETS = [
   '/',
   '/index.html',
@@ -57,6 +57,10 @@ self.addEventListener('fetch', function (e) {
   e.respondWith(
     caches.match(e.request).then(function (cached) {
       if (cached) return cached;
+      /* Navigation requests (share-target, any unknown path) → serve cached index.html */
+      if (e.request.mode === 'navigate') {
+        return caches.match('/index.html');
+      }
       return fetch(e.request).then(function (response) {
         if (!response || response.status !== 200 || response.type === 'opaque') {
           return response;

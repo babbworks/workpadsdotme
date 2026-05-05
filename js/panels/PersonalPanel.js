@@ -474,6 +474,24 @@ var PersonalPanel = (function () {
         if (e.target === overlayEl) _hideNoteDetail();
       });
     }
+
+    // Wire edit cancel button (Save wired per-note in _showNoteDetail)
+    var editCancelBtn = document.getElementById('overlay-note-edit-cancel');
+    if (editCancelBtn) {
+      editCancelBtn.addEventListener('click', _exitEditMode);
+    }
+
+    // Detect workpads-link paste in add-input → offer import
+    var addInput = document.getElementById('ppp-add-input');
+    if (addInput) {
+      addInput.addEventListener('paste', function (e) {
+        var pasted = (e.clipboardData || window.clipboardData).getData('text');
+        if (pasted && pasted.indexOf('workpads.me/p') !== -1) {
+          e.preventDefault();
+          if (typeof App !== 'undefined' && App.showImport) App.showImport(pasted.trim());
+        }
+      });
+    }
   }
 
   // ── Load + render ────────────────────────────────────────────
@@ -704,6 +722,11 @@ var PersonalPanel = (function () {
     if (!overlayEl || !bodyEl) return;
     if (timeEl) timeEl.textContent = note.timestamp ? _formatTime(note.timestamp) : '';
     bodyEl.textContent = note.text || '';
+    bodyEl.style.display = '';
+
+    var editArea  = document.getElementById('overlay-note-edit-area');
+    var editInput = document.getElementById('overlay-note-edit-input');
+    if (editArea) editArea.style.display = 'none';
 
     // Wire copy button
     var copyBtn = document.getElementById('overlay-note-copy');
@@ -721,7 +744,49 @@ var PersonalPanel = (function () {
       };
     }
 
+    // Wire edit button
+    var editBtn  = document.getElementById('overlay-note-edit');
+    var saveBtn  = document.getElementById('overlay-note-edit-save');
+    if (editBtn) {
+      editBtn.onclick = function () {
+        if (!editArea || !editInput) return;
+        editInput.value = note.text || '';
+        bodyEl.style.display = 'none';
+        editArea.style.display = 'block';
+        editInput.focus();
+        editInput.setSelectionRange(editInput.value.length, editInput.value.length);
+      };
+    }
+    if (saveBtn) {
+      saveBtn.onclick = function () {
+        var newText = (editInput ? editInput.value : '').trim();
+        if (!newText) return;
+        // Archive old, create new with same metadata
+        PersonalService.archive(note.id).then(function () {
+          return PersonalService.capture({
+            text:           newText,
+            source:         note.source || 'quick-note',
+            linkedRecordId: note.linkedRecordId || null,
+            linkedFieldId:  note.linkedFieldId  || null,
+            tags:           note.tags || [],
+          });
+        }).then(function (updated) {
+          _hideNoteDetail();
+          _load();
+          // Re-open with updated note
+          _showNoteDetail(updated);
+        });
+      };
+    }
+
     overlayEl.style.display = 'flex';
+  }
+
+  function _exitEditMode() {
+    var bodyEl    = document.getElementById('overlay-note-body');
+    var editArea  = document.getElementById('overlay-note-edit-area');
+    if (bodyEl)   bodyEl.style.display = '';
+    if (editArea) editArea.style.display = 'none';
   }
 
   function _fallbackCopy(text, btn) {

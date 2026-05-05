@@ -24,5 +24,14 @@
     }
   ],
   "categories": ["business", "productivity", "utilities"],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "share_target": {
+    "action": "/?from=share",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }

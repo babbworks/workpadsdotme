@@ -55,10 +55,8 @@
       <main id="main-area">
         <div id="main-topbar">
           <div class="main-topbar-left">
-            <button id="mobile-btn-left" class="mobile-nav-btn mobile-nav-records" title="Open records panel" aria-label="Records">
-              <span class="mobile-nav-icon">&#9776;</span>
-              <span class="mobile-nav-label">Records</span>
-            </button>
+            <button id="mobile-btn-left" class="mobile-nav-btn mobile-nav-records" title="Open records panel" aria-label="Records"></button>
+            <button id="btn-new" class="mobile-nav-btn mobile-nav-new" title="New workpad" aria-label="New workpad">+</button>
             <span id="main-topbar-breadcrumb" class="main-topbar-breadcrumb"></span>
           </div>
           <div class="main-topbar-right">
@@ -67,11 +65,8 @@
               <button class="view-variant-btn active" data-variant="default" title="Default view">1</button>
               <button class="view-variant-btn" data-variant="large" title="Large view">a</button>
             </div>
-            <button id="btn-new" class="mobile-nav-btn mobile-nav-new" title="New workpad" aria-label="New workpad">+</button>
-            <button id="mobile-btn-right" class="mobile-nav-btn mobile-nav-personal" title="Open personal panel" aria-label="Personal">
-              <span class="mobile-nav-icon">&#9711;</span>
-              <span class="mobile-nav-label">You</span>
-            </button>
+            <button id="mobile-btn-note" class="mobile-nav-btn mobile-nav-note" title="Quick note" aria-label="Quick note">&#9998;</button>
+            <button id="mobile-btn-import" class="mobile-nav-btn mobile-nav-import" title="Import from link" aria-label="Import from link">&#8595;</button>
           </div>
         </div>
         <div id="screen-onboarding" class="screen"></div>
@@ -140,11 +135,36 @@
       <div class="overlay-note-header">
         <span class="overlay-note-time" id="overlay-note-time"></span>
         <div style="display:flex;gap:8px;align-items:center;">
+          <button id="overlay-note-edit" style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--ink-mid);background:var(--rule-light);border:1px solid var(--rule);border-radius:3px;padding:3px 9px;cursor:pointer;">Edit</button>
           <button id="overlay-note-copy" style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--ink-mid);background:var(--rule-light);border:1px solid var(--rule);border-radius:3px;padding:3px 9px;cursor:pointer;">Copy</button>
           <button class="btn-icon" id="overlay-note-close" aria-label="Close">&times;</button>
         </div>
       </div>
       <div class="overlay-note-body" id="overlay-note-body"></div>
+      <div id="overlay-note-edit-area" style="display:none;">
+        <textarea id="overlay-note-edit-input" class="field-input field-textarea" rows="5" style="margin-bottom:10px;"></textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn-ghost" id="overlay-note-edit-cancel">Cancel</button>
+          <button class="btn-primary" id="overlay-note-edit-save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Import / paste link overlay ─────────────────────────── -->
+  <div id="overlay-import" class="overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="import-heading">
+    <div class="overlay-card overlay-card-sm">
+      <h2 class="overlay-heading-sm" id="import-heading">Add from link</h2>
+      <div id="import-preview" class="import-preview" style="display:none;"></div>
+      <div class="field-group" id="import-paste-group">
+        <label class="field-label" for="import-url-input">Paste a workpads link</label>
+        <input class="field-input" id="import-url-input" type="url" placeholder="workpads.me/p#&#x2026;" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div id="import-error" style="display:none;font-family:var(--font-mono);font-size:11px;color:#b33a0a;margin:8px 0;"></div>
+      <div class="overlay-actions">
+        <button class="btn-ghost" id="import-cancel">Cancel</button>
+        <button class="btn-primary" id="import-save" disabled>Save as new workpad</button>
+      </div>
     </div>
   </div>
 

@@ -1118,16 +1118,17 @@ button.panel-title:active { color: var(--stamp); }
   text-transform: uppercase;
 }
 
+/* + New record — left-side thin circle */
 .mobile-nav-new {
   font-size: 20px;
-  font-weight: 400;
+  font-weight: 300;
   color: var(--stamp);
   border: 1.5px solid var(--stamp-border);
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
   padding: 0;
   line-height: 1;
   display: none;
@@ -1135,6 +1136,50 @@ button.panel-title:active { color: var(--stamp); }
   justify-content: center;
 }
 .mobile-nav-new:active { background: var(--stamp-light); }
+
+/* Records panel button — filled disc */
+.mobile-nav-records {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 50%;
+  background: var(--ink-mid);
+  padding: 0;
+  gap: 0;
+  transition: background 0.13s;
+  flex-shrink: 0;
+}
+.mobile-nav-records:active { background: var(--ink); }
+[data-theme="classic"] .mobile-nav-records { background: #1B3A6B; }
+
+/* Note + Import — thin-circle right-side buttons */
+.mobile-nav-note,
+.mobile-nav-import {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-mid);
+  background: none;
+  color: var(--ink-mid);
+  padding: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.13s, color 0.13s, border-color 0.13s;
+  font-size: 16px;
+  line-height: 1;
+}
+.mobile-nav-note:active,
+.mobile-nav-import:active {
+  background: var(--rule-light);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+/* Import arrow slightly smaller */
+.mobile-nav-import { font-size: 18px; }
 
 /* ── Responsive ─────────────────────────────────────────────── */
 
@@ -1217,6 +1262,13 @@ button.panel-title:active { color: var(--stamp); }
   }
   .mobile-nav-btn { display: flex !important; }
   .mobile-nav-new { display: flex !important; }
+  .mobile-nav-note   { display: flex !important; }
+  .mobile-nav-import { display: flex !important; }
+
+  /* Left group: gap between ● Records and + New */
+  .main-topbar-left { gap: 8px; }
+  /* Right group: tighter gap between the two circle icons */
+  .main-topbar-right { gap: 8px; }
 
   /* Hide desktop panel-toggle collapse buttons */
   #toggle-left,
@@ -1286,4 +1338,38 @@ button.panel-title:active { color: var(--stamp); }
   /* Safe area inset for notch/home-indicator devices */
   #main-area { padding-bottom: env(safe-area-inset-bottom, 0px); }
   #main-topbar { padding-top: env(safe-area-inset-top, 0px); }
+
+  /* Note detail: centred card (not bottom sheet) */
+  #overlay-note-detail {
+    align-items: center;
+    padding: 20px;
+  }
+  #overlay-note-detail .overlay-card {
+    border-radius: 8px;
+    max-width: 92vw;
+    width: 92vw;
+  }
+}
+
+/* ── Import preview block ────────────────────────────────── */
+.import-preview {
+  background: var(--rule-light);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink);
+  line-height: 1.6;
+}
+.import-preview-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.import-preview-label {
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  min-width: 60px;
 }

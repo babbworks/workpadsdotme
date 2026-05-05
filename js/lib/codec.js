@@ -1,10 +1,13 @@
-// WPCodec — pads-v1 codec, codebooks a/b/c
+// WPCodec — pads-v1 codec, codebooks a/b/c/d
 // 1ag/ = codebook-a (legacy, base64url + deflate, decode only)
-// 1bg/ = codebook-b (base64url + deflate, no dict — KaiOS compat, decode + encode)
-// 1cg/ = codebook-c (base91 + deflate + WORKPADS_DICT, binary date/amount,
-//                    action notes flag, chainRef embedded in frame)
+// 1bg/ = codebook-b (base64url + deflate — KaiOS compat, decode + encode)
+// 1cg/ = codebook-c (base91 + deflate, binary date/amount, chainRef in frame — decode only)
+// 1dg/ = codebook-d (base64url + deflate, same binary frame as 1cg/ — CURRENT default)
 //
-// 1cg/ frame changes vs 1bg/:
+// 1dg/ is the current encode target. Identical frame to 1cg/ but base64url-encoded
+// so the URL payload is A-Za-z0-9-_ only — safe in all messaging apps.
+//
+// 1cg/ vs 1bg/ frame changes (shared by 1dg/):
 //   bit 2  (date):       uint16 days since 2020-01-01 (not length-prefixed UTF-8)
 //   bit 13 (CHAIN_BIT):  3-byte raw chainRef embedded after FIN block (no &c= in URL)
 //   FIN amount:          uint32 minor-currency units (not length-prefixed UTF-8)
@@ -91,25 +94,8 @@
   function toUtf8(str)   { return new TextEncoder().encode(str); }
   function fromUtf8(buf) { return new TextDecoder().decode(buf); }
 
-  // ── DEFLATE preset dictionary (1cg/ only) ────────────────────────────────────
-  // Content placed to maximise LZ77 back-references in typical Workpads records.
-  // More common substrings are placed near the end (closer to the data window).
-  var WORKPADS_DICT = (function () {
-    var s = [
-      ' Ltd Limited Company Services Solutions Group',
-      ' customer worker supervisor contractor colleague site',
-      ' Street Road Avenue Lane Drive Close Crescent Place Court Way',
-      ' plumbing electrical heating drainage guttering insulation',
-      ' front back garden yard driveway gate roof wall floor ceiling door window',
-      ' fence install repair replace service maintain check inspect clean paint fix',
-      ' invoice quote payment expense received approved pending complete outstanding',
-      ' labour materials parts delivery callout emergency',
-      ' January February March April May June July August September October November December',
-      ' Monday Tuesday Wednesday Thursday Friday Saturday Sunday',
-      ' 09:00 10:00 11:00 12:00 13:00 14:00 15:00 16:00 17:00 18:00',
-    ].join('');
-    return new TextEncoder().encode(s);
-  }());
+  // WORKPADS_DICT was defined here for a planned 1cg/ preset-dictionary feature
+  // but was never wired into the deflateSync call. Removed to avoid confusion.
 
   // ── Date encoding (1cg/ only) ────────────────────────────────────────────────
   // uint16 days since 2020-01-01. Range: 2020-01-01 to ~2199. 2 bytes vs 12 bytes.
@@ -873,7 +859,9 @@
 
   // ── public API ────────────────────────────────────────────────────────────────
 
-  // encode(record, opts) — always produces 1cg/ (base91 + dict)
+  // encode(record, opts) — produces 1dg/ (base64url + 1cg-frame)
+  // URL payload is A-Za-z0-9-_ only — safe in all messaging apps.
+  // chainRef is embedded in the frame; no &c= suffix.
   // opts: string (chainRef) | null | { chainRef, expenses, payments }
   function encode(record, opts) {
     var chainRef = null, expenses = [], payments = [];
@@ -886,11 +874,10 @@
     }
     var frame      = padsEncodeC(record, expenses, payments, chainRef);
     var compressed = global.fflate.deflateSync(frame, { level: 9 });
-    return URL_PREFIX + '1cg/' + toBase91(compressed);
-    // No &c= suffix — chainRef is embedded in the frame for 1cg/
+    return URL_PREFIX + '1dg/' + toBase64Url(compressed);
   }
 
-  // encodeLegacy(record, opts) — produces 1bg/ (base64url, no dict) for KaiOS compat
+  // encodeLegacy(record, opts) — produces 1bg/ (base64url, 1bg-frame) for KaiOS compat
   function encodeLegacy(record, opts) {
     var chainRef = null, expenses = [], payments = [];
     if (typeof opts === 'string' || opts === null || opts === undefined) {
@@ -907,20 +894,21 @@
     return url;
   }
 
-  // decode(url) — routes 1ag/ → A, 1bg/ → B, 1cg/ → C
+  // decode(url) — routes 1ag/ → A, 1bg/ → B, 1cg/ → C (legacy), 1dg/ → C (current)
   function decode(url) {
     var hash = url.indexOf('#') !== -1 ? url.slice(url.indexOf('#') + 1) : url;
     if (!/^[0-9][a-z][a-z]\//.test(hash)) throw new Error('WPCodec.decode: unrecognised format');
     var tag = hash.slice(0, 3);
     var record;
 
-    if (tag === '1cg') {
-      // 1cg/: base91 + dict; chainRef embedded in frame
-      var compressed = fromBase91(hash.slice(4));
-      var frame      = global.fflate.inflateSync(compressed);
+    if (tag === '1cg' || tag === '1dg') {
+      // 1cg/: base91-encoded (legacy); 1dg/: base64url-encoded (current)
+      // Both use the same 1cg-frame: binary date, binary amounts, chainRef in frame
+      var rawBytes   = (tag === '1cg') ? fromBase91(hash.slice(4)) : fromBase64Url(hash.slice(4));
+      var frame      = global.fflate.inflateSync(rawBytes);
       record = padsDecodeC(frame);
     } else {
-      // 1ag/ or 1bg/: base64url, no dict; chainRef in &c= param
+      // 1ag/ or 1bg/: base64url, 1bg-frame; chainRef in &c= param
       var segments = hash.split('&');
       var payload  = segments[0];
       var chainRef = null;

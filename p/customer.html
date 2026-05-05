@@ -946,8 +946,10 @@
     if (!/^[0-9][a-z][a-z]\//.test(payload)) throw new Error('Unsupported format');
     var tag=payload.slice(0,3);
     var rec;
-    if (tag==='1cg') {
-      var frame=fflate.inflateSync(fromBase91(payload.slice(4)));
+    if (tag==='1cg'||tag==='1dg') {
+      // 1cg/ = base91 (legacy); 1dg/ = base64url (current) — same binary frame
+      var fb=(tag==='1cg')?fromBase91(payload.slice(4)):b64uToBytes(payload.slice(4));
+      var frame=fflate.inflateSync(fb);
       rec=padsDecodeC(frame);
     } else {
       var frame2=fflate.inflateSync(b64uToBytes(payload.slice(4)));

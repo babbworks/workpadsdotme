@@ -240,6 +240,9 @@ var App = (function () {
       el.panelLeft.classList.remove('mobile-open');
       el.panelRight.classList.remove('mobile-open');
       backdrop.style.display = 'none';
+      // Reset import-mode placeholder if it was set
+      var inp = document.getElementById('ppp-add-input');
+      if (inp && inp.placeholder !== 'Quick note\u2026') inp.placeholder = 'Quick note\u2026';
     });
   }
 
@@ -399,8 +402,9 @@ var App = (function () {
     el.overlayQuicknote  = document.getElementById('overlay-quicknote');
     el.btnNew            = document.getElementById('btn-new');          // may be null (topbar removed)
     el.btnManage         = document.getElementById('btn-manage');       // may be null (topbar removed)
-    el.mobileBtnLeft     = document.getElementById('mobile-btn-left');  // may be null (topbar removed)
-    el.mobileBtnRight    = document.getElementById('mobile-btn-right'); // may be null (topbar removed)
+    el.mobileBtnLeft     = document.getElementById('mobile-btn-left');   // may be null (topbar removed)
+    el.mobileBtnNote     = document.getElementById('mobile-btn-note');   // quick-note circle
+    el.mobileBtnImport   = document.getElementById('mobile-btn-import'); // import-link circle
     el.panelLeftTitle    = document.getElementById('panel-left-title');
 
     // Register screens — each file exposes a global screen object
@@ -426,8 +430,19 @@ var App = (function () {
     // Topbar buttons (may not exist if topbar removed)
     if (el.btnNew)    el.btnNew.addEventListener('click',    function() { showWizard(); });
     if (el.btnManage) el.btnManage.addEventListener('click', function() { showManagement(); });
-    if (el.mobileBtnLeft)  el.mobileBtnLeft.addEventListener('click',  function() { _openMobilePanel('left'); });
-    if (el.mobileBtnRight) el.mobileBtnRight.addEventListener('click', function() { _openMobilePanel('right'); });
+    if (el.mobileBtnLeft) el.mobileBtnLeft.addEventListener('click', function() { _openMobilePanel('left'); });
+
+    // Note button: open quick-note overlay
+    if (el.mobileBtnNote) el.mobileBtnNote.addEventListener('click', function() { showQuickNote(); });
+
+    // Import button: open right panel and focus the paste/note input
+    if (el.mobileBtnImport) el.mobileBtnImport.addEventListener('click', function() {
+      _openMobilePanel('right');
+      setTimeout(function() {
+        var inp = document.getElementById('ppp-add-input');
+        if (inp) { inp.focus(); inp.placeholder = 'Paste a workpads link\u2026'; }
+      }, 220);
+    });
 
     // Panel title — clicking "RECORDS" label shows all records (clears any context)
     if (el.panelLeftTitle) {
@@ -464,6 +479,9 @@ var App = (function () {
     // Hash routing — listen for changes
     window.addEventListener('hashchange', _route);
 
+    // Wire import overlay
+    _initImport();
+
     // Handle ?start=1 from receiver page — skip onboarding if account already exists
     var urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('start') === '1') {
@@ -472,10 +490,145 @@ var App = (function () {
       return;
     }
 
+    // Handle Web Share Target launch (?from=share&url=...&text=...&title=...)
+    if (urlParams.get('from') === 'share') {
+      var sharedUrl  = urlParams.get('url')  || '';
+      var sharedText = urlParams.get('text') || '';
+      // Prefer explicit url param; fall back to text if it looks like a URL
+      var candidate = sharedUrl || (sharedText.indexOf('workpads.me/p') !== -1 ? sharedText : '');
+      _checkOnboarding().then(function () {
+        _route();
+        if (candidate) {
+          setTimeout(function () { showImport(candidate); }, 300);
+        }
+      });
+      return;
+    }
+
     // Normal boot: onboarding check → route
     _checkOnboarding().then(function() {
       _route();
     });
+  }
+
+  // ── Import from workpads link ────────────────────────────────
+
+  var _importDecoded = null;
+
+  function _initImport() {
+    var overlay   = document.getElementById('overlay-import');
+    var cancelBtn = document.getElementById('import-cancel');
+    var saveBtn   = document.getElementById('import-save');
+    var urlInput  = document.getElementById('import-url-input');
+    var errorEl   = document.getElementById('import-error');
+    var previewEl = document.getElementById('import-preview');
+
+    if (!overlay) return;
+
+    function _hideImport() {
+      overlay.style.display = 'none';
+      _importDecoded = null;
+      if (urlInput) urlInput.value = '';
+      if (errorEl)  errorEl.style.display = 'none';
+      if (previewEl) previewEl.style.display = 'none';
+      if (saveBtn)  saveBtn.disabled = true;
+    }
+
+    function _tryDecode(url) {
+      if (!url) return;
+      var clean = url.trim();
+      // Strip https:// prefix so codec hash extraction works
+      clean = clean.replace(/^https?:\/\//, '');
+      try {
+        var rec = WPCodec.decode(clean);
+        _importDecoded = rec;
+        if (errorEl) errorEl.style.display = 'none';
+        if (saveBtn) saveBtn.disabled = false;
+        // Render preview
+        if (previewEl) {
+          var rows = [];
+          if (rec.job)      rows.push(['Job',      rec.job]);
+          if (rec.customer) rows.push(['Customer', rec.customer]);
+          if (rec.date)     rows.push(['Date',     rec.date]);
+          if (rec.worker)   rows.push(['Worker',   rec.worker]);
+          if (rec.amount)   rows.push(['Amount',   (rec.currency || '') + ' ' + rec.amount]);
+          var html = rows.map(function (r) {
+            return '<div class="import-preview-row">' +
+              '<span class="import-preview-label">' + _esc(r[0]) + '</span>' +
+              '<span>' + _esc(r[1]) + '</span></div>';
+          }).join('');
+          if (!html) html = '<div class="import-preview-row"><span class="import-preview-label">Record</span><span>decoded — no preview fields</span></div>';
+          previewEl.innerHTML = html;
+          previewEl.style.display = 'block';
+        }
+      } catch (err) {
+        _importDecoded = null;
+        if (saveBtn) saveBtn.disabled = true;
+        if (previewEl) previewEl.style.display = 'none';
+        if (errorEl) {
+          errorEl.textContent = 'Not a valid workpads link.';
+          errorEl.style.display = 'block';
+        }
+      }
+    }
+
+    if (urlInput) {
+      urlInput.addEventListener('input', function () { _tryDecode(this.value); });
+      urlInput.addEventListener('paste', function () {
+        var self = this;
+        setTimeout(function () { _tryDecode(self.value); }, 20);
+      });
+    }
+
+    if (cancelBtn) cancelBtn.addEventListener('click', _hideImport);
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) _hideImport();
+    });
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        if (!_importDecoded) return;
+        var rec = _importDecoded;
+        // Build fields for RecordService.create — map codec field names
+        var fields = {};
+        var copy = ['job','customer','date','worker','location','story','details',
+                    'amount','currency','vat','record_type','customer_phone',
+                    'start_time','end_time','meeting_time','actions'];
+        copy.forEach(function (k) { if (rec[k] != null) fields[k] = rec[k]; });
+        RecordService.create(fields).then(function (created) {
+          _hideImport();
+          toast('Workpad imported');
+          if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) WorkpadsPanel.refresh();
+          if (created && created.id) showView(created.id);
+        }).catch(function () {
+          if (errorEl) { errorEl.textContent = 'Save failed. Try again.'; errorEl.style.display = 'block'; }
+        });
+      });
+    }
+  }
+
+  function showImport(prefillUrl) {
+    var overlay  = document.getElementById('overlay-import');
+    var urlInput = document.getElementById('import-url-input');
+    var saveBtn  = document.getElementById('import-save');
+    var errorEl  = document.getElementById('import-error');
+    var previewEl = document.getElementById('import-preview');
+    if (!overlay) return;
+    _importDecoded = null;
+    if (urlInput) urlInput.value = '';
+    if (errorEl)  errorEl.style.display = 'none';
+    if (previewEl) previewEl.style.display = 'none';
+    if (saveBtn)  saveBtn.disabled = true;
+    overlay.style.display = 'flex';
+    if (prefillUrl) {
+      if (urlInput) { urlInput.value = prefillUrl; }
+      // Fire decode on the prefilled value via a synthetic event
+      setTimeout(function () {
+        if (urlInput) urlInput.dispatchEvent(new Event('input'));
+      }, 60);
+    } else {
+      setTimeout(function () { if (urlInput) urlInput.focus(); }, 80);
+    }
   }
 
   // ── Public API ───────────────────────────────────────────────
@@ -497,6 +650,7 @@ var App = (function () {
     showArchive:    showArchive,
     showArchivedView: showArchivedView,
     showQuickNote:  showQuickNote,
+    showImport:     showImport,
     toast:          toast,
     openMobilePanel: _openMobilePanel,
   };
