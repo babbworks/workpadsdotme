@@ -24,7 +24,9 @@ var ASSETS = [
   '/js/panels/PersonalPanel.js',
   '/js/app.js',
   '/img/icon-192.svg',
-  '/img/icon-512.svg'
+  '/img/icon-512.svg',
+  '/img/icon-192.png',
+  '/img/icon-512.png'
 ];
 
 self.addEventListener('install', function (e) {
