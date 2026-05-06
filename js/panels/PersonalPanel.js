@@ -159,11 +159,15 @@ var PersonalPanel = (function () {
       '  position:relative;',
       '}',
       '.ppp-wordmark {',
-      '  flex:1; padding:10px 12px;',
-      '  font-family:var(--font-mono); font-size:10px;',
-      '  font-weight:700; letter-spacing:.16em; text-transform:uppercase;',
-      '  color:var(--ink-faint); user-select:none; pointer-events:none;',
+      '  flex:1; padding:8px 12px;',
+      '  display:flex; align-items:center;',
       '}',
+      '.ppp-wordmark-img {',
+      '  height:13px; width:auto; display:block;',
+      '  mix-blend-mode:multiply; opacity:0.7;',
+      '  transition:opacity .15s;',
+      '}',
+      '.ppp-wordmark-link:hover .ppp-wordmark-img { opacity:1; }',
       '.ppp-theme-btn {',
       '  flex-shrink:0; display:flex; align-items:center; gap:4px;',
       '  padding:7px 8px; border:none; background:none;',
@@ -312,7 +316,7 @@ var PersonalPanel = (function () {
           '<button class="ppp-archive-link" id="ppp-archive-btn">Archive \u2192</button>' +
         '</div>' +
         '<div class="ppp-bottom-bar">' +
-          '<span class="ppp-wordmark">Workpads</span>' +
+          '<span class="ppp-wordmark"><a href="https://workpads.org" target="_blank" rel="noopener noreferrer" class="ppp-wordmark-link"><img src="/img/at-workpads.png" alt="@workpads" class="ppp-wordmark-img"></a></span>' +
           '<div style="position:relative;">' +
             '<button class="ppp-bg-btn" id="ppp-bg-btn" title="Background">' +
               '<span class="ppp-bg-icon">' +

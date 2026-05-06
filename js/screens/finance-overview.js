@@ -144,7 +144,14 @@ var FinanceOverviewScreen = (function () {
       '}',
       '.fov-date-input:focus { outline:none; border-color:var(--stamp-border); }',
       '.fov-date-sep { font-family:var(--font-mono); font-size:9px; color:var(--ink-faint); }',
+      '.fov-date-range { display:flex; align-items:center; gap:8px; flex-shrink:0; }',
       '.fov-date-presets { display:flex; gap:4px; flex-wrap:wrap; margin-left:4px; }',
+      '@media (max-width:640px) {',
+      '  .fov-date-bar { flex-wrap:wrap; padding:8px 10px; gap:6px; }',
+      '  .fov-date-range { width:100%; }',
+      '  .fov-date-input { flex:1; min-width:0; width:auto; }',
+      '  .fov-date-presets { width:100%; margin-left:0; }',
+      '}',
       '.fov-preset-btn {',
       '  font-family:var(--font-mono); font-size:8.5px; font-weight:700;',
       '  letter-spacing:.06em; text-transform:uppercase;',
@@ -476,10 +483,12 @@ var FinanceOverviewScreen = (function () {
       { key: 'lastyear',  label: 'Last year' },
     ];
     var html = '<div class="fov-date-bar">';
+    html += '<div class="fov-date-range">';
     html += '<span class="fov-date-label">Date range:</span>';
     html += '<input class="fov-date-input" id="fov-date-from" type="date" value="' + _esc(_dateFrom) + '" title="From date">';
     html += '<span class="fov-date-sep">\u2013</span>';
     html += '<input class="fov-date-input" id="fov-date-to" type="date" value="' + _esc(_dateTo) + '" title="To date">';
+    html += '</div>';
     html += '<div class="fov-date-presets">';
     presets.forEach(function (p) {
       html += '<button class="fov-preset-btn' + (preset === p.key ? ' active' : '') + '" data-preset="' + p.key + '">' + p.label + '</button>';
