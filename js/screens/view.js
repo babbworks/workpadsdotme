@@ -10,9 +10,9 @@ var ViewScreen = (function () {
   var _approval      = null;
   var _expenses      = [];
   var _payments      = [];
+  var _comments      = [];
   var _finTab        = 'expenses';  // kept for compat but unused
   var _stylesAdded   = false;
-  var _actionsFilter = '';
   var _isArchived    = false;
   var _expOpen       = true;
   var _payOpen       = true;
@@ -26,6 +26,47 @@ var ViewScreen = (function () {
     var s = document.createElement('style');
     s.textContent = [
       '.view-wrap { max-width:680px; margin:0 auto; padding:36px 32px 80px; }',
+      '.view-wrap.view-has-sidebar { max-width:960px; display:flex; gap:44px; align-items:flex-start; }',
+      '.view-has-sidebar .view-main { flex:1; min-width:0; }',
+
+      /* Comment sidebar */
+      '.view-comments-col {',
+      '  width:230px; flex-shrink:0; padding-top:0;',
+      '}',
+      '.view-comment-input-wrap { margin-bottom:18px; }',
+      '.view-comment-input {',
+      '  width:100%;',
+      '  font-family:var(--font-mono); font-size:11px;',
+      '  color:var(--ink-mid); background:transparent;',
+      '  border:none; border-bottom:1.5px solid var(--rule);',
+      '  padding:6px 2px; outline:none;',
+      '  transition:border-color .15s;',
+      '}',
+      '.view-comment-input:focus { border-bottom-color:var(--stamp-border); }',
+      '.view-comment-input::placeholder { color:var(--ink-faint); letter-spacing:.03em; }',
+      '.view-comment { margin-bottom:1.7em; }',
+      '.view-comment-text {',
+      '  font-family:var(--font-body); font-size:14px;',
+      '  color:#2d2318; line-height:1.55; margin-bottom:5px;',
+      '}',
+      '.view-comment-meta {',
+      '  display:flex; align-items:center; justify-content:space-between;',
+      '}',
+      '.view-comment-ts {',
+      '  font-family:var(--font-mono); font-size:9px;',
+      '  color:var(--ink-faint); letter-spacing:.03em;',
+      '}',
+      '.view-comment-pin {',
+      '  width:17px; height:17px; flex-shrink:0;',
+      '  font-family:var(--font-mono); font-size:11px; font-weight:700;',
+      '  color:var(--ink-faint); background:none;',
+      '  border:1.5px solid var(--rule); border-radius:2px;',
+      '  cursor:pointer; padding:0; line-height:1;',
+      '  display:inline-flex; align-items:center; justify-content:center;',
+      '  transition:border-color .12s, color .12s;',
+      '}',
+      '.view-comment-pin:hover { border-color:var(--stamp-border); color:var(--stamp); }',
+      '.view-comment-pin.pinned { border-color:var(--stamp); color:var(--stamp); }',
 
       '.view-doc-header {',
       '  margin-bottom:28px;',
@@ -154,18 +195,7 @@ var ViewScreen = (function () {
       '.view-prose strong { font-weight:700; }',
       '.view-prose em { font-style:italic; }',
 
-      /* Action filter toolbar */
-      '.view-actions-toolbar {',
-      '  display:flex; gap:8px; margin-bottom:14px;',
-      '}',
-      '.view-actions-search {',
-      '  flex:1; font-family:var(--font-mono); font-size:11px;',
-      '  color:var(--ink); background:var(--paper);',
-      '  border:1px solid var(--rule); border-radius:3px;',
-      '  padding:5px 9px; transition:border-color .13s;',
-      '}',
-      '.view-actions-search:focus { outline:none; border-color:var(--stamp-border); }',
-      '.view-actions-search::placeholder { color:var(--ink-faint); }',
+      /* (filter toolbar removed — replaced by comment sidebar) */
 
       /* Private badge on notes section */
       '.view-private-badge {',
@@ -477,6 +507,7 @@ var ViewScreen = (function () {
       _record   = r;
       _approval = null;
       _expenses = [];
+      _comments = r.comments || [];
 
       // ACK return flow: redirect to the original record with a confirmation toast
       if (r.record_type === 'ack' && r._chainRef) {
@@ -516,7 +547,7 @@ var ViewScreen = (function () {
     });
   }
 
-  function onHide() { _record = null; _parentRecord = null; _approval = null; _expenses = []; _payments = []; _finTab = 'expenses'; _actionsFilter = ''; _isArchived = false; _expOpen = true; _payOpen = true; _cogsViewOpen = false; }
+  function onHide() { _record = null; _parentRecord = null; _approval = null; _expenses = []; _payments = []; _comments = []; _finTab = 'expenses'; _isArchived = false; _expOpen = true; _payOpen = true; _cogsViewOpen = false; }
 
   // ── Render ───────────────────────────────────────────────────
 
@@ -524,7 +555,9 @@ var ViewScreen = (function () {
     var el = document.getElementById('screen-view');
     var r  = _record;
 
-    var html = '<div class="view-wrap">';
+    var hasSidebar = !r.receivedAt && !_isArchived && r.recordType !== 'expense';
+    var html = '<div class="view-wrap' + (hasSidebar ? ' view-has-sidebar' : '') + '">';
+    if (hasSidebar) html += '<div class="view-main">';
 
     // ── Parent context banner (for child expense/COGS records)
     if (_parentRecord && r.parentId) {
@@ -639,6 +672,11 @@ var ViewScreen = (function () {
       html += _renderFinancialCard(r);
     }
 
+    if (hasSidebar) {
+      html += '</div>'; // .view-main
+      html += _renderCommentsSidebar();
+    }
+
     html += '</div>'; // .view-wrap
 
     el.innerHTML = html;
@@ -677,12 +715,6 @@ var ViewScreen = (function () {
   }
 
   function _renderActionsSection(actions, showAdd) {
-    var toolbar = actions.length ? (
-      '<div class="view-actions-toolbar">' +
-        '<input class="view-actions-search" id="view-act-search" type="search" ' +
-            'placeholder="Filter actions\u2026" autocomplete="off" value="' + _esc(_actionsFilter) + '">' +
-      '</div>'
-    ) : '';
     var addRow = showAdd ? (
       '<div class="view-action-add-row">' +
         '<input class="view-action-add-input" id="view-action-add-input" type="text" ' +
@@ -696,7 +728,6 @@ var ViewScreen = (function () {
           '<span class="section-label">Actions</span>' +
           '<span class="section-rule"></span>' +
         '</div>' +
-        toolbar +
         _renderActions(actions) +
         addRow +
       '</div>'
@@ -705,24 +736,14 @@ var ViewScreen = (function () {
 
   function _renderActions(actions) {
     // Apply filter
-    var filtered = actions.slice();
-    if (_actionsFilter.trim()) {
-      var q = _actionsFilter.toLowerCase();
-      filtered = actions.filter(function(a) {
-        return (a.title || '').toLowerCase().indexOf(q) !== -1 ||
-               (a.notes || '').toLowerCase().indexOf(q) !== -1;
-      });
+    if (!actions.length) {
+      return '<div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);padding:8px 0;" id="view-actions-list">No actions yet</div>';
     }
 
-    if (!filtered.length) {
-      var emptyMsg = actions.length ? 'No matching actions' : 'No actions yet';
-      return '<div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);padding:8px 0;">' + emptyMsg + '</div>';
-    }
-
-    var html = '<ol class="view-actions-list">';
-    filtered.forEach(function (a, i) {
+    var html = '<ol class="view-actions-list" id="view-actions-list">';
+    actions.forEach(function (a, i) {
       var num = (i < 9 ? '0' : '') + (i + 1);
-      var origIdx = actions.indexOf(a);
+      var origIdx = i;
       html += '<li class="view-action-item">' +
                 '<span class="view-action-num">' + num + '</span>' +
                 '<div class="view-action-body">' +
@@ -1138,6 +1159,36 @@ var ViewScreen = (function () {
     return html;
   }
 
+  function _renderCommentsSidebar() {
+    var html = '<div class="view-comments-col" id="view-comments-col">';
+
+    html += '<div class="view-comment-input-wrap">' +
+      '<input class="view-comment-input" id="view-comment-input" type="text" ' +
+          'placeholder="Private note\u2026" autocomplete="off">' +
+    '</div>';
+
+    if (_comments.length > 0) {
+      html += '<div class="view-comment-list" id="view-comment-list">';
+      var sorted = _comments.slice().sort(function (a, b) { return b.ts - a.ts; });
+      sorted.forEach(function (c, idx) {
+        var d  = new Date(c.ts);
+        var mo = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        var ti = d.toTimeString().slice(0, 5);
+        html += '<div class="view-comment" data-comment-ts="' + c.ts + '">' +
+          '<p class="view-comment-text">' + _esc(c.text) + '</p>' +
+          '<div class="view-comment-meta">' +
+            '<span class="view-comment-ts">' + mo + ' \xb7 ' + ti + '</span>' +
+            '<button class="view-comment-pin" data-comment-idx="' + idx + '" title="Save to Personal collection">+</button>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
   function _renderDetailGrid(r, keys) {
     var labels = {
       worker:         'Worker',
@@ -1195,14 +1246,44 @@ var ViewScreen = (function () {
 
     _bindFinancialEvents(id);
 
-    // Action filter toolbar (live re-render preserving filter state)
-    var searchEl = document.getElementById('view-act-search');
-    if (searchEl) {
-      searchEl.addEventListener('input', function () {
-        _actionsFilter = this.value;
-        _rerenderActions();
+    // Comment input — Enter submits
+    var commentInput = document.getElementById('view-comment-input');
+    if (commentInput) {
+      commentInput.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        var text = this.value.trim();
+        if (!text) return;
+        this.value = '';
+        var c = { text: text, ts: Date.now() };
+        _comments = _comments.concat([c]);
+        RecordService.update(id, { comments: _comments }).then(function (updated) {
+          _record = updated;
+          _render();
+          // Re-focus the input after re-render
+          var inp = document.getElementById('view-comment-input');
+          if (inp) inp.focus();
+        });
       });
     }
+
+    // Pin comment to Personal collection
+    document.querySelectorAll('.view-comment-pin').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx  = parseInt(this.dataset.commentIdx, 10);
+        var sorted = _comments.slice().sort(function (a, b) { return b.ts - a.ts; });
+        var c = sorted[idx];
+        if (!c) return;
+        var self = this;
+        PersonalService.capture({
+          text: c.text,
+          source: 'quick-note',
+          linkedRecordId: id,
+        }).then(function () {
+          self.classList.add('pinned');
+          self.title = 'Saved to Personal';
+        });
+      });
+    });
 
     // Inline action add
     var addInput = document.getElementById('view-action-add-input');
@@ -1354,9 +1435,7 @@ var ViewScreen = (function () {
   function _rerenderActions() {
     var r = _record;
     if (!r || !r.actions || !r.actions.length) return;
-    var screenEl    = document.getElementById('screen-view');
-    var toolbarEl   = screenEl && screenEl.querySelector('.view-actions-toolbar');
-    var actListEl   = toolbarEl && toolbarEl.nextElementSibling;
+    var actListEl = document.getElementById('view-actions-list');
     if (!actListEl) return;
     actListEl.outerHTML = _renderActions(r.actions);
     // Re-bind action buttons on new DOM nodes
