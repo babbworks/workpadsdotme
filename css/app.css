@@ -1228,6 +1228,31 @@ button.panel-title:active { color: var(--stamp); }
 }
 .mobile-nav-note:active { background: var(--rule-light); color: var(--ink); border-color: var(--ink); }
 
+/* W home button — filled circle with logo */
+.mobile-nav-home {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 50%;
+  background: var(--ink);
+  padding: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: background 0.13s;
+}
+.mobile-nav-home:active { background: var(--ink-mid); }
+[data-theme="classic"] .mobile-nav-home { background: #1B3A6B; }
+.mobile-nav-w-img {
+  width: 22px;
+  height: auto;
+  display: block;
+  filter: brightness(0) invert(1);
+}
+
 /* Import arrow — left-side, same style as + */
 .mobile-nav-import {
   width: 34px;
@@ -1332,6 +1357,7 @@ button.panel-title:active { color: var(--stamp); }
   .mobile-nav-personal { display: flex !important; }
   .mobile-nav-note     { display: flex !important; }
   .mobile-nav-import   { display: flex !important; }
+  .mobile-nav-home     { display: flex !important; }
 
   /* Left group: gap between ● Records and + New */
   .main-topbar-left { gap: 8px; }

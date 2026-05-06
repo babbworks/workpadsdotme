@@ -67,6 +67,7 @@
               <button class="view-variant-btn active" data-variant="default" title="Default view">1</button>
               <button class="view-variant-btn" data-variant="large" title="Large view">a</button>
             </div>
+            <button id="mobile-btn-home" class="mobile-nav-btn mobile-nav-home" title="Home" aria-label="Home"><img src="/img/logo-w.png" alt="W" class="mobile-nav-w-img"></button>
             <button id="mobile-btn-note" class="mobile-nav-btn mobile-nav-note" title="Quick note" aria-label="Quick note">&#9998;</button>
             <button id="mobile-btn-right" class="mobile-nav-btn mobile-nav-personal" title="Open personal panel" aria-label="Personal"></button>
           </div>
@@ -192,6 +193,10 @@
   <script>
     /* ── Panel footer wiring ── */
     (function () {
+      /* Home (W) button */
+      var homeBtn = document.getElementById('mobile-btn-home');
+      if (homeBtn) homeBtn.addEventListener('click', function () { App.showList(); });
+
       /* Left footer: New Workpad */
       var newBtn = document.getElementById('lpf-new-workpad');
       if (newBtn) newBtn.addEventListener('click', function () { App.showWizard(); });
