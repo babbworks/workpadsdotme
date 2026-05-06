@@ -612,7 +612,7 @@ button.panel-title:active { color: var(--stamp); }
   margin-bottom: 20px;
 }
 .overlay-wordmark-img {
-  height: 28px;
+  height: 36px;
   width: auto;
   display: block;
   mix-blend-mode: multiply;
@@ -620,14 +620,14 @@ button.panel-title:active { color: var(--stamp); }
 
 /* Left panel footer brand */
 .lpf-brand {
-  text-align: center;
+  text-align: left;
   padding-top: 8px;
   margin-top: 6px;
   border-top: 1px solid var(--rule-light);
 }
 .lpf-brand-link { display: inline-block; line-height: 1; }
 .lpf-brand-img {
-  height: 15px;
+  height: 13px;
   width: auto;
   display: block;
   mix-blend-mode: multiply;

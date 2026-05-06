@@ -20,7 +20,7 @@ var ListScreen = (function () {
       '.list-wrap { max-width:760px; margin:0 auto; padding:36px 32px 80px; }',
 
       '.list-hd { margin-bottom:28px; }',
-      '.list-title-img { height:42px; width:auto; display:block; mix-blend-mode:multiply; }',
+      '.list-title-img { height:clamp(44px,8vw,68px); width:auto; display:block; mix-blend-mode:multiply; }',
 
       /* Dashboard blocks */
       '.list-block {',
