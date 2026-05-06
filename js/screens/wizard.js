@@ -463,6 +463,7 @@ var WizardScreen = (function () {
       var preAmount = (params.amount && params.amount !== '_') ? params.amount : null;
       var preActionIdx = (params.actionIdx != null && !isNaN(params.actionIdx)) ? params.actionIdx : null;
       var linkedExpenseId = params.linkedExpenseId || null;
+      var actionQuoted = params.actionQuoted || null;
       RecordService.get(parentId).then(function (parent) {
         _parentRecord = parent || null;
         var identity  = (typeof ActivityService !== 'undefined') ? ActivityService.getSenderIdentity() : null;
@@ -479,12 +480,13 @@ var WizardScreen = (function () {
         var fields = {
           recordType:       'expense',
           parentId:         parentId,
-          job:              params.billing === 'cogs' ? 'Cost of goods sold' : (action ? action.title : 'Expense'),
+          job:              '',
           customer:         parent ? (parent.customer || '') : '',
           worker:           (identity && identity.name) || '',
           expense_billing:  params.billing || 'customer',
           amount:           preAmount || undefined,
         };
+        if (actionQuoted) fields.action_quoted = actionQuoted;
         if (linkedExpenseId) fields.linkedExpenseId = linkedExpenseId;
         if (preActionIdx != null) {
           fields.actionIdx   = preActionIdx;
@@ -666,7 +668,7 @@ var WizardScreen = (function () {
   }
 
   function _renderProcess() {
-    var jobLabel       = (_mode === 'expense') ? 'Short description' : 'Job';
+    var jobLabel       = (_mode === 'expense' || (_mode === 'edit' && _record.recordType === 'expense')) ? 'Short description' : 'Job';
     var jobPlaceholder = (_mode === 'expense') ? 'Brief description of this item'
                       : (_mode === 'payment') ? 'Payment description'
                       : 'What is the job?';
@@ -1427,8 +1429,6 @@ var WizardScreen = (function () {
           var action = _parentRecord && _parentRecord.actions && _parentRecord.actions[idx];
           _record.actionIdx   = idx;
           _record.actionTitle = action ? action.title : '';
-          var jobEl = document.getElementById('f-job');
-          if (jobEl && action) jobEl.value = action.title;
         }
         RecordService.save(_id, _record);
       });

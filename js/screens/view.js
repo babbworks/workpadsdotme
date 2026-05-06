@@ -6,6 +6,7 @@ var ViewScreen = (function () {
   'use strict';
 
   var _record        = null;
+  var _parentRecord  = null;
   var _approval      = null;
   var _expenses      = [];
   var _payments      = [];
@@ -93,14 +94,43 @@ var ViewScreen = (function () {
       '  padding-left:10px; border-left:2px solid var(--rule);',
       '}',
       '.view-action-body { flex:1; min-width:0; }',
+      '.view-action-btn-group {',
+      '  display:flex; gap:5px; flex-shrink:0; align-self:center;',
+      '}',
       '.view-action-exp-btn {',
-      '  flex-shrink:0; align-self:center;',
       '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
       '  color:var(--stamp); background:none; border:1px solid var(--stamp-border);',
       '  border-radius:4px; padding:3px 8px; cursor:pointer; white-space:nowrap;',
       '  opacity:0.6; transition:opacity 0.15s;',
       '}',
       '.view-action-exp-btn:hover { opacity:1; }',
+      '.view-action-cogs-btn {',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  color:var(--ink-faint); background:none; border:1px solid var(--rule);',
+      '  border-radius:4px; padding:3px 8px; cursor:pointer; white-space:nowrap;',
+      '  opacity:0.5; transition:opacity 0.15s;',
+      '}',
+      '.view-action-cogs-btn:hover { opacity:1; color:var(--ink-mid); }',
+
+      /* Expense/COGS record context banner */
+      '.view-child-ctx {',
+      '  margin-bottom:20px; padding:12px 16px;',
+      '  background:var(--stamp-light); border:1px solid var(--stamp-border);',
+      '  border-radius:4px;',
+      '}',
+      '.view-child-ctx-label {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.14em; text-transform:uppercase; color:var(--stamp);',
+      '  margin-bottom:4px;',
+      '}',
+      '.view-child-ctx-job {',
+      '  font-family:var(--font-body); font-size:15px; font-weight:700;',
+      '  color:var(--ink); margin-bottom:3px;',
+      '}',
+      '.view-child-ctx-meta {',
+      '  font-family:var(--font-mono); font-size:9.5px; color:var(--ink-mid);',
+      '  margin-bottom:6px;',
+      '}',
 
       /* Prose (story / details) — markdown rendered */
       '.view-prose {',
@@ -407,6 +437,10 @@ var ViewScreen = (function () {
         });
       });
 
+      var parentLoad = r.parentId
+        ? RecordService.get(r.parentId).then(function (p) { _parentRecord = p || null; })
+        : Promise.resolve();
+
       var approvalLoad = (r.chainRef && r.record_type !== 'ack')
         ? RecordService.findByChainRef(r.chainRef).then(function (linked) {
             var acks = linked.filter(function (lr) {
@@ -416,11 +450,11 @@ var ViewScreen = (function () {
           })
         : Promise.resolve();
 
-      Promise.all([expenseLoad, approvalLoad]).then(function () { _render(); });
+      Promise.all([expenseLoad, parentLoad, approvalLoad]).then(function () { _render(); });
     });
   }
 
-  function onHide() { _record = null; _approval = null; _expenses = []; _payments = []; _finTab = 'expenses'; _actionsFilter = ''; _isArchived = false; _expOpen = true; _payOpen = true; _cogsViewOpen = false; }
+  function onHide() { _record = null; _parentRecord = null; _approval = null; _expenses = []; _payments = []; _finTab = 'expenses'; _actionsFilter = ''; _isArchived = false; _expOpen = true; _payOpen = true; _cogsViewOpen = false; }
 
   // ── Render ───────────────────────────────────────────────────
 
@@ -430,11 +464,17 @@ var ViewScreen = (function () {
 
     var html = '<div class="view-wrap">';
 
+    // ── Parent context banner (for child expense/COGS records)
+    if (_parentRecord && r.parentId) {
+      html += _renderParentContext(_parentRecord, r);
+    }
+
     // ── Document header
     var TYPE_STAMP = { quote: 'Quote', invoice: 'Invoice', ack: 'Approval' };
     html += '<div class="view-doc-header">';
     if (r.recordType === 'expense') {
-      html += '<div class="view-stamp" style="background:var(--stamp-light);">Expense</div>';
+      var expStampLabel = r.expense_billing === 'cogs' ? 'COGS' : 'Expense';
+      html += '<div class="view-stamp" style="background:var(--stamp-light);">' + expStampLabel + '</div>';
     } else if (r.record_type && TYPE_STAMP[r.record_type]) {
       html += '<div class="view-stamp">' + TYPE_STAMP[r.record_type] + '</div>';
     } else if (r.receivedAt) {
@@ -477,21 +517,28 @@ var ViewScreen = (function () {
     // ── Body sections (main card)
     html += '<div class="card">';
 
+    // Expense/COGS records: show all available fields first
+    if (r.recordType === 'expense') {
+      html += _renderExpenseDetails(r);
+    }
+
     if (r.actions && r.actions.length) {
       html += _renderActionsSection(r.actions);
     }
 
-    // Participants block (preferred) or legacy worker field
-    var hasParticipants = r.participants && r.participants.length > 0;
-    var timeFields  = ['start_time','end_time','meeting_time'];
-    var otherFields = ['customer_phone'];
-    if (r.location) otherFields.push('location');
-    var detailFields = (hasParticipants ? [] : ['worker'])
-      .concat(timeFields)
-      .concat(otherFields);
-    var hasDetail = hasParticipants || detailFields.some(function(k) { return !!r[k]; });
-    if (hasDetail) {
-      html += _renderCardSection('Details', _renderDetailSection(r, detailFields, hasParticipants));
+    // Participants block (preferred) or legacy worker field (non-expense main records only)
+    if (r.recordType !== 'expense') {
+      var hasParticipants = r.participants && r.participants.length > 0;
+      var timeFields  = ['start_time','end_time','meeting_time'];
+      var otherFields = ['customer_phone'];
+      if (r.location) otherFields.push('location');
+      var detailFields = (hasParticipants ? [] : ['worker'])
+        .concat(timeFields)
+        .concat(otherFields);
+      var hasDetail = hasParticipants || detailFields.some(function(k) { return !!r[k]; });
+      if (hasDetail) {
+        html += _renderCardSection('Details', _renderDetailSection(r, detailFields, hasParticipants));
+      }
     }
 
     if (r.story) {
@@ -600,7 +647,10 @@ var ViewScreen = (function () {
                   '<div class="view-action-title">' + _esc(a.title) + '</div>' +
                   (a.notes ? '<div class="view-action-notes">' + _esc(a.notes) + '</div>' : '') +
                 '</div>' +
-                '<button class="view-action-exp-btn" data-action-idx="' + origIdx + '" title="Add expense for this action">+ expense</button>' +
+                '<div class="view-action-btn-group">' +
+                  '<button class="view-action-exp-btn" data-action-idx="' + origIdx + '" title="Add expense for this action">+ expense</button>' +
+                  '<button class="view-action-cogs-btn" data-action-idx="' + origIdx + '" title="Record COGS for this action">COGS</button>' +
+                '</div>' +
               '</li>';
     });
     return html + '</ol>';
@@ -648,6 +698,82 @@ var ViewScreen = (function () {
     '9': 'Deposit / retainer', '10': 'Credit / discount', '11': 'Warranty',
     '12': 'Regulatory levy', '13': 'FX adjustment',
   };
+
+  function _renderParentContext(parent, child) {
+    var meta = [];
+    if (parent.customer) meta.push(_esc(parent.customer));
+    if (parent.date)     meta.push(_esc(parent.date));
+    var actionCtx = '';
+    if (child.actionIdx != null && parent.actions && parent.actions[parseInt(child.actionIdx, 10)]) {
+      actionCtx = '<div class="view-child-ctx-meta" style="margin-top:2px;">' +
+        '<span style="font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);">Action\u00a0</span>' +
+        _esc(parent.actions[parseInt(child.actionIdx, 10)].title) +
+      '</div>';
+    }
+    return (
+      '<div class="view-child-ctx">' +
+        '<div class="view-child-ctx-label">Parent job</div>' +
+        '<div class="view-child-ctx-job">' + _esc(parent.job || 'Untitled') + '</div>' +
+        (meta.length ? '<div class="view-child-ctx-meta">' + meta.join(' \xb7 ') + '</div>' : '') +
+        actionCtx +
+        '<button class="view-parent-link" id="view-btn-parent-ctx" style="margin-top:8px;font-size:10px;">\u2190 View job</button>' +
+      '</div>'
+    );
+  }
+
+  var CHARGE_TYPE_LABELS = {
+    '': 'General / labour', '1': 'Urgency / emergency', '2': 'After-hours',
+    '3': 'Travel / mileage', '4': 'Delivery / courier', '5': 'Equipment hire',
+    '6': 'Materials / consumables', '7': 'Subcontractor', '8': 'Cancellation fee',
+    '9': 'Deposit / retainer', '10': 'Credit / discount', '11': 'Warranty adjustment',
+    '12': 'Regulatory levy', '13': 'FX adjustment', '14': 'Payment handling fee',
+  };
+
+  function _renderExpenseDetails(r) {
+    var rows = [];
+    var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+
+    var billingLabel = r.expense_billing === 'cogs' ? 'Cost of Goods Sold (COGS)' : 'Customer-billed expense';
+    rows.push({ label: 'Type', value: billingLabel });
+
+    if (r.charge_type != null && CHARGE_TYPE_LABELS[String(r.charge_type)]) {
+      rows.push({ label: 'Charge type', value: CHARGE_TYPE_LABELS[String(r.charge_type)] });
+    }
+
+    if (r.amount) {
+      var amtLabel = r.expense_billing === 'cogs' ? 'COGS amount' : 'Amount';
+      rows.push({ label: amtLabel, value: sym + parseFloat(r.amount).toFixed(2) });
+    }
+
+    if (r.action_quoted) {
+      rows.push({ label: 'Quoted for action', value: sym + parseFloat(r.action_quoted).toFixed(2) });
+    }
+
+    if (r.worker_cost && r.expense_billing !== 'cogs') {
+      rows.push({ label: 'My cost (est.)', value: sym + parseFloat(r.worker_cost).toFixed(2) });
+    }
+
+    if (r.worker) {
+      rows.push({ label: 'Worker', value: r.worker });
+    }
+
+    if (r.date) {
+      rows.push({ label: 'Date', value: r.date });
+    }
+
+    if (!rows.length) return '';
+
+    var gridHtml = '<div class="view-details-grid">';
+    rows.forEach(function (row) {
+      gridHtml += '<div>' +
+        '<div class="view-detail-label">' + _esc(row.label) + '</div>' +
+        '<div class="view-detail-value">' + _esc(row.value) + '</div>' +
+      '</div>';
+    });
+    gridHtml += '</div>';
+
+    return _renderCardSection('Details', gridHtml);
+  }
 
   function _renderFinancialCard(r) {
     var sym      = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
@@ -932,6 +1058,8 @@ var ViewScreen = (function () {
     var archiveBtn = document.getElementById('view-btn-archive');
 
     if (parentBtn)  parentBtn.addEventListener('click',  function () { App.showView(parentId); });
+    var parentCtxBtn = document.getElementById('view-btn-parent-ctx');
+    if (parentCtxBtn) parentCtxBtn.addEventListener('click', function () { App.showView(parentId); });
     if (shareBtn)   shareBtn.addEventListener('click',   function () { App.showShare(id); });
     if (cogsBtn)    cogsBtn.addEventListener('click',    function () { App.showCogs(_record.parentId); });
     if (editBtn)    editBtn.addEventListener('click',    function () { App.showWizard(id); });
@@ -1021,6 +1149,18 @@ var ViewScreen = (function () {
         App.showExpense(id, null, parseInt(this.dataset.actionIdx, 10));
       });
     });
+
+    // Action COGS buttons
+    document.querySelectorAll('.view-action-cogs-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var aidx = parseInt(this.dataset.actionIdx, 10);
+        // Pre-fill action_quoted with sum of billed expenses for this action
+        var billedSum = (_expenses || []).filter(function (e) {
+          return e.expense_billing !== 'cogs' && String(e.actionIdx) === String(aidx);
+        }).reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+        App.showCogsAction(id, aidx, billedSum > 0 ? billedSum.toFixed(2) : null);
+      });
+    });
   }
 
   function _rerenderActions() {
@@ -1031,10 +1171,19 @@ var ViewScreen = (function () {
     var actListEl   = toolbarEl && toolbarEl.nextElementSibling;
     if (!actListEl) return;
     actListEl.outerHTML = _renderActions(r.actions);
-    // Re-bind expense buttons on new DOM nodes
+    // Re-bind action buttons on new DOM nodes
     document.querySelectorAll('.view-action-exp-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         App.showExpense(r.id, null, parseInt(this.dataset.actionIdx, 10));
+      });
+    });
+    document.querySelectorAll('.view-action-cogs-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var aidx = parseInt(this.dataset.actionIdx, 10);
+        var billedSum = (_expenses || []).filter(function (e) {
+          return e.expense_billing !== 'cogs' && String(e.actionIdx) === String(aidx);
+        }).reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+        App.showCogsAction(r.id, aidx, billedSum > 0 ? billedSum.toFixed(2) : null);
       });
     });
   }

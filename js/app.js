@@ -62,6 +62,10 @@ var App = (function () {
         if (!seg1) { navigate('/'); return; }
         _showScreen('wizard', { mode: 'expense', parentId: seg1, billing: 'cogs', amount: seg2 || null, linkedExpenseId: seg3 || null });
         break;
+      case 'cogs-action':
+        if (!seg1) { navigate('/'); return; }
+        _showScreen('wizard', { mode: 'expense', parentId: seg1, billing: 'cogs', actionIdx: seg2 != null ? parseInt(seg2, 10) : null, actionQuoted: seg3 || null });
+        break;
       case 'archive':
         _showScreen('archive', {});
         break;
@@ -178,6 +182,11 @@ var App = (function () {
     var path = '/cogs/' + parentId;
     if (amount || linkedExpenseId) path += '/' + (amount || '_');
     if (linkedExpenseId) path += '/' + linkedExpenseId;
+    navigate(path);
+  }
+  function showCogsAction(parentId, actionIdx, actionQuoted) {
+    var path = '/cogs-action/' + parentId + '/' + actionIdx;
+    if (actionQuoted) path += '/' + actionQuoted;
     navigate(path);
   }
   function showFinancial(id, tab)       { navigate('/financial/' + id + (tab ? '/' + tab : '')); }
@@ -640,6 +649,7 @@ var App = (function () {
     showShare:      showShare,
     showExpense:    showExpense,
     showCogs:       showCogs,
+    showCogsAction: showCogsAction,
     showPayment:    showPayment,
     showManagement: showManagement,
     showManage:     showManagement,

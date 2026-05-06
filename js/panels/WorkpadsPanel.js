@@ -580,10 +580,24 @@ var WorkpadsPanel = (function () {
 
     var fmt = function (n) { return currSym + n.toFixed(2); };
 
+    var SIDEBAR_CHARGE_LABELS = {
+      '': 'Labour', '1': 'Urgency / emergency', '2': 'After-hours',
+      '3': 'Travel / mileage', '4': 'Delivery / courier', '5': 'Equipment hire',
+      '6': 'Materials', '7': 'Subcontractor', '8': 'Cancellation fee',
+      '9': 'Deposit / retainer', '10': 'Credit / discount', '11': 'Warranty',
+      '12': 'Regulatory levy', '13': 'FX adjustment', '14': 'Payment handling fee',
+    };
+
     function itemsFor(list, defaultLabel) {
       return list.map(function (r) {
         var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
         var amt = r.amount ? (sym + parseFloat(r.amount).toFixed(2)) : '';
+        // If short description (job) is blank, fall back to charge type label
+        var displayJob = (r.job && r.job.trim())
+          ? r.job
+          : (r.charge_type != null && SIDEBAR_CHARGE_LABELS[String(r.charge_type)]
+              ? SIDEBAR_CHARGE_LABELS[String(r.charge_type)]
+              : defaultLabel);
         var myCost = r.worker_cost && parseFloat(r.worker_cost) > 0
           ? parseFloat(r.worker_cost).toFixed(2) : null;
         // Hide "My Cost" row if a COGS record is already linked to this expense
@@ -596,7 +610,7 @@ var WorkpadsPanel = (function () {
           : '';
         return (
           '<div class="wpp-exp-item" data-exp-id="' + _esc(r.id) + '" style="padding-right:6px;">' +
-            '<span class="wpp-exp-job">' + _esc(r.job || defaultLabel) + '</span>' +
+            '<span class="wpp-exp-job">' + _esc(displayJob) + '</span>' +
             '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">' +
               (amt ? '<span class="wpp-exp-amount" style="margin-right:4px;">' + _esc(amt) + '</span>' : '') +
               '<button class="wpp-item-opts wpp-exp-opts" data-id="' + _esc(r.id) + '" ' +

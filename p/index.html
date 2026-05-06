@@ -1581,6 +1581,29 @@
     };
   }
 
+  // Detect viewer-added expenses: prefer is_viewer flag, fallback to diff against local child records
+  function _detectViewerExps(fin, ownedRecord) {
+    var all = fin ? (fin.e || []) : [];
+    // Primary: trust the is_viewer flag
+    var flagged = all.filter(function(e) { return e.s === 'v'; });
+    if (flagged.length) return flagged;
+    // Fallback: load sender's own expense child records and diff
+    var owned = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf('wp_record_') !== 0) continue;
+        var r = JSON.parse(localStorage.getItem(k) || 'null');
+        if (r && r.parentId === ownedRecord.id && r.recordType === 'expense') owned.push(r);
+      }
+    } catch(_) {}
+    return all.filter(function(e) {
+      return !owned.some(function(o) {
+        return String(o.amount || '') === String(e.a || '') && (o.job || '') === (e.l || '');
+      });
+    });
+  }
+
   // ── Full-screen review (sender reviewing a returned record) ──
   function renderReview(received, ownedRecord, fin) {
     var page = document.querySelector('.page');
@@ -1588,7 +1611,7 @@
 
     var isAck      = !!(received.job && received.job.indexOf('ACK: ') === 0);
     var senderName = received.worker || 'Recipient';
-    var viewerExps = fin ? (fin.e || []).filter(function(e) { return e.s === 'v'; }) : [];
+    var viewerExps = _detectViewerExps(fin, ownedRecord);
     var hasChanges = viewerExps.length > 0;
     var sym        = ownedRecord.currency === 'EUR' ? '\u20ac' : ownedRecord.currency === 'USD' ? '$' : '\u00a3';
 
@@ -1805,8 +1828,20 @@
       job: 'ACK: ' + (record.job || 'quote'),
       date: new Date().toISOString().slice(0, 10),
       worker: customerName,
+      currency: record.currency,
+      amount: record.amount,
+      record_type: record.record_type,
     };
-    var ackHash = encodeWorkpad(ackRecord, record._chainRef || null);
+    // Carry all expenses (original + viewer-added) so sender can review them
+    var ackExps = ((_currentFin && _currentFin.e) || []).map(function(e) {
+      return { amount: e.a, job: e.l, date: e.d, actionIdx: e.n, is_viewer: e.s === 'v' };
+    }).concat(_viewerExpenses.map(function(e) {
+      return { amount: e.amount, job: e.job, date: e.date, actionIdx: e.actionIdx, is_viewer: true };
+    }));
+    var ackPays = ((_currentFin && _currentFin.p) || []).map(function(p) {
+      return { amount: p.a, job: p.l, date: p.d };
+    });
+    var ackHash = encodeWorkpad(ackRecord, record._chainRef || null, ackExps, ackPays);
     var base    = window.location.href.replace(/#.*$/, '');
     var ackUrl  = base + '#' + ackHash;
 
