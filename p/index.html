@@ -441,6 +441,18 @@
       font-family: 'JetBrains Mono', monospace;
       font-size: 10px; color: var(--ink-muted); margin-top: 3px; text-align: right;
     }
+    .fin-analysis-block { margin-top: 8px; }
+    .fin-stat-grid { display: flex; flex-direction: column; gap: 0; }
+    .fin-stat-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 6px 0; border-bottom: 1px solid var(--rule-light);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    }
+    .fin-stat-row:last-child { border-bottom: none; }
+    .fin-stat-label { color: var(--ink-muted); letter-spacing: .04em; }
+    .fin-stat-value { color: var(--ink); font-weight: 700; }
+    .fin-stat-outstanding .fin-stat-label { color: var(--ink); }
+    .fin-stat-outstanding .fin-stat-value { color: var(--stamp); }
 
     /* ── Document footer ───────────────────────────────────── */
     .doc-footer {
@@ -1322,7 +1334,7 @@
     var fields = [];
     if (record.worker) {
       fields.push('<div class="footer-field">' +
-        '<div class="footer-field-label">Worker</div>' +
+        '<div class="footer-field-label">Sender</div>' +
         '<div class="footer-field-value">' + esc(record.worker) + '</div>' +
       '</div>');
     }
@@ -1422,9 +1434,12 @@
     // Amount owing
     var billable = Math.max(totalExpenses, quoted);
     var owing    = Math.max(0, billable - totalPaid);
+    var owingLabel = record && record.record_type === 'invoice' ? 'Amount owing'
+                   : record && record.record_type === 'quote'   ? 'Total quote'
+                   : 'Total amount';
     html += '<div class="fin-owing-block">' +
       '<div class="fin-owing-row">' +
-        '<span class="fin-owing-lbl">Amount owing</span>' +
+        '<span class="fin-owing-lbl">' + owingLabel + '</span>' +
         '<span class="fin-owing-amt">' + sym + owing.toFixed(2) + '</span>' +
       '</div>' +
       (totalPaid > 0 ? '<div class="fin-owing-sub">' + sym + totalPaid.toFixed(2) + ' received</div>' : '') +
@@ -1459,6 +1474,49 @@
 
     html += '</div>';
     return html;
+  }
+
+  function renderFinAnalysis(fin, sym, record) {
+    if (!fin || (!fin.e && !fin.p)) return '';
+    var quoted = parseFloat(record && record.amount) || 0;
+    if (!quoted) return '';
+    var totalExpenses = 0;
+    if (fin.e) fin.e.forEach(function(e) { totalExpenses += parseFloat(e.a) || 0; });
+    var totalPaid = 0;
+    if (fin.p) fin.p.forEach(function(p) { totalPaid += parseFloat(p.a) || 0; });
+
+    var margin      = quoted > 0 ? ((quoted - totalExpenses) / quoted * 100).toFixed(1) : null;
+    var passthrough = quoted > 0 ? (totalExpenses / quoted * 100).toFixed(1) : null;
+    var outstanding = Math.max(0, quoted - totalPaid);
+
+    var rows = '';
+    if (margin !== null) {
+      rows += '<div class="fin-stat-row">' +
+        '<span class="fin-stat-label">Margin</span>' +
+        '<span class="fin-stat-value">' + margin + '%</span>' +
+      '</div>';
+    }
+    if (passthrough !== null && totalExpenses > 0) {
+      rows += '<div class="fin-stat-row">' +
+        '<span class="fin-stat-label">Pass-through</span>' +
+        '<span class="fin-stat-value">' + passthrough + '%</span>' +
+      '</div>';
+    }
+    if (outstanding > 0) {
+      rows += '<div class="fin-stat-row fin-stat-outstanding">' +
+        '<span class="fin-stat-label">Outstanding</span>' +
+        '<span class="fin-stat-value">' + sym + outstanding.toFixed(2) + '</span>' +
+      '</div>';
+    }
+    if (!rows) return '';
+
+    return '<div class="doc-section fin-analysis-block">' +
+      '<div class="section-header">' +
+        '<span class="section-label">Financial analysis</span>' +
+        '<span class="section-rule"></span>' +
+      '</div>' +
+      '<div class="fin-stat-grid">' + rows + '</div>' +
+    '</div>';
   }
 
   function renderDocument(record, isDemo, fin) {
@@ -1499,6 +1557,7 @@
     html += renderProse('Story', record.story);
     html += renderProse('Notes', record.details);
     if (!isDemo) html += renderFinSection(fin, sym, record);
+    if (!isDemo) html += renderFinAnalysis(fin, sym, record);
 
     // footer
     if (record.worker || record.customer_phone) {

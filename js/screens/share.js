@@ -12,6 +12,7 @@ var ShareScreen = (function () {
   var _expenses    = [];
   var _payments    = [];
   var _includeFin      = false;
+  var _includeFinStats = true;   // show derived analysis on receiver — on by default
   var _includeStory    = true;
   var _includeDetails  = false;  // private notes — off by default
   var _includeCustomer = true;   // customer name, contact, location — on by default
@@ -126,6 +127,40 @@ var ShareScreen = (function () {
       '  font-family:var(--font-mono); font-size:9px; color:var(--ink-muted);',
       '  margin-top:2px;',
       '}',
+
+      /* Financial options outlined box */
+      '.share-fin-options-box {',
+      '  border:1.5px solid var(--rule); border-radius:4px;',
+      '  margin-bottom:20px; overflow:hidden;',
+      '}',
+      '.share-fin-options-header {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-muted);',
+      '  padding:8px 12px 6px; border-bottom:1px solid var(--rule-light);',
+      '  background:var(--paper);',
+      '}',
+      '.share-fin-option {',
+      '  display:flex; align-items:center; gap:10px;',
+      '  padding:8px 12px; cursor:pointer; user-select:none;',
+      '  border-bottom:1px solid var(--rule-light); transition:background .12s;',
+      '}',
+      '.share-fin-option:last-child { border-bottom:none; }',
+      '.share-fin-option:hover { background:var(--stamp-light); }',
+      '.share-fin-option.active { background:var(--stamp-light); }',
+      '.share-fin-opt-check {',
+      '  width:13px; height:13px; flex-shrink:0;',
+      '  border:1.5px solid var(--rule); border-radius:2px;',
+      '  display:flex; align-items:center; justify-content:center;',
+      '  font-size:9px; color:var(--stamp); transition:border-color .13s;',
+      '}',
+      '.share-fin-option.active .share-fin-opt-check { border-color:var(--stamp-border); }',
+      '.share-fin-opt-label {',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  letter-spacing:.04em; color:var(--ink); flex:1;',
+      '}',
+      '.share-fin-opt-note {',
+      '  font-family:var(--font-mono); font-size:9px; color:var(--ink-faint);',
+      '}',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -164,6 +199,7 @@ var ShareScreen = (function () {
     _payments   = [];
     _finSummary      = '';
     _includeFin      = false;
+    _includeFinStats = true;
     _includeStory    = true;
     _includeDetails  = false;
     _includeCustomer = true;
@@ -268,15 +304,25 @@ var ShareScreen = (function () {
     html += '<button type="button" class="share-type-btn' + (_shareView === 'full'   ? ' active' : '') + '" data-view="full">Full screen</button>';
     html += '</div>';
 
-    // Financials toggle (only when fin data available)
-    if (_expenses.length || _payments.length) {
-      html += '<div class="share-fin-row' + (_includeFin ? ' active' : '') + '" id="share-fin-toggle">' +
-        '<div class="share-fin-check">' + (_includeFin ? '\u2713' : '') + '</div>' +
-        '<div class="share-fin-text">' +
-          '<div class="share-fin-label">Include expenses &amp; payments</div>' +
-          '<div class="share-fin-meta">' + _finSummary + (_shareView === 'full' ? ' \xb7 sidebar' : ' \xb7 inline') + '</div>' +
-        '</div>' +
+    // Financial options (only when fin data available or amount set)
+    if (_expenses.length || _payments.length || _record.amount) {
+      html += '<div class="share-fin-options-box" id="share-fin-options-box">';
+      html += '<div class="share-fin-options-header">Financial options</div>';
+      // Full financial summary (line items)
+      if (_expenses.length || _payments.length) {
+        html += '<div class="share-fin-option' + (_includeFin ? ' active' : '') + '" id="share-fin-toggle">' +
+          '<div class="share-fin-opt-check">' + (_includeFin ? '\u2713' : '') + '</div>' +
+          '<span class="share-fin-opt-label">Full financial summary</span>' +
+          '<span class="share-fin-opt-note">' + _finSummary + '</span>' +
+        '</div>';
+      }
+      // Financial analysis stats (derived on receiver from included data)
+      html += '<div class="share-fin-option' + (_includeFinStats ? ' active' : '') + '" id="share-fin-stats-toggle">' +
+        '<div class="share-fin-opt-check">' + (_includeFinStats ? '\u2713' : '') + '</div>' +
+        '<span class="share-fin-opt-label">Financial analysis</span>' +
+        '<span class="share-fin-opt-note">Margin \xb7 Pass-through</span>' +
       '</div>';
+      html += '</div>'; // .share-fin-options-box
     }
 
     // Story opt-in (only when record has story)
@@ -401,11 +447,9 @@ var ShareScreen = (function () {
         });
         _encodeUrl();
         _syncUrlDisplay();
-        // Update fin meta label
-        var finMeta = document.querySelector('#share-fin-toggle .share-fin-meta');
-        if (finMeta) {
-          finMeta.textContent = _finSummary + (_shareView === 'full' ? ' \xb7 sidebar' : ' \xb7 inline');
-        }
+        // Update fin option note
+        var finNote = document.querySelector('#share-fin-toggle .share-fin-opt-note');
+        if (finNote) finNote.textContent = _finSummary;
       });
     }
 
@@ -414,6 +458,23 @@ var ShareScreen = (function () {
       finToggle.addEventListener('click', function () {
         _includeFin = !_includeFin;
         _syncFinToggle();
+        _encodeUrl();
+        _syncUrlDisplay();
+      });
+    }
+
+    var finStatsToggle = document.getElementById('share-fin-stats-toggle');
+    if (finStatsToggle) {
+      finStatsToggle.addEventListener('click', function () {
+        _includeFinStats = !_includeFinStats;
+        finStatsToggle.classList.toggle('active', _includeFinStats);
+        var check = finStatsToggle.querySelector('.share-fin-opt-check');
+        if (check) check.textContent = _includeFinStats ? '\u2713' : '';
+        // Stats require fin data — auto-enable full summary if stats turned on
+        if (_includeFinStats && (_expenses.length || _payments.length) && !_includeFin) {
+          _includeFin = true;
+          _syncFinToggle();
+        }
         _encodeUrl();
         _syncUrlDisplay();
       });
@@ -460,7 +521,7 @@ var ShareScreen = (function () {
     var row = document.getElementById('share-fin-toggle');
     if (!row) return;
     row.classList.toggle('active', _includeFin);
-    var check = row.querySelector('.share-fin-check');
+    var check = row.querySelector('.share-fin-opt-check');
     if (check) check.textContent = _includeFin ? '\u2713' : '';
   }
 

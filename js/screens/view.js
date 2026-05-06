@@ -5,18 +5,20 @@
 var ViewScreen = (function () {
   'use strict';
 
-  var _record        = null;
-  var _parentRecord  = null;
-  var _approval      = null;
-  var _expenses      = [];
-  var _payments      = [];
-  var _comments      = [];
-  var _finTab        = 'expenses';  // kept for compat but unused
-  var _stylesAdded   = false;
-  var _isArchived    = false;
-  var _expOpen       = true;
-  var _payOpen       = true;
-  var _cogsViewOpen  = false;
+  var _record            = null;
+  var _parentRecord      = null;
+  var _approval          = null;
+  var _expenses          = [];
+  var _payments          = [];
+  var _comments          = [];
+  var _customerComments  = [];
+  var _activeNoteTab     = 'job';
+  var _finTab            = 'expenses';  // kept for compat but unused
+  var _stylesAdded       = false;
+  var _isArchived        = false;
+  var _expOpen           = true;
+  var _payOpen           = true;
+  var _cogsViewOpen      = false;
 
   // ── Styles ───────────────────────────────────────────────────
 
@@ -26,13 +28,16 @@ var ViewScreen = (function () {
     var s = document.createElement('style');
     s.textContent = [
       '.view-wrap { max-width:680px; margin:0 auto; padding:36px 32px 80px; }',
-      '.view-wrap.view-has-sidebar { max-width:960px; display:flex; gap:44px; align-items:flex-start; }',
+      '.view-wrap.view-has-sidebar { max-width:1120px; display:flex; gap:36px; align-items:flex-start; border-top:1px solid var(--rule-light); }',
       '.view-has-sidebar .view-main { flex:1; min-width:0; }',
 
-      /* Comment sidebar */
-      '.view-comments-col {',
-      '  width:230px; flex-shrink:0; padding-top:0;',
+      /* Note columns (job + customer) */
+      '.view-notes-col {',
+      '  width:196px; flex-shrink:0;',
+      '  border-top:1px solid var(--rule-light); padding-top:24px;',
       '}',
+      '.view-notes-tabs { display:none; }', /* shown only on mobile via media query */
+
       '.view-comment-input-wrap { margin-bottom:18px; }',
       '.view-comment-input {',
       '  width:100%;',
@@ -67,6 +72,35 @@ var ViewScreen = (function () {
       '}',
       '.view-comment-pin:hover { border-color:var(--stamp-border); color:var(--stamp); }',
       '.view-comment-pin.pinned { border-color:var(--stamp); color:var(--stamp); }',
+
+      /* Tablet/mobile: stack note cols as tabs below the record */
+      '@media (max-width:860px) {',
+      '  .view-wrap.view-has-sidebar { flex-direction:column; max-width:100%; border-top:none; }',
+      '  .view-has-sidebar .view-main { width:100%; }',
+      '  .view-notes-tabs {',
+      '    display:flex; gap:0; margin-top:28px;',
+      '    border-bottom:2px solid var(--rule-light);',
+      '    width:100%;',
+      '  }',
+      '  .view-notes-tab {',
+      '    font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '    letter-spacing:.1em; text-transform:uppercase;',
+      '    color:var(--ink-faint); background:none; border:none;',
+      '    padding:8px 14px 9px; cursor:pointer; position:relative;',
+      '    transition:color .13s;',
+      '  }',
+      '  .view-notes-tab.active {',
+      '    color:var(--stamp);',
+      '  }',
+      '  .view-notes-tab.active::after {',
+      '    content:""; position:absolute; bottom:-2px; left:0; right:0;',
+      '    height:2px; background:var(--stamp); border-radius:1px 1px 0 0;',
+      '  }',
+      '  .view-notes-col {',
+      '    display:none; width:100%; border-top:none; padding-top:18px;',
+      '  }',
+      '  .view-notes-col.active { display:block; }',
+      '}',
 
       '.view-doc-header {',
       '  margin-bottom:28px;',
@@ -504,10 +538,11 @@ var ViewScreen = (function () {
         App.showList();
         return;
       }
-      _record   = r;
-      _approval = null;
-      _expenses = [];
-      _comments = r.comments || [];
+      _record           = r;
+      _approval         = null;
+      _expenses         = [];
+      _comments         = r.comments || [];
+      _customerComments = r.customerComments || [];
 
       // ACK return flow: redirect to the original record with a confirmation toast
       if (r.record_type === 'ack' && r._chainRef) {
@@ -547,7 +582,7 @@ var ViewScreen = (function () {
     });
   }
 
-  function onHide() { _record = null; _parentRecord = null; _approval = null; _expenses = []; _payments = []; _comments = []; _finTab = 'expenses'; _isArchived = false; _expOpen = true; _payOpen = true; _cogsViewOpen = false; }
+  function onHide() { _record = null; _parentRecord = null; _approval = null; _expenses = []; _payments = []; _comments = []; _customerComments = []; _activeNoteTab = 'job'; _finTab = 'expenses'; _isArchived = false; _expOpen = true; _payOpen = true; _cogsViewOpen = false; }
 
   // ── Render ───────────────────────────────────────────────────
 
@@ -674,7 +709,13 @@ var ViewScreen = (function () {
 
     if (hasSidebar) {
       html += '</div>'; // .view-main
-      html += _renderCommentsSidebar();
+      // Mobile tab bar (hidden on desktop via CSS)
+      html += '<div class="view-notes-tabs" id="view-notes-tabs">' +
+        '<button class="view-notes-tab' + (_activeNoteTab === 'job' ? ' active' : '') + '" data-note-tab="job">Job notes</button>' +
+        '<button class="view-notes-tab' + (_activeNoteTab === 'customer' ? ' active' : '') + '" data-note-tab="customer">Customer</button>' +
+      '</div>';
+      html += _renderNotesCol('job');
+      html += _renderNotesCol('customer');
     }
 
     html += '</div>'; // .view-wrap
@@ -1159,17 +1200,25 @@ var ViewScreen = (function () {
     return html;
   }
 
-  function _renderCommentsSidebar() {
-    var html = '<div class="view-comments-col" id="view-comments-col">';
+  function _renderNotesCol(type) {
+    var isJob      = type === 'job';
+    var colId      = isJob ? 'view-job-col'      : 'view-customer-col';
+    var inputId    = isJob ? 'view-job-input'    : 'view-customer-input';
+    var listId     = isJob ? 'view-job-list'     : 'view-customer-list';
+    var comments   = isJob ? _comments           : _customerComments;
+    var placeholder = isJob ? 'Job note\u2026'   : 'Customer note\u2026';
+    var isActive   = _activeNoteTab === type;
+
+    var html = '<div class="view-notes-col' + (isActive ? ' active' : '') + '" id="' + colId + '" data-note-type="' + type + '">';
 
     html += '<div class="view-comment-input-wrap">' +
-      '<input class="view-comment-input" id="view-comment-input" type="text" ' +
-          'placeholder="Private note\u2026" autocomplete="off">' +
+      '<input class="view-comment-input" id="' + inputId + '" type="text" ' +
+          'placeholder="' + placeholder + '" autocomplete="off">' +
     '</div>';
 
-    if (_comments.length > 0) {
-      html += '<div class="view-comment-list" id="view-comment-list">';
-      var sorted = _comments.slice().sort(function (a, b) { return b.ts - a.ts; });
+    if (comments.length > 0) {
+      html += '<div class="view-comment-list" id="' + listId + '">';
+      var sorted = comments.slice().sort(function (a, b) { return b.ts - a.ts; });
       sorted.forEach(function (c, idx) {
         var d  = new Date(c.ts);
         var mo = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -1178,7 +1227,7 @@ var ViewScreen = (function () {
           '<p class="view-comment-text">' + _esc(c.text) + '</p>' +
           '<div class="view-comment-meta">' +
             '<span class="view-comment-ts">' + mo + ' \xb7 ' + ti + '</span>' +
-            '<button class="view-comment-pin" data-comment-idx="' + idx + '" title="Save to Personal collection">+</button>' +
+            '<button class="view-comment-pin" data-comment-idx="' + idx + '" data-note-type="' + type + '" title="Save to Personal collection">+</button>' +
           '</div>' +
         '</div>';
       });
@@ -1246,44 +1295,101 @@ var ViewScreen = (function () {
 
     _bindFinancialEvents(id);
 
-    // Comment input — Enter submits
-    var commentInput = document.getElementById('view-comment-input');
-    if (commentInput) {
-      commentInput.addEventListener('keydown', function (e) {
+    // Shared note-column wiring (job + customer)
+    function _bindNoteCol(type) {
+      var isJob     = type === 'job';
+      var inputId   = isJob ? 'view-job-input'    : 'view-customer-input';
+      var colId     = isJob ? 'view-job-col'       : 'view-customer-col';
+      var listId    = isJob ? 'view-job-list'      : 'view-customer-list';
+      var getArr    = function () { return isJob ? _comments : _customerComments; };
+      var setArr    = function (a) { if (isJob) _comments = a; else _customerComments = a; };
+      var fieldName = isJob ? 'comments'           : 'customerComments';
+
+      var inp = document.getElementById(inputId);
+      if (!inp) return;
+
+      inp.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter') return;
         var text = this.value.trim();
         if (!text) return;
         this.value = '';
         var c = { text: text, ts: Date.now() };
-        _comments = _comments.concat([c]);
-        RecordService.update(id, { comments: _comments }).then(function (updated) {
-          _record = updated;
-          _render();
-          // Re-focus the input after re-render
-          var inp = document.getElementById('view-comment-input');
-          if (inp) inp.focus();
+        var updated = getArr().concat([c]);
+        setArr(updated);
+
+        // Immediate DOM inject (newest first)
+        var d  = new Date(c.ts);
+        var mo = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        var ti = d.toTimeString().slice(0, 5);
+        var cHtml = '<div class="view-comment" data-comment-ts="' + c.ts + '">' +
+          '<p class="view-comment-text">' + _esc(c.text) + '</p>' +
+          '<div class="view-comment-meta">' +
+            '<span class="view-comment-ts">' + mo + ' \xb7 ' + ti + '</span>' +
+            '<button class="view-comment-pin" data-comment-idx="0" data-note-type="' + type + '" title="Save to Personal">+</button>' +
+          '</div>' +
+        '</div>';
+
+        var listEl = document.getElementById(listId);
+        var colEl  = document.getElementById(colId);
+        if (listEl) {
+          listEl.insertAdjacentHTML('afterbegin', cHtml);
+          listEl.querySelectorAll('.view-comment').forEach(function (el, i) {
+            var pin = el.querySelector('.view-comment-pin');
+            if (pin) pin.dataset.commentIdx = i;
+          });
+        } else if (colEl) {
+          var nl = document.createElement('div');
+          nl.className = 'view-comment-list';
+          nl.id = listId;
+          nl.innerHTML = cHtml;
+          colEl.appendChild(nl);
+        }
+        _rebindPins();
+
+        var patch = {};
+        patch[fieldName] = getArr();
+        RecordService.update(id, patch).then(function (rec) { _record = rec; });
+      });
+    }
+    _bindNoteCol('job');
+    _bindNoteCol('customer');
+
+    // Pin any note to Personal collection
+    function _rebindPins() {
+      document.querySelectorAll('.view-comment-pin').forEach(function (btn) {
+        btn.onclick = null; // remove any existing handler
+        btn.addEventListener('click', function () {
+          var noteType = this.dataset.noteType || 'job';
+          var isJob    = noteType === 'job';
+          var arr      = isJob ? _comments : _customerComments;
+          var idx      = parseInt(this.dataset.commentIdx, 10);
+          var sorted   = arr.slice().sort(function (a, b) { return b.ts - a.ts; });
+          var cm       = sorted[idx];
+          if (!cm) return;
+          var self = this;
+          PersonalService.capture({ text: cm.text, source: 'quick-note', linkedRecordId: id })
+            .then(function () { self.classList.add('pinned'); self.title = 'Saved'; });
         });
       });
     }
+    _rebindPins();
 
-    // Pin comment to Personal collection
-    document.querySelectorAll('.view-comment-pin').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var idx  = parseInt(this.dataset.commentIdx, 10);
-        var sorted = _comments.slice().sort(function (a, b) { return b.ts - a.ts; });
-        var c = sorted[idx];
-        if (!c) return;
-        var self = this;
-        PersonalService.capture({
-          text: c.text,
-          source: 'quick-note',
-          linkedRecordId: id,
-        }).then(function () {
-          self.classList.add('pinned');
-          self.title = 'Saved to Personal';
+    // Tab switching (mobile/tablet only — no-op on desktop where both cols show)
+    var tabBar = document.getElementById('view-notes-tabs');
+    if (tabBar) {
+      tabBar.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-note-tab]');
+        if (!btn) return;
+        _activeNoteTab = btn.dataset.noteTab;
+        tabBar.querySelectorAll('.view-notes-tab').forEach(function (t) {
+          t.classList.toggle('active', t.dataset.noteTab === _activeNoteTab);
+        });
+        ['view-job-col', 'view-customer-col'].forEach(function (cid) {
+          var el = document.getElementById(cid);
+          if (el) el.classList.toggle('active', el.dataset.noteType === _activeNoteTab);
         });
       });
-    });
+    }
 
     // Inline action add
     var addInput = document.getElementById('view-action-add-input');
