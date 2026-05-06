@@ -611,6 +611,30 @@ button.panel-title:active { color: var(--stamp); }
   color: var(--ink-muted);
   margin-bottom: 20px;
 }
+.overlay-wordmark-img {
+  height: 28px;
+  width: auto;
+  display: block;
+  mix-blend-mode: multiply;
+}
+
+/* Left panel footer brand */
+.lpf-brand {
+  text-align: center;
+  padding-top: 8px;
+  margin-top: 6px;
+  border-top: 1px solid var(--rule-light);
+}
+.lpf-brand-link { display: inline-block; line-height: 1; }
+.lpf-brand-img {
+  height: 15px;
+  width: auto;
+  display: block;
+  mix-blend-mode: multiply;
+  opacity: 0.45;
+  transition: opacity .15s;
+}
+.lpf-brand-link:hover .lpf-brand-img { opacity: 0.8; }
 
 .overlay-heading {
   font-family: var(--font-display);

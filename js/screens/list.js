@@ -20,6 +20,7 @@ var ListScreen = (function () {
       '.list-wrap { max-width:760px; margin:0 auto; padding:36px 32px 80px; }',
 
       '.list-hd { margin-bottom:28px; }',
+      '.list-title-img { height:42px; width:auto; display:block; mix-blend-mode:multiply; }',
 
       /* Dashboard blocks */
       '.list-block {',
@@ -135,7 +136,7 @@ var ListScreen = (function () {
     var html = '<div class="list-wrap">';
 
     // Header
-    html += '<div class="list-hd"><h1 class="screen-title">Workpads</h1></div>';
+    html += '<div class="list-hd"><img src="/img/at-workpads.png" alt="@workpads" class="list-title-img"></div>';
 
     if (_records.length === 0) {
       html += _renderEmpty();

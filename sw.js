@@ -1,4 +1,4 @@
-var CACHE = 'workpads-v10';
+var CACHE = 'workpads-v11';
 var ASSETS = [
   '/',
   '/index.html',
@@ -27,6 +27,8 @@ var ASSETS = [
   '/img/icon-512.svg',
   '/img/icon-192.png',
   '/img/icon-512.png',
+  '/img/at-workpads.png',
+  '/img/logo-w.png',
   '/p/index.html',
   '/p/customer.html'
 ];
