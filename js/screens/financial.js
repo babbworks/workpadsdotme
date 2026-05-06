@@ -165,7 +165,7 @@ var FinancialScreen = (function () {
   function _render() {
     var el = document.getElementById('screen-financial');
     var r  = _record;
-    var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+    var sym = r.currency === 'EUR' ? '\u20ac' : (r.currency === 'USD' || r.currency === 'CAD') ? '$' : '\u00a3';
     var fmt = function (n) { return sym + n.toFixed(2); };
 
     var billedExp = _expenses.filter(function (e) { return e.expense_billing !== 'cogs' && e.amount; });

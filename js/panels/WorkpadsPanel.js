@@ -475,7 +475,7 @@ var WorkpadsPanel = (function () {
                   : record.recordType === 'expense'  ? 'Expense'
                   : 'Record';
     var currSym = record.currency === 'EUR' ? '\u20ac'
-                : record.currency === 'USD' ? '$' : '\u00a3';
+                : (record.currency === 'USD' || record.currency === 'CAD') ? '$' : '\u00a3';
     var amt = record.amount
       ? currSym + parseFloat(record.amount || 0).toFixed(2)
       : '';
@@ -572,10 +572,10 @@ var WorkpadsPanel = (function () {
       if (_records[pi].id === parentId) { parentRecord = _records[pi]; break; }
     }
     if (parentRecord && parentRecord.currency) {
-      currSym = parentRecord.currency === 'EUR' ? '\u20ac' : parentRecord.currency === 'USD' ? '$' : '\u00a3';
+      currSym = parentRecord.currency === 'EUR' ? '\u20ac' : (parentRecord.currency === 'USD' || parentRecord.currency === 'CAD') ? '$' : '\u00a3';
     }
     children.forEach(function (r) {
-      if (r.currency) currSym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+      if (r.currency) currSym = r.currency === 'EUR' ? '\u20ac' : (r.currency === 'USD' || r.currency === 'CAD') ? '$' : '\u00a3';
     });
 
     var fmt = function (n) { return currSym + n.toFixed(2); };
@@ -590,7 +590,7 @@ var WorkpadsPanel = (function () {
 
     function itemsFor(list, defaultLabel) {
       return list.map(function (r) {
-        var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+        var sym = r.currency === 'EUR' ? '\u20ac' : (r.currency === 'USD' || r.currency === 'CAD') ? '$' : '\u00a3';
         var amt = r.amount ? (sym + parseFloat(r.amount).toFixed(2)) : '';
         // If short description (job) is blank, fall back to charge type label
         var displayJob = (r.job && r.job.trim())
@@ -740,7 +740,7 @@ var WorkpadsPanel = (function () {
     var cogsTotal = totalCogs;
     if (cogsExpenses.length) {
         var cogsItemsHtml = cogsExpenses.map(function (r) {
-          var sym   = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+          var sym   = r.currency === 'EUR' ? '\u20ac' : (r.currency === 'USD' || r.currency === 'CAD') ? '$' : '\u00a3';
           var cAmt  = parseFloat(r.amount) || 0;
 
           // Primary display label: charge type if set, then job (skip generic default), then "COGS"

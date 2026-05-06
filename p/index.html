@@ -1705,6 +1705,10 @@
 
   function _applyReview(viewerExps, acceptedIdxs, ownedRecord, sym, isAck, senderName, received) {
     var now = Date.now();
+    var acceptedSet = {};
+    acceptedIdxs.forEach(function(i) { acceptedSet[i] = true; });
+
+    // Accept selected items — store as child expense records with attribution
     acceptedIdxs.forEach(function(idx) {
       var exp = viewerExps[idx];
       if (!exp) return;
@@ -1712,24 +1716,40 @@
       localStorage.setItem('wp_record_' + eid, JSON.stringify({
         id: eid, parentId: ownedRecord.id,
         recordType: 'expense', job: exp.l || 'Expense',
-        amount: exp.a || '0', currency: ownedRecord.currency || 'GBP',
+        amount: exp.a || '0', currency: ownedRecord.currency || 'CAD',
         expense_billing: 'customer',
+        acceptedFrom: senderName || null,
         draft: false, createdAt: now, updatedAt: now, fromReview: true,
       }));
     });
 
-    // Update owned record status
+    // Collect rejected items (not accepted) and store on owned record
+    var rejectedItems = [];
+    viewerExps.forEach(function(exp, idx) {
+      if (!acceptedSet[idx]) {
+        rejectedItems.push({ l: exp.l || 'Expense', a: exp.a || '0', from: senderName || null });
+      }
+    });
+
+    // Update owned record status and store rejected items
     var ownedKey = null;
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
       if (!k || k.indexOf('wp_record_') !== 0) continue;
       try { var r = JSON.parse(localStorage.getItem(k)); if (r && r.id === ownedRecord.id) { ownedKey = k; break; } } catch(_) {}
     }
-    if (ownedKey && isAck) {
+    if (ownedKey) {
       try {
         var rec = JSON.parse(localStorage.getItem(ownedKey));
-        rec.approvedAt = now; rec.approvedBy = senderName;
-        rec.record_type = 'invoice'; rec.updatedAt = now;
+        if (isAck) {
+          rec.approvedAt = now; rec.approvedBy = senderName;
+          rec.record_type = 'invoice';
+        }
+        if (rejectedItems.length) {
+          var existing = rec.rejectedItems || [];
+          rec.rejectedItems = existing.concat(rejectedItems);
+        }
+        rec.updatedAt = now;
         localStorage.setItem(ownedKey, JSON.stringify(rec));
       } catch(_) {}
     }

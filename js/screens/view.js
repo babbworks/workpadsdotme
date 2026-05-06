@@ -176,6 +176,68 @@ var ViewScreen = (function () {
       '  vertical-align:middle;',
       '}',
 
+      /* Action quick-add row */
+      '.view-action-add-row {',
+      '  display:flex; gap:6px; margin-top:14px; padding-top:10px;',
+      '  border-top:1px dashed var(--rule-light);',
+      '}',
+      '.view-action-add-input {',
+      '  flex:1; font-family:var(--font-mono); font-size:11px;',
+      '  color:var(--ink); background:var(--paper);',
+      '  border:1px solid var(--rule); border-radius:3px;',
+      '  padding:5px 9px; transition:border-color .13s;',
+      '}',
+      '.view-action-add-input:focus { outline:none; border-color:var(--stamp-border); }',
+      '.view-action-add-input::placeholder { color:var(--ink-faint); }',
+      '.view-action-add-btn {',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  color:#fff; background:var(--stamp); border:none;',
+      '  border-radius:3px; padding:5px 12px; cursor:pointer; white-space:nowrap;',
+      '  transition:opacity .13s;',
+      '}',
+      '.view-action-add-btn:hover { opacity:0.85; }',
+
+      /* Payment method selector in financial footer */
+      '.view-pay-methods-row {',
+      '  margin-top:12px; padding-top:10px;',
+      '  border-top:1px dashed var(--rule-light);',
+      '  display:flex; align-items:center; gap:10px;',
+      '}',
+      '.view-pay-methods-label {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-muted);',
+      '  flex-shrink:0;',
+      '}',
+      '.view-pay-methods-select {',
+      '  font-family:var(--font-mono); font-size:11px; color:var(--ink);',
+      '  background:var(--paper); border:1px solid var(--rule); border-radius:3px;',
+      '  padding:3px 7px; cursor:pointer; flex:1;',
+      '}',
+      '.view-pay-methods-select:focus { outline:none; border-color:var(--stamp-border); }',
+
+      /* Rejected items section */
+      '.view-rejected-hd {',
+      '  display:flex; align-items:center; gap:5px;',
+      '  padding:5px 0 4px; cursor:pointer; user-select:none;',
+      '  border-top:1px solid var(--rule-light); margin-top:6px;',
+      '}',
+      '.view-rejected-row {',
+      '  display:flex; justify-content:space-between; align-items:center;',
+      '  padding:5px 0; border-bottom:1px solid var(--rule-light);',
+      '  font-family:var(--font-mono); font-size:11px; opacity:0.55;',
+      '}',
+      '.view-rejected-row:last-child { border-bottom:none; }',
+      '.view-rejected-label { color:var(--ink-mid); flex:1; text-decoration:line-through; margin-right:8px; }',
+      '.view-rejected-amount { color:var(--ink-faint); font-weight:400; flex-shrink:0; margin-right:8px; }',
+      '.view-rejected-accept {',
+      '  font-size:9px; font-weight:700; color:var(--stamp); background:none; border:none;',
+      '  cursor:pointer; padding:0; text-decoration:underline; text-decoration-style:dotted; flex-shrink:0;',
+      '}',
+      '.view-exp-from {',
+      '  font-family:var(--font-mono); font-size:8.5px; color:var(--ink-faint);',
+      '  margin-left:5px; opacity:0.75;',
+      '}',
+
       /* Financial card (separate from main card) */
       '.view-financial-card {',
       '  margin-top:12px;',
@@ -480,7 +542,12 @@ var ViewScreen = (function () {
     } else if (r.receivedAt) {
       html += '<div class="view-stamp">Received</div>';
     }
-    html += '<h1 class="view-job">' + _esc(r.job || 'Untitled') + '</h1>';
+    // For COGS/expense records with blank job, fall back to charge type label
+    var displayTitle = r.job || '';
+    if (!displayTitle && r.recordType === 'expense' && r.charge_type != null) {
+      displayTitle = CHARGE_TYPE_LABELS[String(r.charge_type)] || '';
+    }
+    html += '<h1 class="view-job">' + _esc(displayTitle || 'Untitled') + '</h1>';
     html += _renderMetaRow(r);
     html += '</div>';
 
@@ -505,6 +572,8 @@ var ViewScreen = (function () {
       }
       if (r.recordType !== 'expense') {
         html += '<button class="btn-primary" id="view-btn-share">Share</button>';
+        html += '<button class="btn-ghost" id="view-btn-quick-expense">+ Expense</button>';
+        html += '<button class="btn-ghost" id="view-btn-quick-cogs">+ COGS</button>';
       }
       if (r.recordType === 'expense' && r.expense_billing !== 'cogs') {
         html += '<button class="btn-ghost" id="view-btn-cogs">Record COGS</button>';
@@ -522,8 +591,12 @@ var ViewScreen = (function () {
       html += _renderExpenseDetails(r);
     }
 
-    if (r.actions && r.actions.length) {
-      html += _renderActionsSection(r.actions);
+    if (r.recordType !== 'expense') {
+      if (r.actions && r.actions.length) {
+        html += _renderActionsSection(r.actions, !r.receivedAt);
+      } else if (!r.receivedAt) {
+        html += _renderActionsSection([], true);
+      }
     }
 
     // Participants block (preferred) or legacy worker field (non-expense main records only)
@@ -603,13 +676,20 @@ var ViewScreen = (function () {
     );
   }
 
-  function _renderActionsSection(actions) {
-    var toolbar = (
+  function _renderActionsSection(actions, showAdd) {
+    var toolbar = actions.length ? (
       '<div class="view-actions-toolbar">' +
         '<input class="view-actions-search" id="view-act-search" type="search" ' +
             'placeholder="Filter actions\u2026" autocomplete="off" value="' + _esc(_actionsFilter) + '">' +
       '</div>'
-    );
+    ) : '';
+    var addRow = showAdd ? (
+      '<div class="view-action-add-row">' +
+        '<input class="view-action-add-input" id="view-action-add-input" type="text" ' +
+            'placeholder="New action item\u2026" autocomplete="off">' +
+        '<button class="view-action-add-btn" id="view-action-add-btn">Add</button>' +
+      '</div>'
+    ) : '';
     return (
       '<div class="card-section">' +
         '<div class="section-label-row" style="margin-bottom:16px;">' +
@@ -618,6 +698,7 @@ var ViewScreen = (function () {
         '</div>' +
         toolbar +
         _renderActions(actions) +
+        addRow +
       '</div>'
     );
   }
@@ -634,7 +715,8 @@ var ViewScreen = (function () {
     }
 
     if (!filtered.length) {
-      return '<div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);padding:8px 0;">No matching actions</div>';
+      var emptyMsg = actions.length ? 'No matching actions' : 'No actions yet';
+      return '<div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);padding:8px 0;">' + emptyMsg + '</div>';
     }
 
     var html = '<ol class="view-actions-list">';
@@ -731,7 +813,7 @@ var ViewScreen = (function () {
 
   function _renderExpenseDetails(r) {
     var rows = [];
-    var sym = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+    var sym = r.currency === 'EUR' ? '\u20ac' : (r.currency === 'USD' || r.currency === 'CAD') ? '$' : '\u00a3';
 
     var billingLabel = r.expense_billing === 'cogs' ? 'Cost of Goods Sold (COGS)' : 'Customer-billed expense';
     rows.push({ label: 'Type', value: billingLabel });
@@ -776,7 +858,7 @@ var ViewScreen = (function () {
   }
 
   function _renderFinancialCard(r) {
-    var sym      = r.currency === 'EUR' ? '\u20ac' : r.currency === 'USD' ? '$' : '\u00a3';
+    var sym      = r.currency === 'EUR' ? '\u20ac' : (r.currency === 'USD' || r.currency === 'CAD') ? '$' : '\u00a3';
     var vatLabel = r.vat === 'standard' ? 'inc. 20% VAT'
                  : r.vat === 'reduced'  ? 'inc. 5% VAT'
                  : r.vat === 'zero'     ? 'zero-rated' : '';
@@ -834,9 +916,10 @@ var ViewScreen = (function () {
       var expRows = groups.map(function (g) {
         var header = g.title ? '<div class="view-exp-action-header">' + _esc(g.title) + '</div>' : '';
         var rows = g.items.map(function (e) {
+          var attribution = e.acceptedFrom ? '<span class="view-exp-from">from ' + _esc(e.acceptedFrom) + '</span>' : '';
           var label = e.isDifference
             ? '<span style="color:var(--ink-faint);font-style:italic;">Difference</span>'
-            : '<a href="#" class="view-exp-nav" data-id="' + _esc(e.id) + '">' + _esc(e.job || 'Expense') + '</a>';
+            : '<a href="#" class="view-exp-nav" data-id="' + _esc(e.id) + '">' + _esc(e.job || 'Expense') + '</a>' + attribution;
           return '<div class="view-exp-row">' +
                    '<span class="view-exp-label">' + label + '</span>' +
                    '<span class="view-exp-amount">' + fmt(parseFloat(e.amount) || 0) + '</span>' +
@@ -911,6 +994,29 @@ var ViewScreen = (function () {
       '</div>' +
       '<div class="view-fin-section-body" id="fin-sec-cogs" style="' + (_cogsViewOpen ? '' : 'display:none') + '">' +
         '<div class="view-exp-list">' + cogsRows + '</div>' +
+      '</div>';
+    }
+
+    // ── Rejected (proposed but declined) items
+    var rejected = r.rejectedItems || [];
+    if (rejected.length) {
+      var rejOpen = false;
+      var rejRows = rejected.map(function (item, ri) {
+        return '<div class="view-rejected-row">' +
+          '<span class="view-rejected-label">' + _esc(item.l || 'Item') + '</span>' +
+          '<span class="view-rejected-amount">' + fmt(parseFloat(item.a) || 0) + '</span>' +
+          '<button class="view-rejected-accept" data-rej-idx="' + ri + '">Accept</button>' +
+        '</div>';
+      }).join('');
+      html += '<div class="view-fin-section-hd" data-section="rej">' +
+        '<span class="view-fin-section-arrow">\u25b8</span>' +
+        '<span class="view-fin-section-name" style="color:var(--ink-faint);">Proposed</span>' +
+        '<span class="view-fin-section-ct">' + rejected.length + '</span>' +
+        '<span style="flex:1;"></span>' +
+        '<span style="font-family:var(--font-mono);font-size:8.5px;color:var(--ink-faint);">Declined \u2014 accept?</span>' +
+      '</div>' +
+      '<div class="view-fin-section-body" id="fin-sec-rej" style="display:none">' +
+        '<div class="view-exp-list">' + rejRows + '</div>' +
       '</div>';
     }
 
@@ -1012,6 +1118,22 @@ var ViewScreen = (function () {
       '</div>';
     }
 
+    // Payment methods selector
+    try {
+      var pmethods = JSON.parse(localStorage.getItem('wp_pref_payment_methods') || '[]');
+      if (pmethods.length > 0) {
+        var savedMethod = r.paymentMethod || '';
+        var opts = '<option value="">Payment method\u2026</option>' +
+          pmethods.map(function (m) {
+            return '<option value="' + _esc(m) + '"' + (savedMethod === m ? ' selected' : '') + '>' + _esc(m) + '</option>';
+          }).join('');
+        html += '<div class="view-pay-methods-row">' +
+          '<span class="view-pay-methods-label">Method</span>' +
+          '<select class="view-pay-methods-select" id="view-pay-method-select">' + opts + '</select>' +
+        '</div>';
+      }
+    } catch (_) {}
+
     html += '</div>';
     return html;
   }
@@ -1065,6 +1187,12 @@ var ViewScreen = (function () {
     if (editBtn)    editBtn.addEventListener('click',    function () { App.showWizard(id); });
     if (archiveBtn) archiveBtn.addEventListener('click', _doArchive);
 
+    // Quick expense / COGS from action bar
+    var quickExpBtn = document.getElementById('view-btn-quick-expense');
+    if (quickExpBtn) quickExpBtn.addEventListener('click', function () { App.showExpense(id); });
+    var quickCogsBtn = document.getElementById('view-btn-quick-cogs');
+    if (quickCogsBtn) quickCogsBtn.addEventListener('click', function () { App.showCogs(id); });
+
     _bindFinancialEvents(id);
 
     // Action filter toolbar (live re-render preserving filter state)
@@ -1073,6 +1201,27 @@ var ViewScreen = (function () {
       searchEl.addEventListener('input', function () {
         _actionsFilter = this.value;
         _rerenderActions();
+      });
+    }
+
+    // Inline action add
+    var addInput = document.getElementById('view-action-add-input');
+    var addBtn   = document.getElementById('view-action-add-btn');
+    if (addBtn && addInput) {
+      var _doAddAction = function () {
+        var title = addInput.value.trim();
+        if (!title) return;
+        var r = _record;
+        var updatedActions = (r.actions || []).concat([{ title: title, notes: '' }]);
+        RecordService.update(r.id, { actions: updatedActions }).then(function (updated) {
+          _record = updated;
+          addInput.value = '';
+          _render();
+        });
+      };
+      addBtn.addEventListener('click', _doAddAction);
+      addInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') _doAddAction();
       });
     }
   }
@@ -1142,6 +1291,45 @@ var ViewScreen = (function () {
     if (addPayBtn) {
       addPayBtn.addEventListener('click', function () { App.showPayment(id); });
     }
+
+    // Payment method selector
+    var pmSelect = document.getElementById('view-pay-method-select');
+    if (pmSelect) {
+      pmSelect.addEventListener('change', function () {
+        var method = this.value;
+        RecordService.update(id, { paymentMethod: method }).then(function (updated) {
+          _record = updated;
+        });
+      });
+    }
+
+    // Accept rejected items
+    document.querySelectorAll('.view-rejected-accept').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = parseInt(this.dataset.rejIdx, 10);
+        var r = _record;
+        var rejected = (r.rejectedItems || []).slice();
+        var item = rejected.splice(idx, 1)[0];
+        if (!item) return;
+        var now = Date.now();
+        var eid = 'rv_' + now.toString(36) + '_acc';
+        localStorage.setItem('wp_record_' + eid, JSON.stringify({
+          id: eid, parentId: r.id,
+          recordType: 'expense', job: item.l || 'Expense',
+          amount: item.a || '0', currency: r.currency || 'CAD',
+          expense_billing: 'customer',
+          acceptedFrom: item.from || null,
+          draft: false, createdAt: now, updatedAt: now, fromReview: true,
+        }));
+        RecordService.update(r.id, { rejectedItems: rejected }).then(function (updated) {
+          _record = updated;
+          _expenses = _expenses.concat([{ id: eid, parentId: r.id, recordType: 'expense',
+            job: item.l || 'Expense', amount: item.a || '0', currency: r.currency || 'CAD',
+            expense_billing: 'customer', acceptedFrom: item.from || null }]);
+          _render();
+        });
+      });
+    });
 
     // Action expense buttons
     document.querySelectorAll('.view-action-exp-btn').forEach(function (btn) {

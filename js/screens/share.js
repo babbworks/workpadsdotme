@@ -11,11 +11,12 @@ var ShareScreen = (function () {
   var _shareView   = 'simple';  // 'simple' (p/index.html) | 'full' (customer.html)
   var _expenses    = [];
   var _payments    = [];
-  var _includeFin     = false;
-  var _includeStory   = true;
-  var _includeDetails = true;
-  var _finSummary     = '';
-  var _stylesAdded    = false;
+  var _includeFin      = false;
+  var _includeStory    = true;
+  var _includeDetails  = false;  // private notes — off by default
+  var _includeCustomer = true;   // customer name, contact, location — on by default
+  var _finSummary      = '';
+  var _stylesAdded     = false;
 
   // ── Styles ───────────────────────────────────────────────────
 
@@ -142,10 +143,11 @@ var ShareScreen = (function () {
       _shareView  = 'simple';
       _expenses   = [];
       _payments   = [];
-      _finSummary     = '';
-      _includeFin     = (_shareType === 'quote' || _shareType === 'invoice');
-      _includeStory   = true;
-      _includeDetails = true;
+      _finSummary      = '';
+      _includeFin      = (_shareType === 'quote' || _shareType === 'invoice');
+      _includeStory    = true;
+      _includeDetails  = false;
+      _includeCustomer = true;
       _loadFin().then(function () {
         _encodeUrl();
         _render();
@@ -160,10 +162,11 @@ var ShareScreen = (function () {
     _shareView  = 'simple';
     _expenses   = [];
     _payments   = [];
-    _finSummary     = '';
-    _includeFin     = false;
-    _includeStory   = true;
-    _includeDetails = true;
+    _finSummary      = '';
+    _includeFin      = false;
+    _includeStory    = true;
+    _includeDetails  = false;
+    _includeCustomer = true;
   }
 
   function _loadFin() {
@@ -188,8 +191,15 @@ var ShareScreen = (function () {
       var recForEncode = Object.assign({}, _record, {
         record_type: _shareType === 'job' ? undefined : _shareType,
       });
-      if (!_includeStory)   delete recForEncode.story;
-      if (!_includeDetails) delete recForEncode.details;
+      if (!_includeStory)    delete recForEncode.story;
+      if (!_includeDetails)  delete recForEncode.details;
+      if (!_includeCustomer) {
+        delete recForEncode.customer;
+        delete recForEncode.customer_phone;
+        delete recForEncode.location;
+        delete recForEncode.worker;
+        delete recForEncode.participants;
+      }
       var finOpts = (_includeFin && (_expenses.length || _payments.length))
         ? { expenses: _expenses, payments: _payments }
         : null;
@@ -280,13 +290,27 @@ var ShareScreen = (function () {
       '</div>';
     }
 
-    // Details opt-in (only when record has details)
+    // Details opt-in (only when record has details — private notes, default OFF)
     if (_record.details) {
       html += '<div class="share-fin-row' + (_includeDetails ? ' active' : '') + '" id="share-details-toggle">' +
         '<div class="share-fin-check">' + (_includeDetails ? '\u2713' : '') + '</div>' +
         '<div class="share-fin-text">' +
-          '<div class="share-fin-label">Include details</div>' +
+          '<div class="share-fin-label">Include private notes</div>' +
           '<div class="share-fin-meta">' + _esc(_record.details.slice(0, 60)) + (_record.details.length > 60 ? '\u2026' : '') + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    // Customer & contact info toggle (always shown)
+    var hasCustomerInfo = !!((_record.customer || _record.customer_phone || _record.location || _record.worker ||
+      (_record.participants && _record.participants.length)));
+    if (hasCustomerInfo) {
+      var customerMeta = [_record.customer, _record.location].filter(Boolean).join(' \xb7 ');
+      html += '<div class="share-fin-row' + (_includeCustomer ? ' active' : '') + '" id="share-customer-toggle">' +
+        '<div class="share-fin-check">' + (_includeCustomer ? '\u2713' : '') + '</div>' +
+        '<div class="share-fin-text">' +
+          '<div class="share-fin-label">Include customer &amp; contact info</div>' +
+          '<div class="share-fin-meta">' + (customerMeta ? _esc(customerMeta) : 'Name, location, phone, workers') + '</div>' +
         '</div>' +
       '</div>';
     }
@@ -414,6 +438,18 @@ var ShareScreen = (function () {
         detailsToggle.classList.toggle('active', _includeDetails);
         var check = detailsToggle.querySelector('.share-fin-check');
         if (check) check.textContent = _includeDetails ? '\u2713' : '';
+        _encodeUrl();
+        _syncUrlDisplay();
+      });
+    }
+
+    var customerToggle = document.getElementById('share-customer-toggle');
+    if (customerToggle) {
+      customerToggle.addEventListener('click', function () {
+        _includeCustomer = !_includeCustomer;
+        customerToggle.classList.toggle('active', _includeCustomer);
+        var check = customerToggle.querySelector('.share-fin-check');
+        if (check) check.textContent = _includeCustomer ? '\u2713' : '';
         _encodeUrl();
         _syncUrlDisplay();
       });

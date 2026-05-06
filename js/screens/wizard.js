@@ -697,16 +697,17 @@ var WizardScreen = (function () {
   }
 
   function _renderFinancialFields() {
-    var currency   = _record.currency    || 'GBP';
+    var currency   = _record.currency    || localStorage.getItem('wp_pref_currency') || 'CAD';
     var amount     = _record.amount      || '';
     var vat        = _record.vat         || 'none';
     var workerCost = _record.worker_cost || '';
     var chargeType = _record.charge_type != null ? String(_record.charge_type) : '';
     var partsFlag  = _record.parts_flag  || false;
 
-    var sym = currency === 'EUR' ? '\u20ac' : currency === 'USD' ? '$' : '\u00a3';
+    var sym = currency === 'EUR' ? '\u20ac' : (currency === 'USD' || currency === 'CAD') ? '$' : '\u00a3';
 
     var currencyOpts = [
+      { code: 'CAD', label: '$ CAD' },
       { code: 'GBP', label: '\u00a3 GBP' },
       { code: 'EUR', label: '\u20ac EUR' },
       { code: 'USD', label: '$ USD' },
@@ -746,14 +747,33 @@ var WizardScreen = (function () {
         '</div>'
       : '';
 
+    // Payment mode: show "Applied to" dropdown with parent action items
+    var paymentAppliedToField = '';
+    if (isPayment && _parentRecord && _parentRecord.actions && _parentRecord.actions.length) {
+      var currentApplied = _record.payment_ref || '';
+      var appliedOpts = '<option value="">General payment</option>';
+      _parentRecord.actions.forEach(function (a, i) {
+        appliedOpts += '<option value="' + _esc(a.title) + '"' +
+          (currentApplied === a.title ? ' selected' : '') + '>' + _esc(a.title) + '</option>';
+      });
+      paymentAppliedToField = (
+        '<div class="field-group">' +
+          '<label class="field-label">Applied to</label>' +
+          '<select class="field-input wiz-field-select" id="f-payment_ref" style="width:100%;">' + appliedOpts + '</select>' +
+        '</div>'
+      );
+    }
+
     return (
       billingToggle +
-      '<div class="field-group">' +
-        '<label class="field-label">Charge type</label>' +
-        '<select class="field-input wiz-field-select" id="f-charge_type" style="width:100%;">' +
-          chargeTypeOpts +
-        '</select>' +
-      '</div>' +
+      (isPayment
+        ? paymentAppliedToField
+        : '<div class="field-group">' +
+            '<label class="field-label">Charge type</label>' +
+            '<select class="field-input wiz-field-select" id="f-charge_type" style="width:100%;">' +
+              chargeTypeOpts +
+            '</select>' +
+          '</div>') +
       '<div class="field-group">' +
         '<label class="field-label" id="wiz-amount-label">' + amtLabelTxt + '</label>' +
         '<div class="wiz-finance-row">' +
@@ -986,7 +1006,7 @@ var WizardScreen = (function () {
       metaLines.push(_esc(_record.start_time) + ' \u2013 ' + _esc(_record.end_time));
     }
     if (_record.amount) {
-      var sym = _record.currency === 'EUR' ? '\u20ac' : _record.currency === 'USD' ? '$' : '\u00a3';
+      var sym = _record.currency === 'EUR' ? '\u20ac' : (_record.currency === 'USD' || _record.currency === 'CAD') ? '$' : '\u00a3';
       var vatLabel = _record.vat === 'standard' ? ' inc. 20% VAT'
                    : _record.vat === 'reduced'  ? ' inc. 5% VAT' : '';
       metaLines.push(sym + _esc(_record.amount) + vatLabel);
@@ -1184,6 +1204,9 @@ var WizardScreen = (function () {
     _tryCollect('worker_cost',    'f-worker_cost');
     _tryCollect('action_quoted',  'f-action_quoted');
     _tryCollect('charge_type',    'f-charge_type');
+    _tryCollect('payment_ref',    'f-payment_ref');
+    // When payment_ref is set, sync to job field for display
+    if (_record.payment_ref) _record.job = _record.payment_ref;
     // linkedExpenseId and expense_billing are set from params, already on _record
     _collectParticipants();
     _collectPartsFlag();
@@ -1540,7 +1563,7 @@ var WizardScreen = (function () {
       var note  = document.getElementById('wiz-cogs-pct-note');
       if (!badge && !note) return;
       var sym  = (document.getElementById('f-currency') || {}).value;
-      sym = sym === 'EUR' ? '\u20ac' : sym === 'USD' ? '$' : '\u00a3';
+      sym = sym === 'EUR' ? '\u20ac' : (sym === 'USD' || sym === 'CAD') ? '$' : '\u00a3';
       var c = parseFloat((document.getElementById('f-amount') || {}).value || '0');
       var q = parseFloat((document.getElementById('f-action_quoted') || {}).value || '0');
       if (!q || !c) {
@@ -1571,7 +1594,7 @@ var WizardScreen = (function () {
     var currencyEl = document.getElementById('f-currency');
     if (currencyEl) {
       currencyEl.addEventListener('change', function () {
-        var sym = this.value === 'EUR' ? '\u20ac' : this.value === 'USD' ? '$' : '\u00a3';
+        var sym = this.value === 'EUR' ? '\u20ac' : (this.value === 'USD' || this.value === 'CAD') ? '$' : '\u00a3';
         document.querySelectorAll('.wiz-curr-sym').forEach(function (el) {
           el.textContent = sym;
         });

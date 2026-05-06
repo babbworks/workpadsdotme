@@ -7,7 +7,7 @@ var ListScreen = (function () {
 
   var _records     = [];
   var _query       = '';
-  var _filter      = 'all'; // 'all' | 'received' | 'quote' | 'invoice'
+  var _filter      = 'original'; // 'original' | 'all' | 'received' | 'quote' | 'invoice'
   var _stylesAdded = false;
   var _density     = 1; // 0=title, 1=title+date, 2=title+date+customer, 3=all
 
@@ -229,11 +229,13 @@ var ListScreen = (function () {
   function onShow() {
     _addStyles();
     _query   = '';
-    _filter  = 'all';
+    _filter  = 'original';
     _density = parseInt(localStorage.getItem(_DENSITY_KEY) || '1', 10);
     RecordService.list().then(function (records) {
-      // Exclude expense sub-records from the main list — they appear under their parent
-      _records = (records || []).filter(function (r) { return r.recordType !== 'expense'; });
+      // Exclude child records (expense, payment) — they appear under their parent in sidebar
+      _records = (records || []).filter(function (r) {
+        return r.recordType !== 'expense' && r.recordType !== 'payment';
+      });
       _render();
     });
   }
@@ -270,18 +272,17 @@ var ListScreen = (function () {
       '<button class="list-overview-btn" id="list-overview-advanced">$ Advanced</button>' +
     '</div>';
 
-    // ── Filter bar (only when there's something to filter)
+    // ── Filter bar
     var hasReceived = _records.some(function (r) { return r.receivedAt; });
     var hasQuotes   = _records.some(function (r) { return r.record_type === 'quote'; });
     var hasInvoices = _records.some(function (r) { return r.record_type === 'invoice'; });
-    if (hasReceived || hasQuotes || hasInvoices) {
-      html += '<div class="list-filter-bar" id="list-filter-bar">';
-      html += '<button class="list-filter-btn' + (_filter === 'all'      ? ' active' : '') + '" data-filter="all">All</button>';
-      if (hasReceived) html += '<button class="list-filter-btn' + (_filter === 'received' ? ' active' : '') + '" data-filter="received">Received</button>';
-      if (hasQuotes)   html += '<button class="list-filter-btn' + (_filter === 'quote'    ? ' active' : '') + '" data-filter="quote">Quotes</button>';
-      if (hasInvoices) html += '<button class="list-filter-btn' + (_filter === 'invoice'  ? ' active' : '') + '" data-filter="invoice">Invoices</button>';
-      html += '</div>';
-    }
+    html += '<div class="list-filter-bar" id="list-filter-bar">';
+    html += '<button class="list-filter-btn' + (_filter === 'original' ? ' active' : '') + '" data-filter="original">Original</button>';
+    html += '<button class="list-filter-btn' + (_filter === 'all'      ? ' active' : '') + '" data-filter="all">All</button>';
+    if (hasReceived) html += '<button class="list-filter-btn' + (_filter === 'received' ? ' active' : '') + '" data-filter="received">Received</button>';
+    if (hasQuotes)   html += '<button class="list-filter-btn' + (_filter === 'quote'    ? ' active' : '') + '" data-filter="quote">Quotes</button>';
+    if (hasInvoices) html += '<button class="list-filter-btn' + (_filter === 'invoice'  ? ' active' : '') + '" data-filter="invoice">Invoices</button>';
+    html += '</div>';
 
     // ── Records list
     if (total === 0) {
@@ -315,31 +316,48 @@ var ListScreen = (function () {
     var jobHtml = _esc(r.job || 'Untitled');
     if (_query) jobHtml = _highlight(jobHtml, _esc(_query));
 
+    var isReceived = !!r.receivedAt;
     var metaItems = [];
-    if (_density >= 1 && r.date)                 metaItems.push(_fmtDate(r.date));
-    if (_density >= 2 && r.customer)             metaItems.push(_esc(r.customer.slice(0, 20)));
-    if (_density >= 3 && r.location)             metaItems.push(_esc(r.location.slice(0, 20)));
+
+    if (isReceived) {
+      // Received records: show who sent it and what type of response
+      var fromName = r.worker || r.customer || '';
+      if (fromName) metaItems.push('from\u00a0' + _esc(fromName.slice(0, 24)));
+      var nature = r.record_type === 'invoice' ? 'invoice reply'
+                 : r.record_type === 'quote'   ? 'quote reply'
+                 : r.record_type === 'ack'      ? 'approval'
+                 : 'update';
+      metaItems.push(nature);
+      if (r.receivedAt) metaItems.push(_fmtDate(r.receivedAt.slice(0, 10)));
+    } else {
+      if (_density >= 1 && r.date)     metaItems.push(_fmtDate(r.date));
+      if (_density >= 2 && r.customer) metaItems.push(_esc(r.customer.slice(0, 20)));
+      if (_density >= 3 && r.location) metaItems.push(_esc(r.location.slice(0, 20)));
+    }
+
+    var typeTag = isReceived
+      ? '<span class="list-type-tag list-type-tag-received">Received</span>'
+      : r.record_type === 'quote'
+      ? '<span class="list-type-tag list-type-tag-quote">Quote</span>'
+      : r.record_type === 'invoice'
+      ? '<span class="list-type-tag list-type-tag-invoice">Invoice</span>'
+      : '';
+
+    var rowStyle = isReceived
+      ? ' style="background:rgba(192,71,10,.025);border-left:2px solid var(--stamp-border);"'
+      : '';
 
     return (
-      '<div class="list-row" data-id="' + _esc(r.id) + '" tabindex="0" role="button">' +
+      '<div class="list-row" data-id="' + _esc(r.id) + '" tabindex="0" role="button"' + rowStyle + '>' +
         '<div class="list-row-main">' +
-          '<div class="list-row-job">' +
-            jobHtml +
-            (r.receivedAt
-              ? '<span class="list-type-tag list-type-tag-received">Received</span>'
-              : r.record_type === 'quote'
-              ? '<span class="list-type-tag list-type-tag-quote">Quote</span>'
-              : r.record_type === 'invoice'
-              ? '<span class="list-type-tag list-type-tag-invoice">Invoice</span>'
-              : '') +
-          '</div>' +
+          '<div class="list-row-job">' + jobHtml + typeTag + '</div>' +
           (metaItems.length
             ? '<div class="list-row-meta">' + metaItems.join(' \xb7 ') + '</div>'
             : '') +
         '</div>' +
         '<div class="list-row-actions">' +
-          '<button class="list-row-action" data-action="share" data-id="' + _esc(r.id) + '">Share</button>' +
-          '<button class="list-row-action" data-action="edit"  data-id="' + _esc(r.id) + '">Edit</button>' +
+          (!isReceived ? '<button class="list-row-action" data-action="share" data-id="' + _esc(r.id) + '">Share</button>' : '') +
+          '<button class="list-row-action" data-action="edit" data-id="' + _esc(r.id) + '">Edit</button>' +
         '</div>' +
         '<div class="list-row-arrow">\u203a</div>' +
       '</div>'
@@ -441,6 +459,7 @@ var ListScreen = (function () {
 
   function _filtered() {
     var base = _records.filter(function (r) {
+      if (_filter === 'original') return !r.receivedAt;
       if (_filter === 'received') return !!r.receivedAt;
       if (_filter === 'quote')    return r.record_type === 'quote';
       if (_filter === 'invoice')  return r.record_type === 'invoice';

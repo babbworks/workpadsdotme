@@ -334,6 +334,17 @@ var ManagementScreen = (function () {
 
   // ── Settings tab ─────────────────────────────────────────────
 
+  var PREF_CURRENCY = 'wp_pref_currency';
+  var PREF_PAYMENT_METHODS = 'wp_pref_payment_methods';
+
+  function _getPaymentMethods() {
+    try { return JSON.parse(localStorage.getItem(PREF_PAYMENT_METHODS) || '[]'); } catch (e) { return []; }
+  }
+
+  function _savePaymentMethods(list) {
+    try { localStorage.setItem(PREF_PAYMENT_METHODS, JSON.stringify(list)); } catch (e) {}
+  }
+
   function _renderSettings() {
     var body = document.getElementById('mgmt-body');
     body.innerHTML = '<div style="padding-top:8px;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;">Loading\u2026</div>';
@@ -341,6 +352,26 @@ var ManagementScreen = (function () {
     var profile = ActivityService.getActive();
     var name  = (profile && profile.name)  || '';
     var phone = (profile && profile.phone) || '';
+    var defCurrency = localStorage.getItem(PREF_CURRENCY) || 'CAD';
+    var payMethods  = _getPaymentMethods();
+
+    var currencyOpts = [
+      { code: 'CAD', label: '$ CAD \u2014 Canadian Dollar' },
+      { code: 'GBP', label: '\u00a3 GBP \u2014 British Pound' },
+      { code: 'EUR', label: '\u20ac EUR \u2014 Euro' },
+      { code: 'USD', label: '$ USD \u2014 US Dollar' },
+    ].map(function (c) {
+      return '<option value="' + c.code + '"' + (c.code === defCurrency ? ' selected' : '') + '>' + c.label + '</option>';
+    }).join('');
+
+    var pmListHtml = payMethods.length
+      ? payMethods.map(function (m, i) {
+          return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--rule-light);">' +
+            '<span style="flex:1;font-family:var(--font-mono);font-size:12px;color:var(--ink);">' + _esc(m) + '</span>' +
+            '<button class="mgmt-pm-remove" data-idx="' + i + '" style="font-family:var(--font-mono);font-size:10px;color:var(--ink-faint);background:none;border:none;cursor:pointer;">\u00d7 Remove</button>' +
+          '</div>';
+        }).join('')
+      : '<div style="font-family:var(--font-mono);font-size:10px;color:var(--ink-faint);padding:8px 0;">No payment methods yet</div>';
 
     body.innerHTML = (
       '<div style="padding-top:8px;">' +
@@ -361,6 +392,31 @@ var ManagementScreen = (function () {
           '<button class="btn-primary" id="mgmt-save-profile">Save profile</button>' +
         '</div>' +
 
+        '<p class="mgmt-section-title">Defaults</p>' +
+        '<div class="card">' +
+          '<div class="card-section">' +
+            '<div class="field-group" style="margin-bottom:0;">' +
+              '<label class="field-label" for="mgmt-currency">Default currency</label>' +
+              '<select class="field-input" id="mgmt-currency" style="width:100%;">' + currencyOpts + '</select>' +
+              '<p class="field-hint">Applied to all new records</p>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="margin-top:16px;">' +
+          '<button class="btn-ghost" id="mgmt-save-defaults" style="font-size:11px;">Save defaults</button>' +
+        '</div>' +
+
+        '<p class="mgmt-section-title">Payment methods</p>' +
+        '<div class="card">' +
+          '<div class="card-section">' +
+            '<div id="mgmt-pm-list">' + pmListHtml + '</div>' +
+            '<div style="display:flex;gap:8px;margin-top:12px;">' +
+              '<input class="field-input" id="mgmt-pm-input" type="text" placeholder="e.g. Bank transfer, Cash, Stripe\u2026" style="flex:1;">' +
+              '<button class="btn-ghost" id="mgmt-pm-add" style="font-size:11px;flex-shrink:0;">+ Add</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
         '<p class="mgmt-section-title">About</p>' +
         '<div class="card">' +
           '<div style="padding:16px 20px;">' +
@@ -375,6 +431,46 @@ var ManagementScreen = (function () {
 
     var saveBtn = document.getElementById('mgmt-save-profile');
     if (saveBtn) saveBtn.addEventListener('click', _saveProfile);
+
+    var saveDefaultsBtn = document.getElementById('mgmt-save-defaults');
+    if (saveDefaultsBtn) {
+      saveDefaultsBtn.addEventListener('click', function () {
+        var cur = document.getElementById('mgmt-currency');
+        if (cur) localStorage.setItem(PREF_CURRENCY, cur.value);
+        App.toast('Defaults saved');
+      });
+    }
+
+    var pmAddBtn = document.getElementById('mgmt-pm-add');
+    if (pmAddBtn) {
+      pmAddBtn.addEventListener('click', function () {
+        var inp = document.getElementById('mgmt-pm-input');
+        var val = inp ? inp.value.trim() : '';
+        if (!val) return;
+        var methods = _getPaymentMethods();
+        methods.push(val);
+        _savePaymentMethods(methods);
+        if (inp) inp.value = '';
+        _renderSettings();
+      });
+    }
+
+    var pmInput = document.getElementById('mgmt-pm-input');
+    if (pmInput) {
+      pmInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') document.getElementById('mgmt-pm-add').click();
+      });
+    }
+
+    document.querySelectorAll('.mgmt-pm-remove').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = parseInt(this.dataset.idx, 10);
+        var methods = _getPaymentMethods();
+        methods.splice(idx, 1);
+        _savePaymentMethods(methods);
+        _renderSettings();
+      });
+    });
   }
 
   function _saveProfile() {
