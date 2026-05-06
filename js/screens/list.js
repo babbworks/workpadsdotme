@@ -1,17 +1,14 @@
 /* ============================================================
-   ListScreen — record index with live search
+   ListScreen — dashboard overview (Financial + Contacts)
    ============================================================ */
 
 var ListScreen = (function () {
   'use strict';
 
-  var _records     = [];
-  var _query       = '';
-  var _filter      = 'original'; // 'original' | 'all' | 'received' | 'quote' | 'invoice'
+  var _records     = [];  // main records (not expense/payment)
+  var _expenses    = [];
+  var _payments    = [];
   var _stylesAdded = false;
-  var _density     = 1; // 0=title, 1=title+date, 2=title+date+customer, 3=all
-
-  var _DENSITY_KEY = 'wp_pref_list_density';
 
   // ── Styles ──────────────────────────────────────────────────
 
@@ -22,357 +19,188 @@ var ListScreen = (function () {
     s.textContent = [
       '.list-wrap { max-width:760px; margin:0 auto; padding:36px 32px 80px; }',
 
-      '.list-hd {',
-      '  display: flex;',
-      '  align-items: flex-end;',
-      '  justify-content: space-between;',
-      '  gap: 20px;',
-      '  margin-bottom: 28px;',
-      '  flex-wrap: wrap;',
+      '.list-hd { margin-bottom:28px; }',
+
+      /* Dashboard blocks */
+      '.list-block {',
+      '  background:var(--card); border:1px solid var(--rule);',
+      '  border-radius:4px; box-shadow:var(--shadow-card);',
+      '  margin-bottom:20px; overflow:hidden;',
+      '}',
+      '.list-block-hd {',
+      '  display:flex; align-items:center; justify-content:space-between;',
+      '  padding:14px 20px; border-bottom:1px solid var(--rule-light);',
+      '  flex-wrap:wrap; gap:10px;',
+      '}',
+      '.list-block-title {',
+      '  font-family:var(--font-display); font-size:15px; font-weight:700;',
+      '  color:var(--ink);',
+      '}',
+      '.list-block-meta {',
+      '  font-family:var(--font-mono); font-size:9.5px;',
+      '  color:var(--ink-muted); margin-top:2px;',
+      '}',
+      '.list-block-btns { display:flex; gap:6px; }',
+      '.list-block-btn {',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.10em; text-transform:uppercase;',
+      '  background:none; border:1.5px solid var(--rule);',
+      '  border-radius:3px; padding:5px 12px; cursor:pointer;',
+      '  color:var(--ink-muted); transition:all .12s;',
+      '}',
+      '.list-block-btn:hover { background:var(--stamp); border-color:var(--stamp); color:#fff; }',
+
+      /* Stat row */
+      '.list-block-snap {',
+      '  display:grid;',
+      '  grid-template-columns:repeat(auto-fill,minmax(130px,1fr));',
+      '}',
+      '.list-block-stat {',
+      '  padding:16px 18px;',
+      '  border-right:1px solid var(--rule-light);',
+      '}',
+      '.list-block-stat:last-child { border-right:none; }',
+      '.list-block-stat-lbl {',
+      '  font-family:var(--font-mono); font-size:8px; font-weight:700;',
+      '  letter-spacing:.14em; text-transform:uppercase;',
+      '  color:var(--ink-muted); margin-bottom:6px;',
+      '}',
+      '.list-block-stat-val {',
+      '  font-family:var(--font-display); font-size:22px; font-weight:700;',
+      '  color:var(--ink); line-height:1;',
+      '}',
+      '.list-block-stat-sub {',
+      '  font-family:var(--font-mono); font-size:9px;',
+      '  color:var(--ink-faint); margin-top:3px;',
       '}',
 
-      '.list-search {',
-      '  font-family: var(--font-mono);',
-      '  font-size: 12px;',
-      '  color: var(--ink);',
-      '  background: var(--card);',
-      '  border: 1.5px solid var(--rule);',
-      '  border-radius: 3px;',
-      '  padding: 8px 14px;',
-      '  width: 220px;',
-      '  transition: border-color .13s;',
-      '  -webkit-appearance: none;',
+      /* Contacts block */
+      '.list-contacts-body {',
+      '  padding:16px 20px; display:flex; flex-wrap:wrap; gap:8px;',
       '}',
-      '.list-search:focus { outline: none; border-color: var(--stamp-border); }',
-      '.list-search::placeholder { color: var(--ink-faint); }',
-
-      '.list-controls {',
-      '  display: flex;',
-      '  align-items: center;',
-      '  gap: 12px;',
+      '.list-contact-btn {',
+      '  font-family:var(--font-mono); font-size:10px; font-weight:700;',
+      '  letter-spacing:.06em; text-transform:uppercase;',
+      '  background:var(--rule-light); border:1.5px solid var(--rule);',
+      '  border-radius:3px; padding:7px 14px; cursor:pointer;',
+      '  color:var(--ink-muted); transition:all .12s;',
+      '}',
+      '.list-contact-btn:hover {',
+      '  border-color:var(--stamp-border); color:var(--stamp);',
+      '  background:var(--stamp-light);',
       '}',
 
-      '.list-density {',
-      '  display: flex;',
-      '  gap: 2px;',
-      '  align-items: center;',
-      '}',
-
-      '.list-density-dot {',
-      '  font-family: var(--font-body);',
-      '  font-size: 16px;',
-      '  line-height: 1;',
-      '  color: var(--ink-faint);',
-      '  padding: 2px 4px;',
-      '  border-radius: 2px;',
-      '  transition: color .12s;',
-      '}',
-      '.list-density-dot.active { color: var(--stamp); }',
-      '.list-density-dot:hover:not(.active) { color: var(--ink-mid); }',
-
-      '.list-records {',
-      '  border: 1px solid var(--rule);',
-      '  border-radius: 4px;',
-      '  background: var(--card);',
-      '  box-shadow: var(--shadow-card);',
-      '  overflow: hidden;',
-      '}',
-
-      '.list-row {',
-      '  display: flex;',
-      '  align-items: center;',
-      '  gap: 12px;',
-      '  padding: 16px 20px;',
-      '  border-bottom: 1px solid var(--rule-light);',
-      '  cursor: pointer;',
-      '  transition: background .1s;',
-      '  user-select: none;',
-      '}',
-      '.list-row:last-child { border-bottom: none; }',
-      '.list-row:hover { background: rgba(192,71,10,.04); }',
-      '.list-row:hover .list-row-arrow { transform: translateX(3px); color: var(--stamp); }',
-      '.list-row:focus { outline: 2px solid var(--stamp); outline-offset: -2px; }',
-
-      '.list-row-main { flex: 1; min-width: 0; }',
-
-      '.list-row-job {',
-      '  font-family: var(--font-body);',
-      '  font-size: 15px;',
-      '  font-weight: 700;',
-      '  color: var(--ink);',
-      '  line-height: 1.3;',
-      '  white-space: nowrap;',
-      '  overflow: hidden;',
-      '  text-overflow: ellipsis;',
-      '  margin-bottom: 4px;',
-      '}',
-
-      '.list-row-meta {',
-      '  font-family: var(--font-mono);',
-      '  font-size: 11px;',
-      '  color: var(--ink-muted);',
-      '  white-space: nowrap;',
-      '  overflow: hidden;',
-      '  text-overflow: ellipsis;',
-      '}',
-
-      '.list-row-actions {',
-      '  display: none;',
-      '  gap: 6px;',
-      '  flex-shrink: 0;',
-      '}',
-      '.list-row:hover .list-row-actions { display: flex; }',
-
-      '.list-row-action {',
-      '  font-family: var(--font-mono);',
-      '  font-size: 10px;',
-      '  font-weight: 700;',
-      '  letter-spacing: .06em;',
-      '  color: var(--ink-muted);',
-      '  background: var(--rule-light);',
-      '  border: 1px solid var(--rule);',
-      '  border-radius: 3px;',
-      '  padding: 4px 10px;',
-      '  transition: color .1s, border-color .1s;',
-      '}',
-      '.list-row-action:hover { color: var(--stamp); border-color: var(--stamp-border); }',
-
-      '.list-row-arrow {',
-      '  font-family: var(--font-body);',
-      '  font-size: 18px;',
-      '  color: var(--ink-faint);',
-      '  flex-shrink: 0;',
-      '  transition: transform .15s, color .13s;',
-      '  line-height: 1;',
-      '}',
-
-      '.list-count {',
-      '  font-family: var(--font-mono);',
-      '  font-size: 11px;',
-      '  color: var(--ink-muted);',
-      '  letter-spacing: .06em;',
-      '  margin-bottom: 24px;',
-      '  margin-top: -16px;',
-      '}',
-
-      '.list-empty {',
-      '  padding: 80px 32px;',
-      '  text-align: center;',
-      '}',
+      /* Empty state */
+      '.list-empty { padding:80px 32px; text-align:center; }',
       '.list-empty-heading {',
-      '  font-family: var(--font-display);',
-      '  font-size: 26px;',
-      '  font-weight: 300;',
-      '  font-style: italic;',
-      '  color: var(--ink-muted);',
-      '  margin-bottom: 10px;',
+      '  font-family:var(--font-display); font-size:26px;',
+      '  font-weight:300; font-style:italic;',
+      '  color:var(--ink-muted); margin-bottom:10px;',
       '}',
       '.list-empty-sub {',
-      '  font-family: var(--font-mono);',
-      '  font-size: 11px;',
-      '  color: var(--ink-faint);',
-      '  letter-spacing: .06em;',
-      '  margin-bottom: 24px;',
+      '  font-family:var(--font-mono); font-size:11px;',
+      '  color:var(--ink-faint); letter-spacing:.06em; margin-bottom:24px;',
       '}',
-
-      '.list-filter-bar {',
-      '  display: flex; gap: 6px; flex-wrap: wrap;',
-      '  margin-bottom: 20px;',
-      '}',
-      '.list-filter-btn {',
-      '  font-family: var(--font-mono); font-size: 10px; font-weight: 700;',
-      '  letter-spacing: .08em; text-transform: uppercase;',
-      '  color: var(--ink-muted); border: 1.5px solid var(--rule);',
-      '  border-radius: 3px; padding: 5px 12px; cursor: pointer;',
-      '  background: none; transition: color .13s, border-color .13s, background .13s;',
-      '}',
-      '.list-filter-btn.active {',
-      '  color: var(--stamp); border-color: var(--stamp-border); background: var(--stamp-light);',
-      '}',
-      '.list-filter-btn:hover:not(.active) { border-color: var(--ink-faint); color: var(--ink-mid); }',
-
-      '.list-type-tag {',
-      '  display: inline-block;',
-      '  font-family: var(--font-mono); font-size: 9px; font-weight: 700;',
-      '  letter-spacing: .10em; text-transform: uppercase;',
-      '  padding: 2px 6px; border-radius: 2px; margin-left: 8px;',
-      '  vertical-align: middle;',
-      '}',
-      '.list-type-tag-received { background: rgba(192,71,10,.10); color: var(--stamp); }',
-      '.list-type-tag-quote    { background: rgba(20,80,180,.08);  color: #3a6abf; }',
-      '.list-type-tag-invoice  { background: rgba(10,140,60,.08);  color: #1a7a40; }',
-
-      /* Overviews bar */
-      '.list-overviews {',
-      '  display:flex; align-items:center; gap:6px; flex-wrap:wrap;',
-      '  margin-bottom:20px;',
-      '}',
-      '.list-overviews-label {',
-      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
-      '  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint);',
-      '  margin-right:2px;',
-      '}',
-      '.list-overview-btn {',
-      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
-      '  letter-spacing:.08em; text-transform:uppercase;',
-      '  background:#f0f4fa; color:#1a3055; border:1.5px solid #c2cfe0;',
-      '  border-radius:3px; padding:4px 11px; cursor:pointer;',
-      '  transition:background .12s, border-color .12s;',
-      '}',
-      '.list-overview-btn:hover { background:#dbe6f5; border-color:#8aaad4; }',
     ].join('\n');
     document.head.appendChild(s);
   }
 
-  // ── Render ───────────────────────────────────────────────────
+  // ── Lifecycle ────────────────────────────────────────────────
 
   function onShow() {
     _addStyles();
-    _query   = '';
-    _filter  = 'original';
-    _density = parseInt(localStorage.getItem(_DENSITY_KEY) || '1', 10);
-    RecordService.list().then(function (records) {
-      // Exclude child records (expense, payment) — they appear under their parent in sidebar
-      _records = (records || []).filter(function (r) {
-        return r.recordType !== 'expense' && r.recordType !== 'payment';
-      });
+    RecordService.list().then(function (all) {
+      all = all || [];
+      _records  = all.filter(function (r) { return !r.parentId && r.recordType !== 'expense' && r.recordType !== 'payment'; });
+      _expenses = all.filter(function (r) { return r.recordType === 'expense'; });
+      _payments = all.filter(function (r) { return r.recordType === 'payment'; });
       _render();
     });
   }
 
   function onHide() {}
 
+  // ── Render ───────────────────────────────────────────────────
+
   function _render() {
-    var el       = document.getElementById('screen-list');
-    var filtered = _filtered();
-    var total    = _records.length;
+    var el  = document.getElementById('screen-list');
+    var sym = '\u00a3';
+    var fmt = function (n) { return sym + n.toFixed(2); };
+
+    var totalRevenue  = _records.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
+    var billedExps    = _expenses.filter(function (e) { return e.expense_billing !== 'cogs'; });
+    var totalExpenses = billedExps.reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+    var totalReceived = _payments.reduce(function (s, p) { return s + (parseFloat(p.amount) || 0); }, 0);
 
     var html = '<div class="list-wrap">';
 
-    // ── Header row
-    html += '<div class="list-hd">';
-    html += '<div>';
-    html += '<h1 class="screen-title">Records</h1>';
-    html += '<p class="screen-subtitle" style="margin-bottom:0;">' +
-              total + '\u00a0workpad' + (total !== 1 ? 's' : '') +
-            '</p>';
-    html += '</div>';
-    html += '<div class="list-controls">';
-    html += _renderDensitySelector();
-    html += '<input class="list-search" id="list-search" type="search" ' +
-              'placeholder="Search records\u2026" value="' + _esc(_query) + '" ' +
-              'autocomplete="off" spellcheck="false">';
-    html += '</div>';
-    html += '</div>';
+    // Header
+    html += '<div class="list-hd"><h1 class="screen-title">Workpads</h1></div>';
 
-    // ── Overviews bar
-    html += '<div class="list-overviews">' +
-      '<span class="list-overviews-label">Overviews:</span>' +
-      '<button class="list-overview-btn" id="list-overview-basic">$ Basic</button>' +
-      '<button class="list-overview-btn" id="list-overview-advanced">$ Advanced</button>' +
-    '</div>';
-
-    // ── Filter bar
-    var hasReceived = _records.some(function (r) { return r.receivedAt; });
-    var hasQuotes   = _records.some(function (r) { return r.record_type === 'quote'; });
-    var hasInvoices = _records.some(function (r) { return r.record_type === 'invoice'; });
-    html += '<div class="list-filter-bar" id="list-filter-bar">';
-    html += '<button class="list-filter-btn' + (_filter === 'original' ? ' active' : '') + '" data-filter="original">Original</button>';
-    html += '<button class="list-filter-btn' + (_filter === 'all'      ? ' active' : '') + '" data-filter="all">All</button>';
-    if (hasReceived) html += '<button class="list-filter-btn' + (_filter === 'received' ? ' active' : '') + '" data-filter="received">Received</button>';
-    if (hasQuotes)   html += '<button class="list-filter-btn' + (_filter === 'quote'    ? ' active' : '') + '" data-filter="quote">Quotes</button>';
-    if (hasInvoices) html += '<button class="list-filter-btn' + (_filter === 'invoice'  ? ' active' : '') + '" data-filter="invoice">Invoices</button>';
-    html += '</div>';
-
-    // ── Records list
-    if (total === 0) {
-      html += _renderEmpty(false);
-    } else if (filtered.length === 0) {
-      html += _renderEmpty(true);
-    } else {
-      html += '<div class="list-records">';
-      filtered.forEach(function (r) { html += _renderRow(r); });
+    if (_records.length === 0) {
+      html += _renderEmpty();
       html += '</div>';
+      el.innerHTML = html;
+      _bindEvents(el);
+      return;
     }
 
-    html += '</div>'; // wrapper
-    el.innerHTML = html;
+    // ── Financial Overview block
+    var metaStr = _records.length + ' record' + (_records.length !== 1 ? 's' : '');
+    if (_expenses.length) metaStr += ' \xb7 ' + _expenses.length + ' expense' + (_expenses.length !== 1 ? 's' : '');
+    if (_payments.length) metaStr += ' \xb7 ' + _payments.length + ' payment' + (_payments.length !== 1 ? 's' : '');
 
+    html += '<div class="list-block">';
+    html += '<div class="list-block-hd">';
+    html += '<div>' +
+      '<div class="list-block-title">Financial Overview</div>' +
+      '<div class="list-block-meta">' + metaStr + '</div>' +
+    '</div>';
+    html += '<div class="list-block-btns">' +
+      '<button class="list-block-btn" id="list-fin-basic">Basic</button>' +
+      '<button class="list-block-btn" id="list-fin-advanced">Advanced</button>' +
+    '</div>';
+    html += '</div>';
+
+    html += '<div class="list-block-snap">';
+    html += _stat('Workpads', String(_records.length), '');
+    if (totalRevenue  > 0) html += _stat('Revenue',  fmt(totalRevenue),  '');
+    if (totalExpenses > 0) html += _stat('Expenses', fmt(totalExpenses), '');
+    if (totalReceived > 0) html += _stat('Received', fmt(totalReceived), '');
+    if (totalRevenue > 0 && totalExpenses > 0) {
+      var margin    = totalRevenue - totalExpenses;
+      var marginPct = (margin / totalRevenue * 100).toFixed(1) + '%';
+      html += _stat('Gross margin', fmt(margin), marginPct);
+    }
+    html += '</div>';
+    html += '</div>'; // .list-block (Financial)
+
+    // ── Contacts block
+    html += '<div class="list-block">';
+    html += '<div class="list-block-hd"><div class="list-block-title">Contacts</div></div>';
+    html += '<div class="list-contacts-body">';
+    ['Customers', 'Workers', 'Subcontractors', 'Referrers', 'Witnesses'].forEach(function (ct) {
+      html += '<button class="list-contact-btn" data-contact="' + ct.toLowerCase() + '">' + ct + '</button>';
+    });
+    html += '</div>';
+    html += '</div>'; // .list-block (Contacts)
+
+    html += '</div>'; // .list-wrap
+    el.innerHTML = html;
     _bindEvents(el);
   }
 
-  function _renderDensitySelector() {
-    var symbols = ['\xb7', '\u2022', '\u25cf', '\u2b24'];
-    var titles  = ['Title only', 'Title + date', 'Title + date + customer', 'All fields'];
-    var html = '<div class="list-density">';
-    symbols.forEach(function (sym, i) {
-      html += '<button class="list-density-dot' + (i === _density ? ' active' : '') +
-              '" data-density="' + i + '" title="' + titles[i] + '">' + sym + '</button>';
-    });
-    return html + '</div>';
-  }
-
-  function _renderRow(r) {
-    var jobHtml = _esc(r.job || 'Untitled');
-    if (_query) jobHtml = _highlight(jobHtml, _esc(_query));
-
-    var isReceived = !!r.receivedAt;
-    var metaItems = [];
-
-    if (isReceived) {
-      // Received records: show who sent it and what type of response
-      var fromName = r.worker || r.customer || '';
-      if (fromName) metaItems.push('from\u00a0' + _esc(fromName.slice(0, 24)));
-      var nature = r.record_type === 'invoice' ? 'invoice reply'
-                 : r.record_type === 'quote'   ? 'quote reply'
-                 : r.record_type === 'ack'      ? 'approval'
-                 : 'update';
-      metaItems.push(nature);
-      if (r.receivedAt) metaItems.push(_fmtDate(r.receivedAt.slice(0, 10)));
-    } else {
-      if (_density >= 1 && r.date)     metaItems.push(_fmtDate(r.date));
-      if (_density >= 2 && r.customer) metaItems.push(_esc(r.customer.slice(0, 20)));
-      if (_density >= 3 && r.location) metaItems.push(_esc(r.location.slice(0, 20)));
-    }
-
-    var typeTag = isReceived
-      ? '<span class="list-type-tag list-type-tag-received">Received</span>'
-      : r.record_type === 'quote'
-      ? '<span class="list-type-tag list-type-tag-quote">Quote</span>'
-      : r.record_type === 'invoice'
-      ? '<span class="list-type-tag list-type-tag-invoice">Invoice</span>'
-      : '';
-
-    var rowStyle = isReceived
-      ? ' style="background:rgba(192,71,10,.025);border-left:2px solid var(--stamp-border);"'
-      : '';
-
+  function _stat(label, val, sub) {
     return (
-      '<div class="list-row" data-id="' + _esc(r.id) + '" tabindex="0" role="button"' + rowStyle + '>' +
-        '<div class="list-row-main">' +
-          '<div class="list-row-job">' + jobHtml + typeTag + '</div>' +
-          (metaItems.length
-            ? '<div class="list-row-meta">' + metaItems.join(' \xb7 ') + '</div>'
-            : '') +
-        '</div>' +
-        '<div class="list-row-actions">' +
-          (!isReceived ? '<button class="list-row-action" data-action="share" data-id="' + _esc(r.id) + '">Share</button>' : '') +
-          '<button class="list-row-action" data-action="edit" data-id="' + _esc(r.id) + '">Edit</button>' +
-        '</div>' +
-        '<div class="list-row-arrow">\u203a</div>' +
+      '<div class="list-block-stat">' +
+        '<div class="list-block-stat-lbl">' + label + '</div>' +
+        '<div class="list-block-stat-val">' + val + '</div>' +
+        (sub ? '<div class="list-block-stat-sub">' + sub + '</div>' : '') +
       '</div>'
     );
   }
 
-  function _renderEmpty(isFiltered) {
-    if (isFiltered) {
-      return (
-        '<div class="list-empty">' +
-          '<p class="list-empty-heading">No matches</p>' +
-          '<p class="list-empty-sub">Try a different search term</p>' +
-        '</div>'
-      );
-    }
+  function _renderEmpty() {
     return (
       '<div class="list-empty">' +
         '<p class="list-empty-heading">No workpads yet</p>' +
@@ -385,124 +213,26 @@ var ListScreen = (function () {
   // ── Events ───────────────────────────────────────────────────
 
   function _bindEvents(screenEl) {
-    // Overview buttons
-    var ovBasic = document.getElementById('list-overview-basic');
-    var ovAdv   = document.getElementById('list-overview-advanced');
-    if (ovBasic)    ovBasic.addEventListener('click',    function () { App.showFinanceOverview('basic'); });
-    if (ovAdv)      ovAdv.addEventListener('click',      function () { App.showFinanceOverview('advanced'); });
+    var basicBtn = document.getElementById('list-fin-basic');
+    var advBtn   = document.getElementById('list-fin-advanced');
+    if (basicBtn) basicBtn.addEventListener('click', function () { App.showFinanceOverview('basic'); });
+    if (advBtn)   advBtn.addEventListener('click',   function () { App.showFinanceOverview('advanced'); });
 
-    // Filter bar
-    var filterBar = document.getElementById('list-filter-bar');
-    if (filterBar) {
-      filterBar.addEventListener('click', function (e) {
-        var btn = e.target.closest('.list-filter-btn');
-        if (!btn) return;
-        _filter = btn.dataset.filter;
-        _render();
-      });
-    }
-
-    // Density dots
-    screenEl.querySelectorAll('.list-density-dot').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        _density = parseInt(this.dataset.density, 10);
-        localStorage.setItem(_DENSITY_KEY, String(_density));
-        _render();
+    screenEl.querySelectorAll('.list-contact-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (typeof App !== 'undefined' && App.toast) App.toast('Contacts coming soon');
       });
     });
 
-    // Search input
-    var searchEl = document.getElementById('list-search');
-    if (searchEl) {
-      searchEl.addEventListener('input', function () {
-        _query = this.value;
-        _render();
-        // restore focus to search after re-render
-        var el = document.getElementById('list-search');
-        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
-      });
-    }
-
-    // Row clicks → view
-    screenEl.querySelectorAll('.list-row').forEach(function (row) {
-      row.addEventListener('click', function (e) {
-        // Don't navigate if an action button was clicked
-        if (e.target.closest('.list-row-action')) return;
-        App.showView(this.dataset.id);
-      });
-      row.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          App.showView(this.dataset.id);
-        }
-      });
-    });
-
-    // Action buttons
-    screenEl.querySelectorAll('.list-row-action').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var id     = this.dataset.id;
-        var action = this.dataset.action;
-        if (action === 'share') App.showShare(id);
-        if (action === 'edit')  App.showWizard(id);
-      });
-    });
-
-    // Empty state new button
     var newBtn = document.getElementById('list-btn-new');
     if (newBtn) newBtn.addEventListener('click', function () { App.showWizard(); });
   }
 
   // ── Helpers ──────────────────────────────────────────────────
 
-  function _filtered() {
-    var base = _records.filter(function (r) {
-      if (_filter === 'original') return !r.receivedAt;
-      if (_filter === 'received') return !!r.receivedAt;
-      if (_filter === 'quote')    return r.record_type === 'quote';
-      if (_filter === 'invoice')  return r.record_type === 'invoice';
-      return true;
-    });
-    if (!_query) return base;
-    var q = _query.toLowerCase();
-    return base.filter(function (r) {
-      return (r.job      || '').toLowerCase().indexOf(q) !== -1 ||
-             (r.customer || '').toLowerCase().indexOf(q) !== -1 ||
-             (r.location || '').toLowerCase().indexOf(q) !== -1 ||
-             (r.date     || '').toLowerCase().indexOf(q) !== -1;
-    });
-  }
-
-  function _fmtDate(s) {
-    if (!s) return '';
-    try {
-      var d   = new Date(s + 'T00:00:00');
-      var mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      return d.getDate() + '\u00a0' + mon[d.getMonth()];
-    } catch (e) { return s; }
-  }
-
-  // Wrap matched text in a highlight span
-  function _highlight(escaped, query) {
-    var idx = escaped.toLowerCase().indexOf(query.toLowerCase());
-    if (idx === -1) return escaped;
-    return (
-      escaped.slice(0, idx) +
-      '<mark style="background:rgba(192,71,10,.15);color:inherit;border-radius:2px;">' +
-      escaped.slice(idx, idx + query.length) +
-      '</mark>' +
-      escaped.slice(idx + query.length)
-    );
-  }
-
   function _esc(s) {
     return String(s || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   // ── Public ───────────────────────────────────────────────────

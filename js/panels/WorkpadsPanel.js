@@ -11,6 +11,7 @@ var WorkpadsPanel = (function () {
   var _screenName   = 'list';
   var _screenParams = {};
   var _cogsOpen     = false;
+  var _listTab      = 'jobs';   // 'jobs' | 'quotes' | 'invoices'
 
   // ── Styles ───────────────────────────────────────────────────
 
@@ -290,6 +291,22 @@ var WorkpadsPanel = (function () {
       '  color:var(--ink-mid); font-size:10.5px;',
       '}',
       '.wpp-calc-row span:first-child { color:var(--ink-mid); }',
+
+      /* Sort tabs */
+      '.wpp-sort-tabs {',
+      '  display:flex; flex-shrink:0;',
+      '  border-bottom:1px solid var(--panel-border);',
+      '}',
+      '.wpp-sort-tab {',
+      '  flex:1; background:none; border:none; border-bottom:2px solid transparent;',
+      '  font-family:var(--font-mono); font-size:9px; font-weight:700;',
+      '  letter-spacing:.08em; text-transform:uppercase;',
+      '  padding:8px 4px; text-align:center;',
+      '  color:var(--ink-muted); cursor:pointer;',
+      '  transition:color .12s, border-color .12s;',
+      '}',
+      '.wpp-sort-tab.active { color:var(--stamp); border-bottom-color:var(--stamp); }',
+      '.wpp-sort-tab:hover:not(.active) { color:var(--ink-mid); }',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -312,6 +329,11 @@ var WorkpadsPanel = (function () {
         '<button class="wpp-back-btn" id="wpp-back-btn" title="Back to list">\u2190</button>' +
         '<input class="wpp-search-input" id="wpp-search" type="search"' +
           ' placeholder="Search\u2026" autocomplete="off" spellcheck="false">' +
+      '</div>' +
+      '<div class="wpp-sort-tabs" id="wpp-sort-tabs" style="display:none;">' +
+        '<button class="wpp-sort-tab active" data-tab="jobs">Jobs</button>' +
+        '<button class="wpp-sort-tab" data-tab="quotes">Quotes</button>' +
+        '<button class="wpp-sort-tab" data-tab="invoices">Invoices</button>' +
       '</div>' +
       '<div id="wpp-ctx" style="display:none;"></div>' +
       '<div id="wpp-expenses" style="display:none;"></div>' +
@@ -365,6 +387,24 @@ var WorkpadsPanel = (function () {
     if (backBtn) backBtn.style.display = inRecordMode ? '' : 'none';
     if (listEl)  listEl.style.display  = inRecordMode ? 'none' : '';
 
+    // Sort tabs: visible only in list mode
+    var sortTabsEl = document.getElementById('wpp-sort-tabs');
+    if (sortTabsEl) {
+      sortTabsEl.style.display = inRecordMode ? 'none' : '';
+      if (!inRecordMode) {
+        sortTabsEl.querySelectorAll('.wpp-sort-tab').forEach(function (btn) {
+          btn.classList.toggle('active', btn.dataset.tab === _listTab);
+          btn.onclick = function () {
+            _listTab = this.dataset.tab;
+            sortTabsEl.querySelectorAll('.wpp-sort-tab').forEach(function (b) {
+              b.classList.toggle('active', b.dataset.tab === _listTab);
+            });
+            _renderList();
+          };
+        });
+      }
+    }
+
     // Always hide expenses unless in record mode
     if (expEl && !inRecordMode) {
       expEl.style.display = 'none';
@@ -396,7 +436,6 @@ var WorkpadsPanel = (function () {
 
     var received = mainRecords.filter(function (r) { return !!r.receivedAt; }).length;
     var sent     = total - received;
-    var recent   = mainRecords.slice(0, 3);
 
     var statsHtml = '<div class="wpp-ctx-stats">' +
       '<span>' + total + ' total</span>';
@@ -404,19 +443,8 @@ var WorkpadsPanel = (function () {
     if (received) statsHtml += '<span class="wpp-ctx-stat-sep">\xb7</span><span>' + received + ' received</span>';
     statsHtml += '</div>';
 
-    var recentHtml = '';
-    if (recent.length) {
-      recentHtml = '<div class="wpp-ctx-recent-label">Recent</div>';
-      recent.forEach(function (r) {
-        recentHtml += '<div class="wpp-ctx-recent">' +
-          _esc(r.job || 'Untitled') +
-          (r.date ? '<span class="wpp-ctx-recent-date">' + _fmtDate(r.date) + '</span>' : '') +
-        '</div>';
-      });
-    }
-
     ctxEl.style.display = '';
-    ctxEl.innerHTML = '<div class="wpp-ctx"><div class="wpp-ctx-label">Overview</div>' + statsHtml + recentHtml + '</div>';
+    ctxEl.innerHTML = '<div class="wpp-ctx"><div class="wpp-ctx-label">Overview</div>' + statsHtml + '</div>';
   }
 
   function _renderRecordCtx(ctxEl) {
@@ -1046,9 +1074,16 @@ var WorkpadsPanel = (function () {
     var activeId = _activeId();
     var inRecordMode = (_screenName === 'view' || _screenName === 'edit' || _screenName === 'share');
 
-    // Filter: exclude child records and ACK records (approvals shown in view screen)
+    // Filter by tab then exclude child records and ACK records
     var mainRecords = _records.filter(function (r) {
-      return !r.parentId && r.record_type !== 'ack';
+      if (r.parentId || r.record_type === 'ack') return false;
+      if (!inRecordMode) {
+        if (_listTab === 'quotes')   return r.record_type === 'quote';
+        if (_listTab === 'invoices') return r.record_type === 'invoice';
+        // 'jobs': records that are not quotes or invoices
+        return r.record_type !== 'quote' && r.record_type !== 'invoice';
+      }
+      return true;
     });
 
     if (mainRecords.length === 0) {
