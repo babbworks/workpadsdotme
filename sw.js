@@ -1,4 +1,4 @@
-var CACHE = 'workpads-v2';
+var CACHE = 'workpads-v3';
 var ASSETS = [
   '/',
   '/index.html',
@@ -26,7 +26,9 @@ var ASSETS = [
   '/img/icon-192.svg',
   '/img/icon-512.svg',
   '/img/icon-192.png',
-  '/img/icon-512.png'
+  '/img/icon-512.png',
+  '/p/index.html',
+  '/p/customer.html'
 ];
 
 self.addEventListener('install', function (e) {
@@ -57,8 +59,9 @@ self.addEventListener('fetch', function (e) {
   e.respondWith(
     caches.match(e.request).then(function (cached) {
       if (cached) return cached;
-      /* Navigation requests (share-target, any unknown path) → serve cached index.html */
-      if (e.request.mode === 'navigate') {
+      /* Navigation fallback: share-target and unknown app paths → serve cached index.html.
+         /p/ receiver pages have their own HTML and must NOT be intercepted here. */
+      if (e.request.mode === 'navigate' && !url.pathname.startsWith('/p')) {
         return caches.match('/index.html');
       }
       return fetch(e.request).then(function (response) {

@@ -476,8 +476,19 @@ var App = (function () {
     // Wire import overlay
     _initImport();
 
-    // Handle ?start=1 from receiver page — skip onboarding if account already exists
     var urlParams = new URLSearchParams(window.location.search);
+
+    // ?import=<url> — receiver page redirects here to import a record
+    if (urlParams.get('import')) {
+      var importTarget = urlParams.get('import');
+      _checkOnboarding().then(function() {
+        _route();
+        setTimeout(function() { showImport(decodeURIComponent(importTarget)); }, 300);
+      });
+      return;
+    }
+
+    // ?start=1 from receiver page — skip onboarding if account already exists
     if (urlParams.get('start') === '1') {
       _showScreen('list', {});
       if (!ActivityService.hasAny()) _showOnboarding();
@@ -582,14 +593,7 @@ var App = (function () {
     if (saveBtn) {
       saveBtn.addEventListener('click', function () {
         if (!_importDecoded) return;
-        var rec = _importDecoded;
-        // Build fields for RecordService.create — map codec field names
-        var fields = {};
-        var copy = ['job','customer','date','worker','location','story','details',
-                    'amount','currency','vat','record_type','customer_phone',
-                    'start_time','end_time','meeting_time','actions'];
-        copy.forEach(function (k) { if (rec[k] != null) fields[k] = rec[k]; });
-        RecordService.create(fields).then(function (created) {
+        RecordService.storeReceived(_importDecoded).then(function (created) {
           _hideImport();
           toast('Workpad imported');
           if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) WorkpadsPanel.refresh();

@@ -174,6 +174,8 @@ var ShareScreen = (function () {
         return r.parentId === id && r.recordType === 'expense' && r.expense_billing !== 'cogs';
       });
       _payments = all.filter(function (r) { return r.parentId === id && r.recordType === 'payment'; });
+      // If this record has any line items, default to including them regardless of record type
+      if (_expenses.length || _payments.length) _includeFin = true;
       var parts = [];
       if (_expenses.length) parts.push(_expenses.length + ' expense' + (_expenses.length !== 1 ? 's' : ''));
       if (_payments.length) parts.push(_payments.length + ' payment' + (_payments.length !== 1 ? 's' : ''));

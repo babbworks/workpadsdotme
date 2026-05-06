@@ -675,6 +675,140 @@
       .main { padding: 32px 16px 60px; }
       .details-grid { grid-template-columns: 1fr 1fr; }
     }
+
+    /* ── Account bar (shown when viewer has a local account) ── */
+    .acct-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--ink); color: #e8dfd0;
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 20px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      z-index: 200; border-top: 2px solid #c0470a;
+      box-shadow: 0 -4px 24px rgba(25,20,15,.28);
+      animation: slideUp .22s ease forwards;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .acct-bar-name { flex: 1; letter-spacing: .06em; color: rgba(232,223,208,.65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .acct-bar-name strong { color: #f5ece0; }
+    .acct-bar-btn {
+      background: none; border: 1px solid rgba(232,223,208,.3); color: #e8dfd0;
+      padding: 6px 13px; border-radius: 3px; font-family: inherit; font-size: 10px;
+      letter-spacing: .1em; text-transform: uppercase; cursor: pointer; white-space: nowrap;
+      transition: background .12s, border-color .12s;
+    }
+    .acct-bar-btn:hover { background: rgba(232,223,208,.1); border-color: rgba(232,223,208,.6); }
+    .acct-bar-btn.primary { background: #c0470a; border-color: #c0470a; color: #fff; }
+    .acct-bar-btn.primary:hover { background: #a33a06; }
+    .acct-bar-dismiss {
+      background: none; border: none; color: rgba(232,223,208,.35);
+      font-size: 20px; cursor: pointer; padding: 0 2px; line-height: 1;
+      transition: color .12s; flex-shrink: 0;
+    }
+    .acct-bar-dismiss:hover { color: rgba(232,223,208,.8); }
+
+    /* ── Review screen (full-screen, sender reviewing returned record) */
+    .review-screen { min-height: 100vh; background: var(--paper); }
+    .review-header {
+      background: var(--ink); color: var(--paper);
+      padding: 36px 28px 30px;
+    }
+    .review-tag {
+      font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+      letter-spacing: .2em; text-transform: uppercase; color: #c0470a;
+      margin-bottom: 10px;
+    }
+    .review-title {
+      font-family: 'Fraunces', serif; font-size: 28px; font-weight: 300;
+      line-height: 1.22; color: var(--paper);
+    }
+    .review-meta {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      color: rgba(246,241,232,.5); margin-top: 10px; letter-spacing: .04em;
+    }
+    .review-body { max-width: 680px; margin: 0 auto; padding: 30px 24px 80px; }
+    .review-section { margin-bottom: 28px; }
+    .review-section-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 9px;
+      letter-spacing: .2em; text-transform: uppercase; color: var(--ink-muted);
+      padding-bottom: 9px; margin-bottom: 12px;
+      border-bottom: 1px solid var(--rule-light);
+    }
+    .review-record-card {
+      background: var(--card); border: 1px solid var(--rule);
+      border-radius: 4px; padding: 16px 18px;
+    }
+    .review-record-job {
+      font-family: 'Fraunces', serif; font-size: 19px; font-weight: 300;
+      color: var(--ink); margin-bottom: 5px;
+    }
+    .review-record-meta {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      color: var(--ink-muted); letter-spacing: .05em;
+    }
+    .review-approval-box {
+      background: #edf5ee; border: 1px solid #b4d9bb;
+      border-left: 3px solid #4a9a5a; border-radius: 3px; padding: 14px 18px;
+    }
+    .review-approval-name {
+      font-family: 'Fraunces', serif; font-size: 16px; font-weight: 700;
+      color: var(--ink); margin-bottom: 3px;
+    }
+    .review-approval-date {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      color: var(--ink-muted); letter-spacing: .05em;
+    }
+    .review-diff-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px; background: var(--card); border: 1px solid var(--rule);
+      border-radius: 3px; margin-bottom: 8px; transition: background .18s, border-color .18s, opacity .18s;
+    }
+    .review-diff-item.accepted { background: #edf5ee; border-color: #b4d9bb; }
+    .review-diff-item.declined { opacity: .38; }
+    .review-diff-label { flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink); }
+    .review-diff-amount {
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+      color: var(--ink-mid); flex-shrink: 0;
+    }
+    .review-diff-btns { display: flex; gap: 6px; flex-shrink: 0; }
+    .review-diff-accept, .review-diff-decline {
+      background: none; padding: 4px 10px; border-radius: 2px;
+      font-family: 'JetBrains Mono', monospace; font-size: 9px;
+      letter-spacing: .1em; text-transform: uppercase; cursor: pointer;
+      transition: background .12s, color .12s;
+    }
+    .review-diff-accept { border: 1px solid #4a9a5a; color: #4a9a5a; }
+    .review-diff-accept:hover, .review-diff-accept.active { background: #4a9a5a; color: #fff; }
+    .review-diff-decline { border: 1px solid var(--rule); color: var(--ink-muted); }
+    .review-diff-decline:hover { background: var(--rule-light); }
+    .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--rule-light); }
+    .review-btn-primary {
+      background: var(--stamp); color: #fff; border: none; border-radius: 3px;
+      padding: 11px 20px; font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+      cursor: pointer; transition: background .12s;
+    }
+    .review-btn-primary:hover { background: #a33a06; }
+    .review-btn-ghost {
+      background: none; color: var(--ink-mid); border: 1px solid var(--rule); border-radius: 3px;
+      padding: 11px 20px; font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+      cursor: pointer; transition: background .12s, border-color .12s;
+    }
+    .review-btn-ghost:hover { background: var(--rule-light); border-color: var(--ink-mid); }
+    .review-done-banner {
+      background: #edf5ee; border: 1px solid #b4d9bb; border-radius: 3px;
+      padding: 14px 18px; font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: #3a7a45; letter-spacing: .04em; line-height: 1.6;
+    }
+    .review-done-banner a { color: inherit; font-weight: 700; }
+    @media (max-width: 600px) {
+      .review-header { padding: 28px 20px 24px; }
+      .review-body { padding: 22px 16px 60px; }
+      .review-diff-btns { flex-direction: column; gap: 4px; }
+    }
   </style>
 </head>
 <body>
@@ -1405,6 +1539,185 @@
     '</div>';
   }
 
+  // ── Account detection (reads ActivityService storage directly) ──
+  function getLocalAccount() {
+    try {
+      var activeId = localStorage.getItem('wp_activity_active');
+      if (!activeId) return null;
+      var raw = localStorage.getItem('wp_activity_' + activeId);
+      return raw ? JSON.parse(raw) : null;
+    } catch(e) { return null; }
+  }
+
+  // Find an OWN (sent) record that has this chainRef — no receivedAt, no parentId
+  function findOwnedRecordByChainRef(chainRef) {
+    if (!chainRef) return null;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf('wp_record_') !== 0) continue;
+        var r = JSON.parse(localStorage.getItem(k) || 'null');
+        if (r && !r.parentId && !r.receivedAt && r.chainRef === chainRef) return r;
+      }
+    } catch(_) {}
+    return null;
+  }
+
+  // ── Account bar (for viewers who have a local account) ───────
+  function renderAccountBar(account, record) {
+    var bar = document.createElement('div');
+    bar.className = 'acct-bar';
+    bar.id = 'acct-bar';
+    bar.innerHTML = (
+      '<span class="acct-bar-name">Signed in as <strong>' + esc(account.name || 'you') + '</strong> on this device</span>' +
+      '<button class="acct-bar-btn primary" id="acct-import-btn">Import to Workpads</button>' +
+      '<a class="acct-bar-btn" href="https://workpads.me/" target="_blank" style="text-decoration:none;">Open app</a>' +
+      '<button class="acct-bar-dismiss" id="acct-bar-dismiss" title="Dismiss">&times;</button>'
+    );
+    document.body.appendChild(bar);
+    document.getElementById('acct-bar-dismiss').onclick = function() { bar.style.display = 'none'; };
+    document.getElementById('acct-import-btn').onclick = function() {
+      window.location.href = 'https://workpads.me/?import=' + encodeURIComponent(window.location.href);
+    };
+  }
+
+  // ── Full-screen review (sender reviewing a returned record) ──
+  function renderReview(received, ownedRecord, fin) {
+    var page = document.querySelector('.page');
+    if (!page) return;
+
+    var isAck      = !!(received.job && received.job.indexOf('ACK: ') === 0);
+    var senderName = received.worker || 'Recipient';
+    var viewerExps = fin ? (fin.e || []).filter(function(e) { return e.s === 'v'; }) : [];
+    var hasChanges = viewerExps.length > 0;
+    var sym        = ownedRecord.currency === 'EUR' ? '\u20ac' : ownedRecord.currency === 'USD' ? '$' : '\u00a3';
+
+    var tagText, titleText;
+    if (isAck && hasChanges)    { tagText = 'Approval + Updates Received'; titleText = 'Quote approved with additions'; }
+    else if (isAck)             { tagText = 'Approval Received';   titleText = 'Quote approved'; }
+    else if (hasChanges)        { tagText = 'Updates Received';    titleText = 'Recipient added items'; }
+    else                        { tagText = 'Record Returned';     titleText = 'Returned by ' + esc(senderName); }
+
+    var html = '<div class="review-screen">';
+    html += '<div class="review-header">';
+    html += '<div class="review-tag">' + esc(tagText) + '</div>';
+    html += '<div class="review-title">' + titleText + '</div>';
+    html += '<div class="review-meta">From ' + esc(senderName) + ' &middot; ' + esc(received.date || new Date().toISOString().slice(0,10)) + '</div>';
+    html += '</div>';
+    html += '<div class="review-body">';
+
+    html += '<div class="review-section"><div class="review-section-label">Your original record</div>';
+    html += '<div class="review-record-card">';
+    html += '<div class="review-record-job">' + esc(ownedRecord.job || 'Untitled') + '</div>';
+    var mp = [];
+    if (ownedRecord.customer) mp.push(ownedRecord.customer);
+    if (ownedRecord.date)     mp.push(ownedRecord.date);
+    if (mp.length) html += '<div class="review-record-meta">' + esc(mp.join(' \u00b7 ')) + '</div>';
+    html += '</div></div>';
+
+    if (isAck) {
+      html += '<div class="review-section"><div class="review-section-label">Approval confirmation</div>';
+      html += '<div class="review-approval-box">';
+      html += '<div class="review-approval-name">' + esc(senderName) + '</div>';
+      html += '<div class="review-approval-date">Approved ' + esc(received.date || '') + '</div>';
+      html += '</div></div>';
+    }
+
+    if (hasChanges) {
+      html += '<div class="review-section"><div class="review-section-label">Items added by recipient (' + viewerExps.length + ')</div>';
+      viewerExps.forEach(function(exp, idx) {
+        html += '<div class="review-diff-item" id="rdiff-' + idx + '">';
+        html += '<div class="review-diff-label">' + esc(exp.l || 'Expense') + '</div>';
+        html += '<div class="review-diff-amount">' + esc(sym) + esc(exp.a || '0') + '</div>';
+        html += '<div class="review-diff-btns">';
+        html += '<button class="review-diff-accept" data-idx="' + idx + '">Accept</button>';
+        html += '<button class="review-diff-decline" data-idx="' + idx + '">Skip</button>';
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div id="review-actions-block"><div class="review-actions">';
+    if (hasChanges) html += '<button class="review-btn-primary" id="rv-accept-all">Accept all items</button>';
+    if (isAck)      html += '<button class="review-btn-primary" id="rv-mark-approved">Mark as approved</button>';
+    html += '<button class="review-btn-ghost" id="rv-open-app">Open in Workpads</button>';
+    html += '</div></div>';
+    html += '</div></div>'; // .review-body .review-screen
+
+    page.innerHTML = html;
+
+    // Wire individual accept/decline buttons
+    var _accepted = [];
+    function _setDiff(idx, accept) {
+      var el = document.getElementById('rdiff-' + idx);
+      if (!el) return;
+      el.classList.toggle('accepted', accept);
+      el.classList.toggle('declined', !accept);
+      el.querySelector('.review-diff-accept').classList.toggle('active', accept);
+      var ai = _accepted.indexOf(idx);
+      if (accept && ai === -1) _accepted.push(idx);
+      if (!accept && ai !== -1) _accepted.splice(ai, 1);
+    }
+
+    page.querySelectorAll('.review-diff-accept').forEach(function(btn) {
+      btn.addEventListener('click', function() { _setDiff(parseInt(this.dataset.idx, 10), true); });
+    });
+    page.querySelectorAll('.review-diff-decline').forEach(function(btn) {
+      btn.addEventListener('click', function() { _setDiff(parseInt(this.dataset.idx, 10), false); });
+    });
+
+    function _commit(acceptAll) {
+      var toAccept = acceptAll ? viewerExps.map(function(_,i){return i;}) : _accepted.slice();
+      if (acceptAll) viewerExps.forEach(function(_, i) { _setDiff(i, true); });
+      _applyReview(viewerExps, toAccept, ownedRecord, sym, isAck, senderName, received);
+    }
+
+    var aaBtn = document.getElementById('rv-accept-all');
+    if (aaBtn) aaBtn.addEventListener('click', function() { _commit(true); });
+    var maBtn = document.getElementById('rv-mark-approved');
+    if (maBtn) maBtn.addEventListener('click', function() { _commit(false); });
+    var openBtn = document.getElementById('rv-open-app');
+    if (openBtn) openBtn.addEventListener('click', function() { window.open('https://workpads.me/', '_blank'); });
+  }
+
+  function _applyReview(viewerExps, acceptedIdxs, ownedRecord, sym, isAck, senderName, received) {
+    var now = Date.now();
+    acceptedIdxs.forEach(function(idx) {
+      var exp = viewerExps[idx];
+      if (!exp) return;
+      var eid = 'rv_' + now.toString(36) + '_' + idx;
+      localStorage.setItem('wp_record_' + eid, JSON.stringify({
+        id: eid, parentId: ownedRecord.id,
+        recordType: 'expense', job: exp.l || 'Expense',
+        amount: exp.a || '0', currency: ownedRecord.currency || 'GBP',
+        expense_billing: 'customer',
+        draft: false, createdAt: now, updatedAt: now, fromReview: true,
+      }));
+    });
+
+    // Update owned record status
+    var ownedKey = null;
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!k || k.indexOf('wp_record_') !== 0) continue;
+      try { var r = JSON.parse(localStorage.getItem(k)); if (r && r.id === ownedRecord.id) { ownedKey = k; break; } } catch(_) {}
+    }
+    if (ownedKey && isAck) {
+      try {
+        var rec = JSON.parse(localStorage.getItem(ownedKey));
+        rec.approvedAt = now; rec.approvedBy = senderName;
+        rec.record_type = 'invoice'; rec.updatedAt = now;
+        localStorage.setItem(ownedKey, JSON.stringify(rec));
+      } catch(_) {}
+    }
+
+    var msg = [];
+    if (acceptedIdxs.length) msg.push(acceptedIdxs.length + ' item' + (acceptedIdxs.length !== 1 ? 's' : '') + ' added to your records');
+    if (isAck) msg.push('record marked as approved');
+    var block = document.getElementById('review-actions-block');
+    if (block) block.innerHTML = '<div class="review-done-banner">\u2713 ' + (msg.join(' \u00b7 ') || 'Done') + ' &mdash; <a href="https://workpads.me/">open Workpads</a></div>';
+  }
+
   // ── Demo record ───────────────────────────────────────────
   var DEMO = {
     job:            'Replace faucet and reline drainage',
@@ -1550,9 +1863,22 @@
       var record = decodeWorkpad(hash);
       _currentRecord = record;
       _currentFin    = recordToFin(record);
-      storeReceived(record);
-      renderDocument(record, false, _currentFin);
-      _bindViewerExpenseForm(record, _currentFin);
+
+      var chainRef    = record._chainRef || null;
+      var ownedRecord = findOwnedRecordByChainRef(chainRef);
+
+      if (ownedRecord) {
+        // This device sent the original record — show full-screen review
+        storeReceived(record);
+        renderReview(record, ownedRecord, _currentFin);
+      } else {
+        storeReceived(record);
+        renderDocument(record, false, _currentFin);
+        _bindViewerExpenseForm(record, _currentFin);
+        // If viewer has an account on this device, offer app actions
+        var account = getLocalAccount();
+        if (account && account.name) renderAccountBar(account, record);
+      }
     } catch (e) {
       renderError(e.message);
     }
