@@ -1228,7 +1228,7 @@ button.panel-title:active { color: var(--stamp); }
 }
 .mobile-nav-note:active { background: var(--rule-light); color: var(--ink); border-color: var(--ink); }
 
-/* W home button — filled circle with logo */
+/* W home button — filled circle with logo, always visible */
 .mobile-nav-home {
   width: 34px;
   height: 34px;
@@ -1237,7 +1237,7 @@ button.panel-title:active { color: var(--stamp); }
   border-radius: 50%;
   background: var(--ink);
   padding: 0;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;

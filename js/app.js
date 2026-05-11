@@ -277,6 +277,105 @@ var App = (function () {
     }, 120);
   }
 
+  // Seed two realistic demo records on first onboarding so new users land
+  // on a populated list that demonstrates the full feature set.
+  function _seedDemoRecords() {
+    if (localStorage.getItem('wp_demos_v1')) return;
+    localStorage.setItem('wp_demos_v1', '1');
+
+    var t  = Date.now();
+    var D1 = 'demo1r';
+    var D2 = 'demo2r';
+
+    var records = [
+
+      // ── Record 1 — Invoice: boiler service ──────────────────
+      { id: D1, record_type: 'invoice',
+        job: 'Boiler service & pressure fix', customer: 'Helen Marsh',
+        date: '2026-05-08', location: '14 Birch Lane',
+        start_time: '09:00', end_time: '13:30', meeting_time: '08:45',
+        customer_phone: '+44 7700 900142',
+        worker: 'James Owens',
+        participants: [
+          { name: 'James Owens', role: 'worker' },
+          { name: 'Tom Bradley', role: 'sub' },
+        ],
+        amount: '420.00', currency: 'GBP', vat: 'standard',
+        charge_type: '', parts_flag: true, worker_cost: '180.00',
+        actions: [
+          { title: 'Flush & inspect system',        notes: 'Pressure low on arrival — 0.4 bar' },
+          { title: 'Replace pressure relief valve', notes: 'Faulty 3-bar PRV — part no. PRV-3B' },
+          { title: 'Top up system inhibitor',       notes: 'Fernox F1, 500ml' },
+          { title: 'Commission & sign-off',         notes: '' },
+        ],
+        story: 'Found system pressure critically low. Replaced faulty relief valve, flushed system, and added inhibitor. All radiators heating evenly on completion.',
+        details: 'Potterton 28kW. Final pressure 1.5 bar. PRV rated 3 bar. Inhibitor: Fernox F1.',
+        chainRef: 'AAEC', draft: false, createdAt: t - 259200000, updatedAt: t - 86400000 },
+
+      // Expenses for D1
+      { id: 'demo1e1', parentId: D1, recordType: 'expense',
+        job: 'Pressure relief valve', amount: '65.00', currency: 'GBP',
+        expense_billing: 'customer', charge_type: '6', actionIdx: 1,
+        date: '2026-05-08', draft: false, createdAt: t - 86400000, updatedAt: t - 86400000 },
+
+      { id: 'demo1e2', parentId: D1, recordType: 'expense',
+        job: 'Fernox F1 inhibitor', amount: '18.50', currency: 'GBP',
+        expense_billing: 'customer', charge_type: '6', actionIdx: 2,
+        date: '2026-05-08', draft: false, createdAt: t - 86400000, updatedAt: t - 86400000 },
+
+      { id: 'demo1c1', parentId: D1, recordType: 'expense',
+        job: 'Parts cost', amount: '55.00', currency: 'GBP',
+        expense_billing: 'cogs', charge_type: '6', action_quoted: '83.50',
+        date: '2026-05-08', draft: false, createdAt: t - 86400000, updatedAt: t - 86400000 },
+
+      // Partial payment for D1
+      { id: 'demo1p1', parentId: D1, recordType: 'payment',
+        job: 'Deposit', amount: '200.00', currency: 'GBP',
+        date: '2026-05-07', draft: false, createdAt: t - 172800000, updatedAt: t - 172800000 },
+
+      // ── Record 2 — Quote: consumer unit upgrade ─────────────
+      { id: D2, record_type: 'quote',
+        job: 'Consumer unit upgrade', customer: 'Park View Estates',
+        date: '2026-05-14', location: 'Unit 3, Park View Rd',
+        start_time: '08:00', end_time: '17:00', meeting_time: '07:45',
+        customer_phone: '+44 7911 123456',
+        worker: 'Sarah Chen',
+        participants: [
+          { name: 'Sarah Chen', role: 'worker' },
+        ],
+        amount: '1850.00', currency: 'GBP', vat: 'standard',
+        charge_type: '', parts_flag: true, worker_cost: '920.00',
+        actions: [
+          { title: 'Survey & disconnect old board', notes: 'Wylex split-load — 18th Ed non-compliant' },
+          { title: 'Install new consumer unit',     notes: '17-way dual RCD board (DBDB17)' },
+          { title: 'Test, certify & handover',      notes: 'EICR + Part P notification required' },
+        ],
+        story: 'Quote for full consumer unit replacement to 18th Edition standards. Existing Wylex board removed. All circuits tested and certified on completion.',
+        details: '18th Ed DBDB17 board. Part P notification required post-install. EICR to be issued. Allow full day.',
+        chainRef: 'AAED', draft: false, createdAt: t - 172800000, updatedAt: t - 43200000 },
+
+      // Expenses for D2
+      { id: 'demo2e1', parentId: D2, recordType: 'expense',
+        job: '18th Ed consumer unit', amount: '145.00', currency: 'GBP',
+        expense_billing: 'customer', charge_type: '5', actionIdx: 1,
+        date: '2026-05-14', draft: false, createdAt: t - 43200000, updatedAt: t - 43200000 },
+
+      { id: 'demo2e2', parentId: D2, recordType: 'expense',
+        job: 'Cabling & fixings', amount: '85.00', currency: 'GBP',
+        expense_billing: 'customer', charge_type: '6', actionIdx: 1,
+        date: '2026-05-14', draft: false, createdAt: t - 43200000, updatedAt: t - 43200000 },
+
+      { id: 'demo2c1', parentId: D2, recordType: 'expense',
+        job: 'Materials cost', amount: '165.00', currency: 'GBP',
+        expense_billing: 'cogs', charge_type: '6', action_quoted: '230.00', actionIdx: 1,
+        date: '2026-05-14', draft: false, createdAt: t - 43200000, updatedAt: t - 43200000 },
+    ];
+
+    records.forEach(function(rec) {
+      localStorage.setItem('wp_record_' + rec.id, JSON.stringify(rec));
+    });
+  }
+
   function _completeOnboarding() {
     var nameVal  = (document.getElementById('onboard-name').value  || '').trim();
     var phoneVal = (document.getElementById('onboard-phone').value || '').trim();
@@ -288,6 +387,7 @@ var App = (function () {
       return;
     }
     ActivityService.create({ name: nameVal, phone: phoneVal });
+    _seedDemoRecords();
     el.overlayOnboarding.style.display = 'none';
     if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) {
       WorkpadsPanel.refresh();
