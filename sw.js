@@ -1,10 +1,9 @@
-var CACHE = 'workpads-v16';
+var CACHE = 'workpads-v17';
 var ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/css/app.css',
-  '/css/app-telegram.css',
   '/js/lib/fflate.js',
   '/js/lib/codec.js',
   '/js/services/StorageAdapter.js',
@@ -29,6 +28,7 @@ var ASSETS = [
   '/img/icon-512.png',
   '/img/at-workpads.png',
   '/img/logo-w.png',
+  '/img/classic-bg.svg',
   '/p/index.html',
   '/p/customer.html'
 ];

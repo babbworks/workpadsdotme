@@ -1,6 +1,6 @@
 # Codec Sync — Three Inline Copies
 
-workpadsdotme inlines the bitpad-v1 codec in three places. All three must be kept in sync.
+workpadsdotme inlines the pads-v1 codec in three places. All three must be kept in sync.
 
 ## The Three Copies
 
@@ -9,6 +9,10 @@ workpadsdotme inlines the bitpad-v1 codec in three places. All three must be kep
 | `js/lib/codec.js` | Full codec (encode + decode + validate). Loaded by main app. Exposes `window.WPCodec`. |
 | `p/index.html` | Decode-only inline. Standalone receiver page. No external deps. |
 | `p/customer.html` | Full encode + decode inline. Customer-facing receiver with ACK flow. |
+
+## `#1pv/` native (2026-05-24)
+
+KaiOS and `@workpads/codec` decode native G0–G6 frames. **workpadsdotme** `p/index.html` still uses legacy inline pads-v1 decoders only — port `pathc-native` + `native-v1-split` or call shared `WPCodec.decode` before app work.
 
 ## Canonical Spec
 
