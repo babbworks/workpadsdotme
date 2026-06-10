@@ -105,18 +105,59 @@
   <div id="overlay-onboarding" class="overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="onboard-heading">
     <div class="overlay-card">
       <div class="overlay-wordmark"><img src="/img/at-workpads.png" alt="@workpads" class="overlay-wordmark-img"></div>
-      <h1 class="overlay-heading" id="onboard-heading">Your records,<br>on your device.</h1>
-      <p class="overlay-sub">No account. No server. Everything lives right here, in your personal browser.</p>
-      <div class="field-group">
-        <label class="field-label" for="onboard-name">Your name <span class="field-required">*</span></label>
-        <input class="field-input" id="onboard-name" type="text" placeholder="e.g. Alice Smith" autocomplete="name" autocorrect="off">
+      <h1 class="overlay-heading" id="onboard-heading">What are you<br>creating?</h1>
+      <div class="pad-type-grid" id="onboard-type-grid">
+        <button class="pad-type-btn selected" data-type="field">
+          <span class="pad-type-label">Field</span>
+          <span class="pad-type-desc">Visits, sites &amp; actions</span>
+        </button>
+        <button class="pad-type-btn" data-type="work">
+          <span class="pad-type-label">Work</span>
+          <span class="pad-type-desc">Jobs, quotes &amp; invoices</span>
+        </button>
+        <button class="pad-type-btn" data-type="note">
+          <span class="pad-type-label">Note</span>
+          <span class="pad-type-desc">Free-form sections</span>
+        </button>
+        <button class="pad-type-btn" data-type="plan">
+          <span class="pad-type-label">Plan</span>
+          <span class="pad-type-desc">Actions with a deadline</span>
+        </button>
       </div>
       <div class="field-group">
-        <label class="field-label" for="onboard-phone">Phone / WhatsApp <span class="field-optional">(optional)</span></label>
-        <input class="field-input" id="onboard-phone" type="tel" placeholder="e.g. +44 7700 900123" autocomplete="tel">
+        <label class="field-label" for="onboard-alias">Your name / alias <span class="field-optional">(optional)</span></label>
+        <input class="field-input" id="onboard-alias" type="text" placeholder="How should we call you?" autocomplete="off" autocorrect="off">
       </div>
-      <button class="btn-primary btn-full" id="onboard-submit">Start sending workpads</button>
-      <p class="overlay-footnote">Your name appears on records you create. You can change it later in settings.</p>
+      <button class="btn-primary btn-full" id="onboard-submit">Start</button>
+      <p class="overlay-privacy">No server, no account, no data. Everything you create encodes into a link and stays on this device. We are structurally unable to read it.</p>
+    </div>
+  </div>
+
+  <!-- ── Pad type picker overlay ───────────────────────────── -->
+  <div id="overlay-pad-type" class="overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pad-type-heading">
+    <div class="overlay-card overlay-card-sm">
+      <h2 class="overlay-heading-sm" id="pad-type-heading">New workpad</h2>
+      <div class="pad-type-grid">
+        <button class="pad-type-btn" data-type="field">
+          <span class="pad-type-label">Field</span>
+          <span class="pad-type-desc">Visits, sites &amp; actions</span>
+        </button>
+        <button class="pad-type-btn" data-type="work">
+          <span class="pad-type-label">Work</span>
+          <span class="pad-type-desc">Jobs, quotes &amp; invoices</span>
+        </button>
+        <button class="pad-type-btn" data-type="note">
+          <span class="pad-type-label">Note</span>
+          <span class="pad-type-desc">Free-form sections</span>
+        </button>
+        <button class="pad-type-btn" data-type="plan">
+          <span class="pad-type-label">Plan</span>
+          <span class="pad-type-desc">Actions with a deadline</span>
+        </button>
+      </div>
+      <div class="overlay-actions">
+        <button class="btn-ghost" id="pad-type-cancel">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -199,7 +240,7 @@
 
       /* Left footer: New Workpad */
       var newBtn = document.getElementById('lpf-new-workpad');
-      if (newBtn) newBtn.addEventListener('click', function () { App.showWizard(); });
+      if (newBtn) newBtn.addEventListener('click', function () { App.showTypePicker(); });
 
       /* Left footer: archive link + count */
       var archLink = document.getElementById('lpf-archive-link');

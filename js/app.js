@@ -40,7 +40,7 @@ var App = (function () {
         _showScreen('list', {});
         break;
       case 'new':
-        _showScreen('wizard', { mode: 'new' });
+        _showScreen('wizard', { mode: 'new', padType: seg1 || 'work' });
         break;
       case 'edit':
         if (!seg1) { navigate('/'); return; }
@@ -169,7 +169,8 @@ var App = (function () {
   // ── Public navigation helpers ────────────────────────────────
 
   function showList()                  { navigate('/'); }
-  function showWizard(id)              { navigate(id ? '/edit/' + id : '/new'); }
+  function showWizard(id, padType)     { navigate(id ? '/edit/' + id : '/new/' + (padType || 'work')); }
+  function showTypePicker()            { _showTypePicker(); }
   function showView(id)                { navigate('/view/' + id); }
   function showShare(id)               { navigate('/share/' + id); }
   function showExpense(parentId, amount, actionIdx) {
@@ -271,10 +272,30 @@ var App = (function () {
 
   function _showOnboarding() {
     el.overlayOnboarding.style.display = 'flex';
+    // Wire type grid selection
+    var grid = document.getElementById('onboard-type-grid');
+    if (grid) {
+      grid.addEventListener('click', function(e) {
+        var btn = e.target.closest('.pad-type-btn');
+        if (!btn) return;
+        grid.querySelectorAll('.pad-type-btn').forEach(function(b) { b.classList.remove('selected'); });
+        btn.classList.add('selected');
+      });
+    }
     setTimeout(function() {
-      var input = document.getElementById('onboard-name');
+      var input = document.getElementById('onboard-alias');
       if (input) input.focus();
     }, 120);
+  }
+
+  // ── Pad type picker ──────────────────────────────────────────
+
+  function _showTypePicker() {
+    if (el.overlayPadType) el.overlayPadType.style.display = 'flex';
+  }
+
+  function _hideTypePicker() {
+    if (el.overlayPadType) el.overlayPadType.style.display = 'none';
   }
 
   // Seed two realistic demo records on first onboarding so new users land
@@ -377,22 +398,21 @@ var App = (function () {
   }
 
   function _completeOnboarding() {
-    var nameVal  = (document.getElementById('onboard-name').value  || '').trim();
-    var phoneVal = (document.getElementById('onboard-phone').value || '').trim();
-    if (!nameVal) {
-      var nameInput = document.getElementById('onboard-name');
-      nameInput.focus();
-      nameInput.style.borderColor = 'var(--stamp)';
-      setTimeout(function() { nameInput.style.borderColor = ''; }, 1200);
-      return;
-    }
-    ActivityService.create({ name: nameVal, phone: phoneVal });
+    var aliasVal = (document.getElementById('onboard-alias').value || '').trim();
+    // Find selected pad type from onboarding grid
+    var grid = document.getElementById('onboard-type-grid');
+    var selectedBtn = grid && grid.querySelector('.pad-type-btn.selected');
+    var padType = (selectedBtn && selectedBtn.dataset.type) || 'field';
+
+    ActivityService.create({ name: aliasVal, alias: aliasVal });
+    if (aliasVal) localStorage.setItem('wp_pref_alias', aliasVal);
+
     _seedDemoRecords();
     el.overlayOnboarding.style.display = 'none';
     if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) {
       WorkpadsPanel.refresh();
     }
-    _route();
+    navigate('/new/' + padType);
   }
 
   // ── Quick note ───────────────────────────────────────────────
@@ -509,6 +529,7 @@ var App = (function () {
     el.panelRight        = document.getElementById('panel-right');
     el.overlayOnboarding = document.getElementById('overlay-onboarding');
     el.overlayQuicknote  = document.getElementById('overlay-quicknote');
+    el.overlayPadType    = document.getElementById('overlay-pad-type');
     el.btnNew            = document.getElementById('btn-new');          // may be null (topbar removed)
     el.btnManage         = document.getElementById('btn-manage');       // may be null (topbar removed)
     el.mobileBtnLeft     = document.getElementById('mobile-btn-left');   // filled disc — records panel
@@ -538,7 +559,7 @@ var App = (function () {
     if (typeof PersonalPanel !== 'undefined' && PersonalPanel.init) PersonalPanel.init();
 
     // Topbar buttons (may not exist if topbar removed)
-    if (el.btnNew)    el.btnNew.addEventListener('click',    function() { showWizard(); });
+    if (el.btnNew)    el.btnNew.addEventListener('click',    function() { _showTypePicker(); });
     if (el.btnManage) el.btnManage.addEventListener('click', function() { showManagement(); });
     if (el.mobileBtnLeft)   el.mobileBtnLeft.addEventListener('click',   function() { _openMobilePanel('left'); });
     if (el.mobileBtnRight)  el.mobileBtnRight.addEventListener('click',  function() { _openMobilePanel('right'); });
@@ -564,6 +585,21 @@ var App = (function () {
     el.overlayOnboarding.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') _completeOnboarding();
     });
+
+    // Pad type picker overlay
+    if (el.overlayPadType) {
+      el.overlayPadType.querySelectorAll('.pad-type-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          _hideTypePicker();
+          navigate('/new/' + btn.dataset.type);
+        });
+      });
+      var cancelBtn = document.getElementById('pad-type-cancel');
+      if (cancelBtn) cancelBtn.addEventListener('click', _hideTypePicker);
+      el.overlayPadType.addEventListener('click', function(e) {
+        if (e.target === el.overlayPadType) _hideTypePicker();
+      });
+    }
 
     // Quick note overlay
     document.getElementById('quicknote-cancel').addEventListener('click', _hideQuickNote);

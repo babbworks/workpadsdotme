@@ -10,6 +10,8 @@ var WizardScreen = (function () {
   var _record         = {};
   var _id             = null;
   var _mode           = 'new';   // 'new' | 'edit' | 'expense' | 'payment'
+  var _padType        = 'work';  // 'work' | 'field' | 'note' | 'plan'
+  var _locations      = [{ address: '', notes: '' }]; // Field type locations
   var _parentRecord   = null;
   var _tab            = 'process';
   var _stylesAdded    = false;
@@ -27,6 +29,25 @@ var WizardScreen = (function () {
 
   var TAB_INDEX = { process: 0, actions: 1, details: 2, story: 3 };
 
+  var TABS_FIELD = [
+    { key: 'process', label: 'Process' },
+    { key: 'actions', label: 'Actions' },
+    { key: 'story',   label: 'Notes'   },
+  ];
+
+  var TABS_NOTE = [
+    { key: 'process', label: 'Process' },
+    { key: 'actions', label: 'Actions' },
+    { key: 'details', label: 'Details' },
+    { key: 'story',   label: 'Story'   },
+  ];
+
+  var TABS_PLAN = [
+    { key: 'process', label: 'Process' },
+    { key: 'actions', label: 'Actions' },
+    { key: 'story',   label: 'Notes'   },
+  ];
+
   function _tabs() {
     if (_mode === 'payment') {
       return [
@@ -42,6 +63,9 @@ var WizardScreen = (function () {
         { key: 'story',   label: 'Story'   },
       ];
     }
+    if (_padType === 'field') return TABS_FIELD;
+    if (_padType === 'note')  return TABS_NOTE;
+    if (_padType === 'plan')  return TABS_PLAN;
     return TABS;
   }
 
@@ -445,16 +469,20 @@ var WizardScreen = (function () {
   function onShow(params) {
     _addStyles();
     _mode           = params.mode || 'new';
+    _padType        = params.padType || 'work';
     _tab            = 'process';
     _storyPreview   = false;
     _detailsPreview = false;
     _actFilter      = '';
     _dragIndex      = -1;
+    _locations      = [{ address: '', notes: '' }];
 
     if (_mode === 'edit' && params.id) {
       _id = params.id;
       RecordService.get(_id).then(function (r) {
         _record = r || {};
+        _padType = r.record_class || 'work';
+        _locations = (r._locations_json && JSON.parse(r._locations_json)) || [{ address: r.location || '', notes: '' }];
         _render();
         _notifyContext();
       });
@@ -627,12 +655,47 @@ var WizardScreen = (function () {
   // ── Tab bodies ───────────────────────────────────────────────
 
   function _renderTabBody(tab) {
-    switch (tab) {
-      case 'process': return _renderProcess();
-      case 'actions': return _renderActions();
-      case 'details': return _renderDetails();
-      case 'story':   return _renderStory();
-      default:        return '';
+    // Expense / payment keep their own paths unchanged
+    if (_mode === 'expense' || _mode === 'payment') {
+      switch (tab) {
+        case 'process': return _renderProcess();
+        case 'actions': return _renderActions();
+        case 'details': return _renderDetails();
+        case 'story':   return _renderStory();
+        default:        return '';
+      }
+    }
+    switch (_padType) {
+      case 'field':
+        switch (tab) {
+          case 'process': return _renderProcessField();
+          case 'actions': return _renderActions();
+          case 'story':   return _renderStory();
+          default:        return '';
+        }
+      case 'note':
+        switch (tab) {
+          case 'process': return _renderProcessNote();
+          case 'actions': return _renderActionsNote();
+          case 'details': return _renderDetailsNote();
+          case 'story':   return _renderStory();
+          default:        return '';
+        }
+      case 'plan':
+        switch (tab) {
+          case 'process': return _renderProcessPlan();
+          case 'actions': return _renderActions();
+          case 'story':   return _renderStory();
+          default:        return '';
+        }
+      default: // 'work'
+        switch (tab) {
+          case 'process': return _renderProcess();
+          case 'actions': return _renderActions();
+          case 'details': return _renderDetails();
+          case 'story':   return _renderStory();
+          default:        return '';
+        }
     }
   }
 
@@ -666,6 +729,92 @@ var WizardScreen = (function () {
       '</div>'
     );
   }
+
+  // ── Field type renderer ──────────────────────────────────────
+
+  function _renderProcessField() {
+    var locHtml = '<div class="field-group"><label class="field-label">Locations</label>';
+    locHtml += '<div class="wiz-locations-list" id="wiz-locations-list">';
+    _locations.forEach(function(loc, i) {
+      locHtml += '<div class="wiz-location-item" data-loc-idx="' + i + '">' +
+        '<div class="wiz-location-row">' +
+          '<input class="field-input wiz-loc-address" type="text" placeholder="Address or site name"' +
+            ' value="' + _esc(loc.address || '') + '" data-loc-field="address" data-loc-idx="' + i + '">' +
+          (_locations.length > 1
+            ? '<button class="wiz-location-remove" type="button" data-remove-loc="' + i + '" title="Remove">&times;</button>'
+            : '') +
+        '</div>' +
+        '<textarea class="field-input wiz-location-notes" rows="2" placeholder="Notes for this location"' +
+          ' data-loc-field="notes" data-loc-idx="' + i + '">' + _esc(loc.notes || '') + '</textarea>' +
+      '</div>';
+    });
+    locHtml += '</div>';
+    locHtml += '<button class="wiz-add-location-btn" id="wiz-add-location" type="button">+ Add location</button>';
+    locHtml += '</div>';
+
+    return (
+      '<div class="card"><div class="card-section">' +
+        _field('date',       'Date',       'date', _record.date       || '', false, '') +
+        _field('start_time', 'Start time', 'text', _record.start_time || '', false, '09:00') +
+        _field('end_time',   'End time',   'text', _record.end_time   || '', false, '') +
+        locHtml +
+        _field('worker', 'Your alias', 'text', _record.worker || localStorage.getItem('wp_pref_alias') || '', false, 'Optional — how you sign this') +
+      '</div></div>'
+    );
+  }
+
+  // ── Note type renderer ───────────────────────────────────────
+
+  function _renderProcessNote() {
+    return (
+      '<div class="card"><div class="card-section">' +
+        _field('job', 'Title', 'text', _record.job || '', false, 'What is this note about?') +
+        _field('worker', 'Your alias', 'text', _record.worker || localStorage.getItem('wp_pref_alias') || '', false, 'Optional') +
+      '</div></div>'
+    );
+  }
+
+  function _renderActionsNote() {
+    return (
+      '<div class="card"><div class="card-section">' +
+        '<div class="field-group">' +
+          '<label class="field-label">Actions</label>' +
+          '<textarea class="field-input" id="f-pads-actions" rows="10" style="height:180px;resize:none;" placeholder="One action per line, or freeform notes">' +
+            _esc(_record.pads_actions || '') +
+          '</textarea>' +
+        '</div>' +
+      '</div></div>'
+    );
+  }
+
+  function _renderDetailsNote() {
+    return (
+      '<div class="card"><div class="card-section">' +
+        '<div class="field-group">' +
+          '<label class="field-label">Details</label>' +
+          '<textarea class="field-input" id="f-pads-details" rows="10" style="height:180px;resize:none;" placeholder="Supporting details">' +
+            _esc(_record.pads_details || _record.details || '') +
+          '</textarea>' +
+        '</div>' +
+      '</div></div>'
+    );
+  }
+
+  // ── Plan type renderer ───────────────────────────────────────
+
+  function _renderProcessPlan() {
+    return (
+      '<div class="card"><div class="card-section">' +
+        _field('job',      'Title',    'text', _record.job      || '', false, 'What is the plan?') +
+        _field('date',     'Start',    'date', _record.date     || '', false, '') +
+        _field('due_date', 'Due date', 'date', _record.due_date || '', false, '') +
+        _field('location', 'Location', 'text', _record.location || '', false, 'Where (optional)') +
+        _field('worker', 'Your alias', 'text', _record.worker || localStorage.getItem('wp_pref_alias') || '', false, 'Optional') +
+      '</div></div>'
+    );
+  }
+
+  // ── Work type (existing process renderer) ────────────────────
 
   function _renderProcess() {
     var jobLabel       = (_mode === 'expense' || (_mode === 'edit' && _record.recordType === 'expense')) ? 'Short description' : 'Job';
@@ -1197,6 +1346,8 @@ var WizardScreen = (function () {
     _tryCollect('meeting_time',   'f-meeting_time');
     _tryCollect('story',          'f-story');
     _tryCollect('details',        'f-details');
+    _tryCollect('due_date',       'f-due_date');
+    _tryCollect('worker',         'f-worker');
     _tryCollect('amount',         'f-amount');
     _tryCollect('currency',       'f-currency');
     _tryCollect('vat',            'f-vat');
@@ -1205,12 +1356,42 @@ var WizardScreen = (function () {
     _tryCollect('action_quoted',  'f-action_quoted');
     _tryCollect('charge_type',    'f-charge_type');
     _tryCollect('payment_ref',    'f-payment_ref');
-    // When payment_ref is set, sync to job field for display
     if (_record.payment_ref) _record.job = _record.payment_ref;
-    // linkedExpenseId and expense_billing are set from params, already on _record
+
+    // Note type: collect free-text PADS sections
+    if (_padType === 'note') {
+      _tryCollect('pads_actions', 'f-pads-actions');
+      _tryCollect('pads_details', 'f-pads-details');
+    }
+
+    // Field type: collect locations and set first as canonical location field
+    if (_padType === 'field') {
+      _collectLocations();
+      _record.location = (_locations[0] && _locations[0].address) ? _locations[0].address : '';
+      _record._locations_json = _locations.length > 1 || (_locations[0] && _locations[0].notes)
+        ? JSON.stringify(_locations) : undefined;
+    }
+
+    // Stamp pad type on every record
+    _record.record_class = _padType;
+
     _collectParticipants();
     _collectPartsFlag();
     _collectActions();
+  }
+
+  function _collectLocations() {
+    var addressEls = document.querySelectorAll('.wiz-loc-address');
+    var notesEls   = document.querySelectorAll('.wiz-location-notes');
+    if (!addressEls.length) return;
+    var locs = [];
+    for (var i = 0; i < addressEls.length; i++) {
+      locs.push({
+        address: addressEls[i].value.trim(),
+        notes:   notesEls[i] ? notesEls[i].value.trim() : '',
+      });
+    }
+    _locations = locs;
   }
 
   function _tryCollect(key, elId) {
@@ -1377,6 +1558,32 @@ var WizardScreen = (function () {
   }
 
   function _bindBodyEvents() {
+    // ── Add location (Field type) ────────────────────────────
+    var addLocBtn = document.getElementById('wiz-add-location');
+    if (addLocBtn) {
+      addLocBtn.addEventListener('click', function () {
+        _collectLocations();
+        _locations.push({ address: '', notes: '' });
+        var body = document.getElementById('wiz-body');
+        if (body) {
+          body.innerHTML = _renderTabBody('process');
+          _bindBodyEvents();
+          var inputs = document.querySelectorAll('.wiz-loc-address');
+          if (inputs.length) inputs[inputs.length - 1].focus();
+        }
+      });
+    }
+
+    document.querySelectorAll('[data-remove-loc]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        _collectLocations();
+        var idx = parseInt(this.dataset.removeLoc, 10);
+        _locations.splice(idx, 1);
+        var body = document.getElementById('wiz-body');
+        if (body) { body.innerHTML = _renderTabBody('process'); _bindBodyEvents(); }
+      });
+    });
+
     // ── Add action ───────────────────────────────────────────
     var addActionBtn = document.getElementById('wiz-add-action');
     if (addActionBtn) {

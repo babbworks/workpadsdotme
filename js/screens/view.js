@@ -700,6 +700,8 @@ var ViewScreen = (function () {
         '<p class="view-prose" style="font-style:italic;font-size:14px;">Received via shared link</p>');
     }
 
+    html += _renderCommentsSection(r);
+
     html += '</div>'; // .card
 
     // ── Financial card (separate, below main card)
@@ -722,6 +724,64 @@ var ViewScreen = (function () {
 
     el.innerHTML = html;
     _bindEvents();
+  }
+
+  function _renderCommentsSection(r) {
+    var deviceKey = 'wp_exp_comments_' + r.id;
+    var deviceComments = [];
+    try {
+      deviceComments = JSON.parse(localStorage.getItem(deviceKey) || '[]');
+    } catch (_) {}
+
+    // Record-encoded comments are stored in r._exp_comments (JSON array)
+    var recordComments = [];
+    try {
+      recordComments = JSON.parse(r._exp_comments || '[]');
+    } catch (_) {}
+
+    var allComments = deviceComments.map(function(c) { return Object.assign({}, c, { _source: 'device' }); })
+      .concat(recordComments.map(function(c) { return Object.assign({}, c, { _source: 'record' }); }))
+      .sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
+
+    var defaultAlias = localStorage.getItem('wp_pref_alias') || '';
+    var html = '<div class="comments-section" id="view-comments-section">';
+    html += '<div class="comments-section-heading">Comments</div>';
+
+    if (allComments.length) {
+      allComments.forEach(function(c) {
+        var d  = new Date(c.ts || 0);
+        var mo = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        var ti = d.toTimeString().slice(0, 5);
+        var badge = c._source === 'record'
+          ? '<span class="comment-badge comment-badge-record">in record</span>'
+          : '<span class="comment-badge comment-badge-device">this device</span>';
+        html += '<div class="comment-item">' +
+          '<div class="comment-meta">' +
+            (c.alias ? '<span class="comment-alias">' + _esc(c.alias) + '</span>' : '') +
+            '<span>' + mo + ' \xb7 ' + ti + '</span>' +
+            badge +
+          '</div>' +
+          '<div class="comment-body">' + _esc(c.text) + '</div>' +
+        '</div>';
+      });
+    }
+
+    html += '<div class="comment-add-form">' +
+      '<div class="comment-add-row">' +
+        '<input class="field-input comment-add-alias" id="view-comment-alias" type="text"' +
+          ' placeholder="Your alias (optional)" value="' + _esc(defaultAlias) + '" autocomplete="off">' +
+      '</div>' +
+      '<textarea class="field-input comment-add-text" id="view-comment-text"' +
+        ' placeholder="Add a comment…" rows="3"></textarea>' +
+      '<div class="comment-save-row">' +
+        '<span class="comment-save-hint">Save to device keeps it private. Save to record travels with the next share.</span>' +
+        '<button class="btn-ghost" id="view-comment-save-device">Save to device</button>' +
+        '<button class="btn-primary" id="view-comment-save-record">Save to record</button>' +
+      '</div>' +
+    '</div>';
+
+    html += '</div>';
+    return html;
   }
 
   function _renderMetaRow(r) {
@@ -1295,6 +1355,47 @@ var ViewScreen = (function () {
 
     _bindFinancialEvents(id);
 
+    // ── Comments (experiment) ────────────────────────────────
+    var saveDeviceBtn = document.getElementById('view-comment-save-device');
+    var saveRecordBtn = document.getElementById('view-comment-save-record');
+
+    function _collectComment() {
+      var alias = (document.getElementById('view-comment-alias').value || '').trim();
+      var text  = (document.getElementById('view-comment-text').value  || '').trim();
+      return text ? { alias: alias, text: text, ts: Date.now() } : null;
+    }
+
+    function _refreshComments() {
+      _render();
+    }
+
+    if (saveDeviceBtn) {
+      saveDeviceBtn.addEventListener('click', function () {
+        var c = _collectComment();
+        if (!c) return;
+        var deviceKey = 'wp_exp_comments_' + id;
+        var existing = [];
+        try { existing = JSON.parse(localStorage.getItem(deviceKey) || '[]'); } catch (_) {}
+        existing.push(c);
+        localStorage.setItem(deviceKey, JSON.stringify(existing));
+        if (c.alias) localStorage.setItem('wp_pref_alias', c.alias);
+        _refreshComments();
+      });
+    }
+
+    if (saveRecordBtn) {
+      saveRecordBtn.addEventListener('click', function () {
+        var c = _collectComment();
+        if (!c) return;
+        var existing = [];
+        try { existing = JSON.parse(_record._exp_comments || '[]'); } catch (_) {}
+        existing.push(c);
+        _record._exp_comments = JSON.stringify(existing);
+        if (c.alias) localStorage.setItem('wp_pref_alias', c.alias);
+        RecordService.save(id, _record).then(function () { _refreshComments(); });
+      });
+    }
+
     // Shared note-column wiring (job + customer)
     function _bindNoteCol(type) {
       var isJob     = type === 'job';
@@ -1647,7 +1748,7 @@ var ViewScreen = (function () {
 
   function _esc(s) {
     return String(s || '')
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function _escNl(s) {

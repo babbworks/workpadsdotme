@@ -1467,3 +1467,207 @@ button.panel-title:active { color: var(--stamp); }
   flex-shrink: 0;
   min-width: 60px;
 }
+
+/* ── Pad type picker ────────────────────────────────────────── */
+.pad-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 20px 0 24px;
+}
+
+.pad-type-btn {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  background: var(--rule-light);
+  border: 2px solid var(--rule);
+  border-radius: 5px;
+  padding: 16px 12px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  text-align: center;
+}
+.pad-type-btn:hover {
+  border-color: var(--ink-mid);
+  color: var(--ink);
+}
+.pad-type-btn.selected {
+  border-color: var(--stamp);
+  color: var(--stamp);
+  background: var(--bg);
+}
+.pad-type-btn .pad-type-label {
+  display: block;
+  font-size: 13px;
+}
+.pad-type-btn .pad-type-desc {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-style: italic;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+
+.overlay-privacy {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  line-height: 1.65;
+  margin-top: 20px;
+  letter-spacing: 0.02em;
+  border-top: 1px solid var(--rule-light);
+  padding-top: 14px;
+}
+
+/* ── Field type: locations list ─────────────────────────────── */
+.wiz-locations-list {
+  margin-bottom: 10px;
+}
+.wiz-location-item {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--bg);
+}
+.wiz-location-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.wiz-location-row input {
+  flex: 1;
+}
+.wiz-location-remove {
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+.wiz-location-remove:hover { color: var(--stamp); }
+.wiz-location-notes {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--rule-light);
+  border-radius: 3px;
+  padding: 5px 8px;
+  resize: none;
+  box-sizing: border-box;
+}
+.wiz-add-location-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-mid);
+  background: none;
+  border: 1px dashed var(--rule);
+  border-radius: 4px;
+  padding: 7px 14px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  margin-top: 2px;
+}
+.wiz-add-location-btn:hover { border-color: var(--ink-mid); color: var(--ink); }
+
+/* ── Comments section (view screen) ────────────────────────── */
+.comments-section {
+  margin-top: 24px;
+  border-top: 1px solid var(--rule);
+  padding-top: 18px;
+}
+.comments-section-heading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 12px;
+}
+.comment-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule-light);
+}
+.comment-meta {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+}
+.comment-alias {
+  font-weight: 700;
+  color: var(--ink-mid);
+  margin-right: 6px;
+}
+.comment-badge {
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+  margin-left: 4px;
+}
+.comment-badge-device {
+  background: var(--rule-light);
+  color: var(--ink-faint);
+}
+.comment-badge-record {
+  background: rgba(80,130,80,0.1);
+  color: #4a7a4a;
+}
+.comment-body {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.55;
+}
+.comment-add-form {
+  margin-top: 14px;
+  background: var(--rule-light);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 12px 14px;
+}
+.comment-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.comment-add-alias {
+  width: 140px;
+  flex-shrink: 0;
+}
+.comment-add-text {
+  flex: 1;
+  min-height: 60px;
+  resize: none;
+}
+.comment-save-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+.comment-save-hint {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-faint);
+  flex: 1;
+}
