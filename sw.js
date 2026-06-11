@@ -1,4 +1,4 @@
-var CACHE = 'workpads-v17';
+var CACHE = 'workpads-v33';
 var ASSETS = [
   '/',
   '/index.html',
@@ -6,6 +6,11 @@ var ASSETS = [
   '/css/app.css',
   '/js/lib/fflate.js',
   '/js/lib/codec.js',
+  '/js/lib/map-utils.js',
+  '/js/lib/postcard.js',
+  '/js/lib/pad-type.js',
+  '/js/lib/workpads-encrypt.js',
+  '/js/lib/pads-ext.js',
   '/js/services/StorageAdapter.js',
   '/js/services/ActivityService.js',
   '/js/services/RecordService.js',

@@ -16,6 +16,10 @@ var ShareScreen = (function () {
   var _includeStory    = true;
   var _includeDetails  = false;  // private notes — off by default
   var _includeCustomer = true;   // customer name, contact, location — on by default
+  var _includeContact  = false;  // pad share: optional contact fields
+  var _contactName     = '';
+  var _contactPhone    = '';
+  var _encodedContact  = { name: '', phone: '' };
   var _finSummary      = '';
   var _stylesAdded     = false;
 
@@ -27,6 +31,21 @@ var ShareScreen = (function () {
     var s = document.createElement('style');
     s.textContent = [
       '.share-wrap { max-width:620px; margin:0 auto; padding:36px 32px 80px; }',
+      '.share-encrypt-notice {',
+      '  font-family:var(--font-mono); font-size:11px; line-height:1.5;',
+      '  color:var(--ink-mid); background:var(--stamp-light);',
+      '  border:1px solid #e8c4aa; border-radius:4px;',
+      '  padding:12px 14px; margin-bottom:22px;',
+      '}',
+      '.share-origin-notice {',
+      '  font-family:var(--font-mono); font-size:10px; line-height:1.45;',
+      '  color:var(--ink-muted); margin-bottom:14px;',
+      '}',
+      '.share-url-warn {',
+      '  font-family:var(--font-mono); font-size:11px; line-height:1.45;',
+      '  color:var(--stamp); background:var(--stamp-light); border:1px solid #e8c4aa;',
+      '  border-radius:4px; padding:10px 12px; margin-bottom:14px;',
+      '}',
 
       '.share-url-box {',
       '  background:var(--ink); border-radius:4px;',
@@ -161,6 +180,14 @@ var ShareScreen = (function () {
       '.share-fin-opt-note {',
       '  font-family:var(--font-mono); font-size:9px; color:var(--ink-faint);',
       '}',
+
+      '.share-contact-fields {',
+      '  margin:-8px 0 16px; padding:12px 14px;',
+      '  border:1.5px solid var(--rule); border-radius:3px;',
+      '  background:var(--paper);',
+      '}',
+      '.share-contact-fields .field-group { margin-bottom:10px; }',
+      '.share-contact-fields .field-group:last-child { margin-bottom:0; }',
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -181,10 +208,15 @@ var ShareScreen = (function () {
       _finSummary      = '';
       _includeFin      = (_shareType === 'quote' || _shareType === 'invoice');
       _includeStory    = true;
-      _includeDetails  = false;
-      _includeCustomer = true;
+      _includeDetails  = (r.record_class === 'plan');
+      _includeCustomer = !_isReducedShare(r);
+      _includeContact  = false;
+      _contactName     = '';
+      _contactPhone    = '';
+      _encodedContact  = { name: '', phone: '' };
       _loadFin().then(function () {
-        _encodeUrl();
+        return _refreshUrl();
+      }).then(function () {
         _render();
       });
     });
@@ -203,6 +235,38 @@ var ShareScreen = (function () {
     _includeStory    = true;
     _includeDetails  = false;
     _includeCustomer = true;
+    _includeContact  = false;
+    _contactName     = '';
+    _contactPhone    = '';
+    _encodedContact  = { name: '', phone: '' };
+  }
+
+  function _isReducedShare(rec) {
+    var r = rec || _record;
+    if (!r) return false;
+    var cls = r.record_class || 'work';
+    return cls !== 'work';
+  }
+
+  function _padShareLabel() {
+    var cls = (_record && _record.record_class) || 'work';
+    return { field: 'field visit', note: 'memo', plan: 'plan' }[cls] || 'workpad';
+  }
+
+  function _contactFieldsDirty() {
+    if (!_includeContact) return false;
+    return _contactName !== _encodedContact.name || _contactPhone !== _encodedContact.phone;
+  }
+
+  function _contactFieldsReady() {
+    return _includeContact && (_contactName.trim() || _contactPhone.trim());
+  }
+
+  function _copyBtnLabel() {
+    if (_isReducedShare() && _contactFieldsReady() && _contactFieldsDirty()) {
+      return 'Recreate link';
+    }
+    return 'Copy link';
   }
 
   function _loadFin() {
@@ -213,8 +277,7 @@ var ShareScreen = (function () {
         return r.parentId === id && r.recordType === 'expense' && r.expense_billing !== 'cogs';
       });
       _payments = all.filter(function (r) { return r.parentId === id && r.recordType === 'payment'; });
-      // If this record has any line items, default to including them regardless of record type
-      if (_expenses.length || _payments.length) _includeFin = true;
+      if (!_isReducedShare() && (_expenses.length || _payments.length)) _includeFin = true;
       var parts = [];
       if (_expenses.length) parts.push(_expenses.length + ' expense' + (_expenses.length !== 1 ? 's' : ''));
       if (_payments.length) parts.push(_payments.length + ' payment' + (_payments.length !== 1 ? 's' : ''));
@@ -222,14 +285,38 @@ var ShareScreen = (function () {
     });
   }
 
-  function _encodeUrl() {
+  function _isLocationPad() {
+    var cls = (_record && _record.record_class) || 'work';
+    return cls === 'field' || cls === 'plan';
+  }
+
+  function _encodeUrl(locationsJson) {
     try {
       var recForEncode = Object.assign({}, _record, {
         record_type: _shareType === 'job' ? undefined : _shareType,
       });
+      if (locationsJson !== undefined) recForEncode._locations_json = locationsJson;
       if (!_includeStory)    delete recForEncode.story;
       if (!_includeDetails)  delete recForEncode.details;
-      if (!_includeCustomer) {
+      if (_isReducedShare()) {
+        delete recForEncode.customer;
+        // Field/plan addresses travel via pads-ext (and codec location when present)
+        var padCls = recForEncode.record_class || 'work';
+        if (padCls !== 'field' && padCls !== 'plan') {
+          delete recForEncode.location;
+        }
+        delete recForEncode.participants;
+        delete recForEncode.amount;
+        delete recForEncode.currency;
+        delete recForEncode.vat;
+        if (_includeContact) {
+          if (_contactName.trim())  recForEncode.worker = _contactName.trim();
+          if (_contactPhone.trim()) recForEncode.customer_phone = _contactPhone.trim();
+        } else {
+          delete recForEncode.worker;
+          delete recForEncode.customer_phone;
+        }
+      } else if (!_includeCustomer) {
         delete recForEncode.customer;
         delete recForEncode.customer_phone;
         delete recForEncode.location;
@@ -240,13 +327,25 @@ var ShareScreen = (function () {
         ? { expenses: _expenses, payments: _payments }
         : null;
       var fragment = RecordService.encodeUrl(recForEncode, finOpts);
-      if (_shareView === 'full') {
-        fragment = fragment.replace('workpads.me/p#', 'workpads.me/p/customer.html#');
-      }
-      _url = 'https://' + fragment;
+      _url = RecordService.shareUrlFromCodec(fragment, _shareView);
     } catch (e) {
       _url = '';
     }
+  }
+
+  function _refreshUrl() {
+    if (!_record) return Promise.resolve();
+    if (!_record._locations_json || typeof MapUtils === 'undefined') {
+      _encodeUrl();
+      return Promise.resolve();
+    }
+    return MapUtils.recompressLocationsJsonForShare(_record._locations_json, false)
+      .then(function (json) { _encodeUrl(json); })
+      .catch(function () { _encodeUrl(); });
+  }
+
+  function _reencode() {
+    return _refreshUrl().then(_syncUrlDisplay);
   }
 
   // ── Render ───────────────────────────────────────────────────
@@ -278,34 +377,48 @@ var ShareScreen = (function () {
 
     var html = '<div class="share-wrap">';
 
+    var reduced = _isReducedShare();
+
     // Header
-    html += '<h1 class="screen-title">Share workpad</h1>';
-    html += '<p class="screen-subtitle">' + _esc(_record.job || 'Untitled') + '</p>';
+    html += '<h1 class="screen-title">' + (reduced ? 'Share ' + _padShareLabel() : 'Share workpad') + '</h1>';
+    var sealed = (typeof WorkpadsEncrypt !== 'undefined') && WorkpadsEncrypt.isSealed(_record);
+    html += '<p class="screen-subtitle">' + _esc(sealed ? 'Encrypted workpad' : (_record.job || 'Untitled')) + '</p>';
 
-    // Share-as type selector
-    var shareTypes = [
-      { val: 'job',     label: 'Job record' },
-      { val: 'quote',   label: 'Quote' },
-      { val: 'invoice', label: 'Invoice' },
-    ];
-    html += '<div class="share-type-label">Share as</div>';
-    html += '<div class="share-type-row" id="share-type-row">';
-    shareTypes.forEach(function (t) {
-      html += '<button type="button" class="share-type-btn' +
-              (t.val === _shareType ? ' active' : '') +
-              '" data-type="' + t.val + '">' + t.label + '</button>';
-    });
-    html += '</div>';
+    if (sealed) {
+      html += '<div class="share-encrypt-notice">' +
+        'This link contains only encrypted data. Send your passphrase to the recipient separately — ' +
+        'by text, call, or in person. It is not included in the link.' +
+      '</div>';
+    }
 
-    // View layout selector
-    html += '<div class="share-type-label">View layout</div>';
-    html += '<div class="share-type-row" id="share-view-row">';
-    html += '<button type="button" class="share-type-btn' + (_shareView === 'simple' ? ' active' : '') + '" data-view="simple">Simple</button>';
-    html += '<button type="button" class="share-type-btn' + (_shareView === 'full'   ? ' active' : '') + '" data-view="full">Full screen</button>';
-    html += '</div>';
+    if (!reduced) {
+      // Share-as type selector
+      var shareTypes = [
+        { val: 'job',     label: 'Job record' },
+        { val: 'quote',   label: 'Quote' },
+        { val: 'invoice', label: 'Invoice' },
+      ];
+      html += '<div class="share-type-label">Share as</div>';
+      html += '<div class="share-type-row" id="share-type-row">';
+      shareTypes.forEach(function (t) {
+        html += '<button type="button" class="share-type-btn' +
+                (t.val === _shareType ? ' active' : '') +
+                '" data-type="' + t.val + '">' + t.label + '</button>';
+      });
+      html += '</div>';
 
-    // Financial options (only when fin data available or amount set)
-    if (_expenses.length || _payments.length || _record.amount) {
+      // View layout selector
+      html += '<div class="share-type-label">View layout</div>';
+      html += '<div class="share-type-row" id="share-view-row">';
+      html += '<button type="button" class="share-type-btn' + (_shareView === 'simple' ? ' active' : '') + '" data-view="simple">Simple</button>';
+      html += '<button type="button" class="share-type-btn' + (_shareView === 'full'   ? ' active' : '') + '" data-view="full">Full screen</button>';
+      html += '</div>';
+    } else {
+      html += '<p style="font-family:var(--font-mono);font-size:10px;color:var(--ink-muted);margin-bottom:18px;">Simple view \xb7 full screen</p>';
+    }
+
+    // Financial options (work pads only)
+    if (!reduced && (_expenses.length || _payments.length || _record.amount)) {
       html += '<div class="share-fin-options-box" id="share-fin-options-box">';
       html += '<div class="share-fin-options-header">Financial options</div>';
       // Full financial summary (line items)
@@ -325,44 +438,83 @@ var ShareScreen = (function () {
       html += '</div>'; // .share-fin-options-box
     }
 
-    // Story opt-in (only when record has story)
+    // Story / notes opt-in (only when record has story)
     if (_record.story) {
+      var storyShareLabel = { field: 'Include activity notes', note: 'Include summary', plan: 'Include general plan' };
+      var storyLbl = storyShareLabel[_record.record_class] || 'Include story';
       html += '<div class="share-fin-row' + (_includeStory ? ' active' : '') + '" id="share-story-toggle">' +
         '<div class="share-fin-check">' + (_includeStory ? '\u2713' : '') + '</div>' +
         '<div class="share-fin-text">' +
-          '<div class="share-fin-label">Include story</div>' +
+          '<div class="share-fin-label">' + storyLbl + '</div>' +
           '<div class="share-fin-meta">' + _esc(_record.story.slice(0, 60)) + (_record.story.length > 60 ? '\u2026' : '') + '</div>' +
         '</div>' +
       '</div>';
     }
 
-    // Details opt-in (only when record has details — private notes, default OFF)
+    // Details opt-in (plan: context details; work: private notes)
     if (_record.details) {
+      var detailsLabel = (_record.record_class === 'plan') ? 'Include details' : 'Include private notes';
+      var detailsHint  = (_record.record_class === 'plan')
+        ? 'Constraints, resources, risks — from the Details tab'
+        : 'Internal notes — off by default';
       html += '<div class="share-fin-row' + (_includeDetails ? ' active' : '') + '" id="share-details-toggle">' +
         '<div class="share-fin-check">' + (_includeDetails ? '\u2713' : '') + '</div>' +
         '<div class="share-fin-text">' +
-          '<div class="share-fin-label">Include private notes</div>' +
-          '<div class="share-fin-meta">' + _esc(_record.details.slice(0, 60)) + (_record.details.length > 60 ? '\u2026' : '') + '</div>' +
+          '<div class="share-fin-label">' + detailsLabel + '</div>' +
+          '<div class="share-fin-meta">' + _esc(_record.details.slice(0, 60)) + (_record.details.length > 60 ? '\u2026' : '') +
+            ' · ' + detailsHint + '</div>' +
         '</div>' +
       '</div>';
     }
 
-    // Customer & contact info toggle (always shown)
-    var hasCustomerInfo = !!((_record.customer || _record.customer_phone || _record.location || _record.worker ||
-      (_record.participants && _record.participants.length)));
-    if (hasCustomerInfo) {
-      var customerMeta = [_record.customer, _record.location].filter(Boolean).join(' \xb7 ');
-      html += '<div class="share-fin-row' + (_includeCustomer ? ' active' : '') + '" id="share-customer-toggle">' +
-        '<div class="share-fin-check">' + (_includeCustomer ? '\u2713' : '') + '</div>' +
+    if (reduced) {
+      html += '<div class="share-fin-row' + (_includeContact ? ' active' : '') + '" id="share-contact-toggle">' +
+        '<div class="share-fin-check">' + (_includeContact ? '\u2713' : '') + '</div>' +
         '<div class="share-fin-text">' +
-          '<div class="share-fin-label">Include customer &amp; contact info</div>' +
-          '<div class="share-fin-meta">' + (customerMeta ? _esc(customerMeta) : 'Name, location, phone, workers') + '</div>' +
+          '<div class="share-fin-label">Include contact info</div>' +
+          '<div class="share-fin-meta">Name and phone for the receiver</div>' +
         '</div>' +
       '</div>';
+      if (_includeContact) {
+        html += '<div class="share-contact-fields" id="share-contact-fields">' +
+          '<div class="field-group">' +
+            '<label class="field-label" for="share-contact-name">Contact name</label>' +
+            '<input class="field-input" id="share-contact-name" type="text" value="' + _esc(_contactName) + '" placeholder="Who should they reach?">' +
+          '</div>' +
+          '<div class="field-group">' +
+            '<label class="field-label" for="share-contact-phone">Contact phone</label>' +
+            '<input class="field-input" id="share-contact-phone" type="tel" value="' + _esc(_contactPhone) + '" placeholder="+44 7700 …">' +
+          '</div>' +
+        '</div>';
+      }
+    } else {
+      // Customer & contact info toggle (work pads)
+      var hasCustomerInfo = !!((_record.customer || _record.customer_phone || _record.location || _record.worker ||
+        (_record.participants && _record.participants.length)));
+      if (hasCustomerInfo) {
+        var customerMeta = [_record.customer, _record.location].filter(Boolean).join(' \xb7 ');
+        html += '<div class="share-fin-row' + (_includeCustomer ? ' active' : '') + '" id="share-customer-toggle">' +
+          '<div class="share-fin-check">' + (_includeCustomer ? '\u2713' : '') + '</div>' +
+          '<div class="share-fin-text">' +
+            '<div class="share-fin-label">Include customer &amp; contact info</div>' +
+            '<div class="share-fin-meta">' + (customerMeta ? _esc(customerMeta) : 'Name, location, phone, workers') + '</div>' +
+          '</div>' +
+        '</div>';
+      }
     }
 
-    // URL box
-    var urlPrefix = _shareView === 'full' ? 'https://workpads.me/p/customer.html#' : 'https://workpads.me/p#';
+    // URL box — uses current origin so local dev links open the local receiver
+    var urlPrefix = RecordService.shareUrlPrefix(_shareView);
+    if (window.location.hostname !== 'workpads.me') {
+      html += '<p class="share-origin-notice">Receiver opens on <strong>' +
+        _esc(window.location.origin) + '</strong> — use the link below (not workpads.me).</p>';
+    }
+    if (charCount > 8000) {
+      html += '<div class="share-url-warn" id="share-url-warn">This link is <strong>' + charCount +
+        ' characters</strong> — some apps truncate long URLs. ' +
+        'Try sharing less content (story, notes, financials, or fewer locations).' +
+        '</div>';
+    }
     html += '<div class="share-url-box" id="share-url-box" title="Click to copy">';
     html += '<div class="share-url-top-row">';
     html += '<span class="share-url-prefix" id="share-url-prefix">' + urlPrefix + '</span>';
@@ -380,8 +532,11 @@ var ShareScreen = (function () {
 
     // Action buttons
     html += '<div class="share-actions">';
-    html += '<button class="btn-primary" id="share-copy-btn">Copy link</button>';
+    html += '<button class="btn-primary" id="share-copy-btn">' + _copyBtnLabel() + '</button>';
     html += '<a class="btn-ghost" id="share-open-link" href="' + _esc(_url) + '" target="_blank" rel="noopener">Open in tab</a>';
+    if (_record.recordType !== 'expense' && _record.recordType !== 'payment') {
+      html += '<button class="btn-ghost" id="share-postcard-btn">Postcard</button>';
+    }
     html += '<button class="btn-ghost" id="share-back-btn">Back to record</button>';
     html += '</div>';
 
@@ -412,10 +567,21 @@ var ShareScreen = (function () {
     var backBtn = document.getElementById('share-back-btn');
 
     if (urlBox)  urlBox.addEventListener('click',  _copyUrl);
-    if (copyBtn) copyBtn.addEventListener('click', _copyUrl);
+    if (copyBtn) copyBtn.addEventListener('click', _handleCopyBtn);
     if (backBtn) backBtn.addEventListener('click', function () {
       App.showView(_record.id);
     });
+
+    var postcardBtn = document.getElementById('share-postcard-btn');
+    if (postcardBtn) {
+      postcardBtn.addEventListener('click', function () {
+        if (typeof Postcard === 'undefined') {
+          App.toast('Postcard module not loaded — hard-refresh the app');
+          return;
+        }
+        Postcard.openPicker(_record);
+      });
+    }
 
     var typeRow = document.getElementById('share-type-row');
     if (typeRow) {
@@ -431,8 +597,7 @@ var ShareScreen = (function () {
           _includeFin = (_shareType === 'quote' || _shareType === 'invoice');
           _syncFinToggle();
         }
-        _encodeUrl();
-        _syncUrlDisplay();
+        _reencode();
       });
     }
 
@@ -445,8 +610,7 @@ var ShareScreen = (function () {
         viewRow.querySelectorAll('.share-type-btn').forEach(function (b) {
           b.classList.toggle('active', b.dataset.view === _shareView);
         });
-        _encodeUrl();
-        _syncUrlDisplay();
+        _reencode();
         // Update fin option note
         var finNote = document.querySelector('#share-fin-toggle .share-fin-opt-note');
         if (finNote) finNote.textContent = _finSummary;
@@ -458,8 +622,7 @@ var ShareScreen = (function () {
       finToggle.addEventListener('click', function () {
         _includeFin = !_includeFin;
         _syncFinToggle();
-        _encodeUrl();
-        _syncUrlDisplay();
+        _reencode();
       });
     }
 
@@ -475,8 +638,7 @@ var ShareScreen = (function () {
           _includeFin = true;
           _syncFinToggle();
         }
-        _encodeUrl();
-        _syncUrlDisplay();
+        _reencode();
       });
     }
 
@@ -487,8 +649,7 @@ var ShareScreen = (function () {
         storyToggle.classList.toggle('active', _includeStory);
         var check = storyToggle.querySelector('.share-fin-check');
         if (check) check.textContent = _includeStory ? '\u2713' : '';
-        _encodeUrl();
-        _syncUrlDisplay();
+        _reencode();
       });
     }
 
@@ -499,8 +660,7 @@ var ShareScreen = (function () {
         detailsToggle.classList.toggle('active', _includeDetails);
         var check = detailsToggle.querySelector('.share-fin-check');
         if (check) check.textContent = _includeDetails ? '\u2713' : '';
-        _encodeUrl();
-        _syncUrlDisplay();
+        _reencode();
       });
     }
 
@@ -511,10 +671,41 @@ var ShareScreen = (function () {
         customerToggle.classList.toggle('active', _includeCustomer);
         var check = customerToggle.querySelector('.share-fin-check');
         if (check) check.textContent = _includeCustomer ? '\u2713' : '';
-        _encodeUrl();
-        _syncUrlDisplay();
+        _reencode();
       });
     }
+
+    var contactToggle = document.getElementById('share-contact-toggle');
+    if (contactToggle) {
+      contactToggle.addEventListener('click', function () {
+        _includeContact = !_includeContact;
+        _render();
+      });
+    }
+
+    var contactNameEl = document.getElementById('share-contact-name');
+    var contactPhoneEl = document.getElementById('share-contact-phone');
+    function _onContactInput() {
+      if (contactNameEl)  _contactName  = contactNameEl.value;
+      if (contactPhoneEl) _contactPhone = contactPhoneEl.value;
+      var btn = document.getElementById('share-copy-btn');
+      if (btn) btn.textContent = _copyBtnLabel();
+    }
+    if (contactNameEl)  contactNameEl.addEventListener('input', _onContactInput);
+    if (contactPhoneEl) contactPhoneEl.addEventListener('input', _onContactInput);
+  }
+
+  function _handleCopyBtn() {
+    if (_copyBtnLabel() === 'Recreate link') {
+      _refreshUrl().then(function () {
+        _encodedContact = { name: _contactName.trim(), phone: _contactPhone.trim() };
+        _syncUrlDisplay();
+        var btn = document.getElementById('share-copy-btn');
+        if (btn) btn.textContent = 'Copy link';
+      });
+      return;
+    }
+    _copyUrl();
   }
 
   function _syncFinToggle() {
@@ -530,7 +721,7 @@ var ShareScreen = (function () {
     var dataLen   = (_url.split('#')[1] || '').length;
     var prefixEl  = document.getElementById('share-url-prefix');
     var payloadEl = document.querySelector('.share-url-payload');
-    var urlPrefix = _shareView === 'full' ? 'https://workpads.me/p/customer.html#' : 'https://workpads.me/p#';
+    var urlPrefix = RecordService.shareUrlPrefix(_shareView);
     if (prefixEl)  prefixEl.textContent  = urlPrefix;
     if (payloadEl) payloadEl.textContent = (_url.split('#')[1]) || '';
     var metaVals = document.querySelectorAll('.share-meta-value');
@@ -538,6 +729,19 @@ var ShareScreen = (function () {
     if (metaVals[1]) metaVals[1].textContent = dataLen + '\u00a0chars';
     var openLink = document.getElementById('share-open-link');
     if (openLink) openLink.href = _url;
+    var warnEl = document.getElementById('share-url-warn');
+    if (warnEl) {
+      if (charCount > 8000) {
+        warnEl.style.display = '';
+        warnEl.innerHTML = 'This link is <strong>' + charCount +
+          ' characters</strong> — some apps truncate long URLs. ' +
+          'Try sharing less content (story, notes, financials, or fewer locations).';
+      } else {
+        warnEl.style.display = 'none';
+      }
+    }
+    var copyBtn = document.getElementById('share-copy-btn');
+    if (copyBtn) copyBtn.textContent = _copyBtnLabel();
   }
 
   function _copyUrl() {

@@ -298,9 +298,49 @@ var App = (function () {
     if (el.overlayPadType) el.overlayPadType.style.display = 'none';
   }
 
-  // Seed two realistic demo records on first onboarding so new users land
-  // on a populated list that demonstrates the full feature set.
-  function _seedDemoRecords() {
+  function _storeDemoRecords(records) {
+    records.forEach(function (rec) {
+      localStorage.setItem('wp_record_' + rec.id, JSON.stringify(rec));
+    });
+  }
+
+  function _jobDemoBundle(t) {
+    var D6 = 'demo6r';
+    return [
+      { id: D6, record_class: 'work', record_type: 'job',
+        job: 'Radiator balancing — 22 Oak Street', customer: 'David & Priya Nair',
+        date: '2026-05-20', location: '22 Oak Street, Bristol BS6 5TU',
+        start_time: '10:00', end_time: '14:15', meeting_time: '09:50',
+        customer_phone: '+44 7700 900318',
+        worker: 'Tom Bradley',
+        participants: [
+          { name: 'Tom Bradley', role: 'worker' },
+          { name: 'James Owens', role: 'sub' },
+        ],
+        amount: '285.00', currency: 'GBP', vat: 'standard',
+        charge_type: '4', parts_flag: false, worker_cost: '120.00',
+        actions: [
+          { title: 'Walk-through & temperature survey', notes: 'Top-floor rads cold — system 0.9 bar on arrival' },
+          { title: 'Balance lockshield valves',         notes: 'All 8 radiators adjusted — ΔT within 12°C' },
+          { title: 'Bleed air from towel rail circuit', notes: 'Master ensuite TRV sticking — freed and tested' },
+          { title: 'Customer handover',                 notes: 'Left written settings sheet on boiler cupboard door' },
+        ],
+        story: 'Uneven heating across two floors — upstairs radiators barely warm while ground floor overheated. Balanced all circuits, bled towel rail loop, and freed sticking TRV. Customer confirmed even heat within 45 minutes.',
+        details: 'Potterton system, 8 rads + towel rail. Final pressure 1.4 bar. TRV model: Danfoss RA-N 15mm on ensuite.',
+        chainRef: 'AAEH', draft: false, createdAt: t - 129600000, updatedAt: t - 21600000 },
+      { id: 'demo6e1', parentId: D6, recordType: 'expense',
+        job: 'Replacement TRV insert', amount: '22.00', currency: 'GBP',
+        expense_billing: 'customer', charge_type: '6', actionIdx: 2,
+        date: '2026-05-20', draft: false, createdAt: t - 21600000, updatedAt: t - 21600000 },
+      { id: 'demo6e2', parentId: D6, recordType: 'expense',
+        job: 'Parking — resident bay', amount: '6.50', currency: 'GBP',
+        expense_billing: 'customer', charge_type: '7', actionIdx: 0,
+        date: '2026-05-20', draft: false, createdAt: t - 21600000, updatedAt: t - 21600000 },
+    ];
+  }
+
+  // Seed work-pad demos (invoice, quote, job) on first onboarding.
+  function _seedWorkDemos() {
     if (localStorage.getItem('wp_demos_v1')) return;
     localStorage.setItem('wp_demos_v1', '1');
 
@@ -311,7 +351,7 @@ var App = (function () {
     var records = [
 
       // ── Record 1 — Invoice: boiler service ──────────────────
-      { id: D1, record_type: 'invoice',
+      { id: D1, record_class: 'work', record_type: 'invoice',
         job: 'Boiler service & pressure fix', customer: 'Helen Marsh',
         date: '2026-05-08', location: '14 Birch Lane',
         start_time: '09:00', end_time: '13:30', meeting_time: '08:45',
@@ -355,7 +395,7 @@ var App = (function () {
         date: '2026-05-07', draft: false, createdAt: t - 172800000, updatedAt: t - 172800000 },
 
       // ── Record 2 — Quote: consumer unit upgrade ─────────────
-      { id: D2, record_type: 'quote',
+      { id: D2, record_class: 'work', record_type: 'quote',
         job: 'Consumer unit upgrade', customer: 'Park View Estates',
         date: '2026-05-14', location: 'Unit 3, Park View Rd',
         start_time: '08:00', end_time: '17:00', meeting_time: '07:45',
@@ -390,11 +430,110 @@ var App = (function () {
         job: 'Materials cost', amount: '165.00', currency: 'GBP',
         expense_billing: 'cogs', charge_type: '6', action_quoted: '230.00', actionIdx: 1,
         date: '2026-05-14', draft: false, createdAt: t - 43200000, updatedAt: t - 43200000 },
+    ].concat(_jobDemoBundle(t));
+
+    _storeDemoRecords(records);
+  }
+
+  // Jobs-tab demo for users who already received invoice + quote (wp_demos_v1).
+  function _seedJobDemo() {
+    if (localStorage.getItem('wp_demos_v3')) return;
+    if (localStorage.getItem('wp_record_demo6r')) {
+      localStorage.setItem('wp_demos_v3', '1');
+      return;
+    }
+    localStorage.setItem('wp_demos_v3', '1');
+    _storeDemoRecords(_jobDemoBundle(Date.now()));
+  }
+
+  // Field, memo, and plan demos — seeded once (also on boot for existing users).
+  function _seedPadDemos() {
+    if (localStorage.getItem('wp_demos_v2')) return;
+    localStorage.setItem('wp_demos_v2', '1');
+
+    var t = Date.now();
+    var fieldLocs = [
+      {
+        title: 'Piccadilly Circus',
+        address: 'Piccadilly Circus, London W1J 0DA',
+        notes: 'Night survey — arrange West End Alliance escort. Scaffolding at north-west quadrant. Single-lane closure 02:00–05:00 only.',
+        map_url: 'https://www.openstreetmap.org/?mlat=51.510067&mlon=-0.133869#map=17/51.510067/-0.133869',
+        google_map_url: 'https://www.google.com/maps/search/?api=1&query=51.510067,-0.133869',
+        apple_map_url: 'https://maps.apple.com/?ll=51.510067,-0.133869&q=Piccadilly%20Circus',
+        lat: 51.510067, lon: -0.133869, zoom: 17,
+      },
+      {
+        title: 'Leicester Square',
+        address: 'Leicester Square, London WC2H 7NA',
+        notes: 'Compare lux levels against Piccadilly baseline. Pedestrian count peaks 19:00–22:00.',
+        map_url: 'https://www.openstreetmap.org/?mlat=51.510324&mlon=-0.130161#map=17/51.510324/-0.130161',
+        google_map_url: 'https://www.google.com/maps/search/?api=1&query=51.510324,-0.130161',
+        apple_map_url: 'https://maps.apple.com/?ll=51.510324,-0.130161&q=Leicester%20Square',
+        lat: 51.510324, lon: -0.130161, zoom: 17,
+      },
     ];
 
-    records.forEach(function(rec) {
-      localStorage.setItem('wp_record_' + rec.id, JSON.stringify(rec));
-    });
+    _storeDemoRecords([
+      { id: 'demo3r', record_class: 'field',
+        job: 'West End retail fascia lighting survey',
+        date: '2026-06-12', start_time: '08:30', end_time: '16:00',
+        worker: 'Maya Okonkwo',
+        location: 'Piccadilly Circus, London W1J 0DA',
+        _locations_json: JSON.stringify(fieldLocs),
+        actions: [
+          { title: 'Pre-survey briefing',       notes: 'Review TfL notice periods and lane closure window' },
+          { title: 'Lux baseline — Piccadilly', notes: 'Readings at statue island and north pavement' },
+          { title: 'Façade access check',       notes: 'Regent Street facing units — ladder points marked' },
+          { title: 'Leicester Square compare', notes: 'East arcade spill light vs Piccadilly baseline' },
+          { title: 'Handover notes',            notes: 'Draft client report — fittings schedule attached' },
+        ],
+        story: 'Completed night survey at Piccadilly Circus and Leicester Square. Piccadilly averaged 42 lux at pavement — below target for retail frontage. Leicester Square brighter at 68 lux due to cinema signage spill. Recommend warm-white LED retrofits on north-facing façades.',
+        chainRef: 'AAEE', draft: false, createdAt: t - 1209600000, updatedAt: t - 43200000 },
+
+      { id: 'demo4r', record_class: 'note',
+        job: 'LED supplier shortlist — Q3 refit programme',
+        worker: 'James Owens',
+        pads_actions: [
+          'Request formal quotes (3 suppliers)',
+          'Compare CRI and lumen maintenance at 4,000 h',
+          'Confirm Part L compliance certificates',
+          'Site sample fittings at Park View estate',
+          'Sign-off meeting with estates team',
+        ].join('\n'),
+        pads_details: [
+          'Preferred: Thorn Azure S2 (stocked UK)',
+          'Alt: WE-EF VFL530 (lead time 6 weeks)',
+          'Budget ceiling: £14/unit installed',
+          'Contact: procurement@parkviewestates.co.uk',
+          'Ref doc: PV-LED-2026-Q3-v2.pdf',
+        ].join('\n'),
+        story: 'Shortlist narrowed to three UK-stock suppliers. Thorn Azure leads on price and availability; WE-EF preferred on optics. Awaiting site sample install before final PO.',
+        chainRef: 'AAEF', draft: false, createdAt: t - 864000000, updatedAt: t - 86400000 },
+
+      { id: 'demo5r', record_class: 'plan',
+        job: 'Hyde Park community orchard — autumn rollout',
+        date: '2026-06-01', due_date: '2026-09-30',
+        location: 'Hyde Park, London W2 2UH',
+        location_map_url: 'https://www.openstreetmap.org/?mlat=51.507268&mlon=-0.165730#map=16/51.507268/-0.165730',
+        location_lat: 51.507268, location_lon: -0.165730, location_zoom: 16,
+        worker: 'Sarah Chen',
+        actions: [
+          { title: 'Site assessment',        notes: 'Soil pH and drainage survey — Parks team lead' },
+          { title: 'Species selection',      notes: 'Heritage apples + pollination pairs confirmed' },
+          { title: 'Volunteer training',     notes: 'Planting & pruning weekend — 12 volunteers' },
+          { title: 'Irrigation install',     notes: 'Drip line from existing standpipe, north meadow' },
+          { title: 'Opening event',          notes: 'Public harvest welcome before autumn half-term' },
+        ],
+        story: 'Roll out a 40-tree community orchard in the north meadow. Partner with Royal Parks for soil prep and volunteer programme. Target public opening before autumn half-term.',
+        details: 'Constraints: no groundworks during breeding season (Mar–Jul). Resources: 12 volunteers, £8k materials budget. Risks: drought in August — plan backup watering rota.',
+        chainRef: 'AAEG', draft: false, createdAt: t - 604800000, updatedAt: t - 172800000 },
+    ]);
+  }
+
+  function _seedDemoRecords() {
+    _seedWorkDemos();
+    _seedJobDemo();
+    _seedPadDemos();
   }
 
   function _completeOnboarding() {
@@ -557,6 +696,8 @@ var App = (function () {
     // Initialise panel modules
     if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.init) WorkpadsPanel.init();
     if (typeof PersonalPanel !== 'undefined' && PersonalPanel.init) PersonalPanel.init();
+    _seedPadDemos();
+    _seedJobDemo();
 
     // Topbar buttons (may not exist if topbar removed)
     if (el.btnNew)    el.btnNew.addEventListener('click',    function() { _showTypePicker(); });
@@ -691,7 +832,7 @@ var App = (function () {
       clean = clean.replace(/^https?:\/\//, '');
       try {
         var rec = WPCodec.decode(clean);
-        _importDecoded = rec;
+        _importDecoded = (typeof PadsExt !== 'undefined') ? PadsExt.extract(rec) : rec;
         if (errorEl) errorEl.style.display = 'none';
         if (saveBtn) saveBtn.disabled = false;
         // Render preview
@@ -794,6 +935,7 @@ var App = (function () {
     showArchive:    showArchive,
     showArchivedView: showArchivedView,
     showQuickNote:  showQuickNote,
+    showTypePicker: showTypePicker,
     showImport:     showImport,
     toast:          toast,
     openMobilePanel: _openMobilePanel,

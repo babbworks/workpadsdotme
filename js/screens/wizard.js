@@ -11,7 +11,7 @@ var WizardScreen = (function () {
   var _id             = null;
   var _mode           = 'new';   // 'new' | 'edit' | 'expense' | 'payment'
   var _padType        = 'work';  // 'work' | 'field' | 'note' | 'plan'
-  var _locations      = [{ address: '', notes: '' }]; // Field type locations
+  var _locations      = [{ address: '', notes: '', map_url: '', google_map_url: '', apple_map_url: '', lat: null, lon: null, zoom: null, map_snapshot: null }];
   var _parentRecord   = null;
   var _tab            = 'process';
   var _stylesAdded    = false;
@@ -19,6 +19,8 @@ var WizardScreen = (function () {
   var _detailsPreview = false;
   var _actFilter      = '';
   var _dragIndex      = -1;
+  var _locDragIndex   = -1;
+  var _contentUnlocked = false;  // true after user unlocks a sealed record this session
 
   var TABS = [
     { key: 'process', label: 'Process' },
@@ -39,13 +41,14 @@ var WizardScreen = (function () {
     { key: 'process', label: 'Process' },
     { key: 'actions', label: 'Actions' },
     { key: 'details', label: 'Details' },
-    { key: 'story',   label: 'Story'   },
+    { key: 'story',   label: 'Summary' },
   ];
 
   var TABS_PLAN = [
     { key: 'process', label: 'Process' },
     { key: 'actions', label: 'Actions' },
-    { key: 'story',   label: 'Notes'   },
+    { key: 'story',   label: 'General Plan' },
+    { key: 'details', label: 'Details' },
   ];
 
   function _tabs() {
@@ -430,6 +433,43 @@ var WizardScreen = (function () {
       '.wiz-action.dragging { opacity:.4; }',
       '.wiz-action.drag-over { border-top:2px solid var(--stamp); }',
 
+      /* Field locations — collapse, drag, label */
+      '.wiz-location-item {',
+      '  border:1px solid var(--rule-light); border-radius:4px; margin-bottom:12px;',
+      '  background:var(--paper-warm);',
+      '}',
+      '.wiz-location-item.dragging { opacity:.45; }',
+      '.wiz-location-item.drag-over { box-shadow:inset 0 2px 0 var(--stamp); }',
+      '.wiz-location-head {',
+      '  display:flex; align-items:center; gap:6px; padding:8px 10px;',
+      '  border-bottom:1px solid var(--rule-light);',
+      '}',
+      '.wiz-location-item.collapsed .wiz-location-head { border-bottom:none; }',
+      '.wiz-loc-drag {',
+      '  cursor:grab; color:var(--ink-faint); font-size:14px; user-select:none; flex-shrink:0;',
+      '}',
+      '.wiz-loc-collapse {',
+      '  background:none; border:none; padding:0; cursor:pointer;',
+      '  font-family:var(--font-mono); font-size:11px; color:var(--ink-muted); width:14px;',
+      '}',
+      '.wiz-loc-title { flex:1; min-width:0; font-size:13px; padding:6px 8px; }',
+      '.wiz-location-body { padding:10px 12px 12px; }',
+      '.wiz-location-row { display:flex; gap:8px; margin-bottom:8px; }',
+      '.wiz-location-row .field-input { flex:1; }',
+      '.wiz-location-remove {',
+      '  background:none; border:none; color:var(--ink-faint); font-size:18px;',
+      '  cursor:pointer; padding:0 4px; line-height:1; flex-shrink:0;',
+      '}',
+      '.wiz-location-remove:hover { color:var(--stamp); }',
+
+      /* Locked content (sealed until unlock) */
+      '.wiz-fields-wrap.wiz-fields-locked input,',
+      '.wiz-fields-wrap.wiz-fields-locked textarea,',
+      '.wiz-fields-wrap.wiz-fields-locked select,',
+      '.wiz-fields-wrap.wiz-fields-locked button {',
+      '  pointer-events:none; opacity:.55;',
+      '}',
+
       /* Participants block */
       '.wiz-part-row {',
       '  display:flex; gap:6px; align-items:center;',
@@ -466,23 +506,40 @@ var WizardScreen = (function () {
 
   // ── Lifecycle ────────────────────────────────────────────────
 
+  function _blankLocation() {
+    return {
+      title: '', address: '', notes: '', map_url: '', google_map_url: '', apple_map_url: '',
+      lat: null, lon: null, zoom: null, map_snapshot: null, collapsed: false,
+    };
+  }
+
   function onShow(params) {
     _addStyles();
     _mode           = params.mode || 'new';
-    _padType        = params.padType || 'work';
+    _padType        = (typeof PadType !== 'undefined')
+      ? PadType.forWizard({}, params.padType || 'work')
+      : (params.padType || 'work');
     _tab            = 'process';
     _storyPreview   = false;
     _detailsPreview = false;
     _actFilter      = '';
     _dragIndex      = -1;
-    _locations      = [{ address: '', notes: '' }];
+    _contentUnlocked = false;
+    _locations      = [_blankLocation()];
 
     if (_mode === 'edit' && params.id) {
       _id = params.id;
       RecordService.get(_id).then(function (r) {
         _record = r || {};
-        _padType = r.record_class || 'work';
-        _locations = (r._locations_json && JSON.parse(r._locations_json)) || [{ address: r.location || '', notes: '' }];
+        _padType = (typeof PadType !== 'undefined')
+          ? PadType.forWizard(r, params.padType)
+          : (r.record_class || params.padType || 'work');
+        _locations = (r._locations_json && JSON.parse(
+          typeof MapUtils !== 'undefined' ? MapUtils.expandLocationsJson(r._locations_json) : r._locations_json
+        )) || [Object.assign(_blankLocation(), { address: r.location || '' })];
+        _locations = _locations.map(function (loc) {
+          return Object.assign(_blankLocation(), loc);
+        });
         _render();
         _notifyContext();
       });
@@ -562,7 +619,11 @@ var WizardScreen = (function () {
 
   function _notifyContext() {
     if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.setContext) {
-      WorkpadsPanel.setContext('wizard', { customer: _record.customer || '' });
+      WorkpadsPanel.setContext('wizard', {
+        customer: _record.customer || '',
+        padType: _padType,
+        job: _record.job || '',
+      });
     }
   }
 
@@ -639,17 +700,34 @@ var WizardScreen = (function () {
     return html + '</div>';
   }
 
+  function _saveLabel() {
+    if (_padType === 'field') return 'Save field pad';
+    if (_padType === 'note')  return 'Save memo';
+    if (_padType === 'plan')  return 'Save plan';
+    return 'Save workpad';
+  }
+
   function _renderFooter() {
+    var tabs    = _tabs();
+    var tabIdx  = _tabIndex(_tab);
+    var hasNext = tabIdx < tabs.length - 1;
     return (
       '<div class="wiz-footer">' +
         '<button class="btn-ghost" id="wiz-cancel-bottom">Cancel</button>' +
         '<div class="wiz-footer-right">' +
           '<span class="wiz-kbd-hint">Ctrl+S to save</span>' +
           '<button class="btn-ghost" id="wiz-save-draft">Save draft</button>' +
-          '<button class="btn-primary" id="wiz-save">Save workpad</button>' +
+          (hasNext ? '<button class="btn-ghost" id="wiz-next">Next</button>' : '') +
+          '<button class="btn-primary" id="wiz-save">' + _saveLabel() + '</button>' +
         '</div>' +
       '</div>'
     );
+  }
+
+  function _nextTab() {
+    var tabs = _tabs();
+    var idx  = _tabIndex(_tab);
+    if (idx < tabs.length - 1) _switchTab(tabs[idx + 1].key);
   }
 
   // ── Tab bodies ───────────────────────────────────────────────
@@ -670,7 +748,7 @@ var WizardScreen = (function () {
         switch (tab) {
           case 'process': return _renderProcessField();
           case 'actions': return _renderActions();
-          case 'story':   return _renderStory();
+          case 'story':   return _renderNarrativeTab('story');
           default:        return '';
         }
       case 'note':
@@ -678,14 +756,15 @@ var WizardScreen = (function () {
           case 'process': return _renderProcessNote();
           case 'actions': return _renderActionsNote();
           case 'details': return _renderDetailsNote();
-          case 'story':   return _renderStory();
+          case 'story':   return _renderNarrativeTab('story');
           default:        return '';
         }
       case 'plan':
         switch (tab) {
           case 'process': return _renderProcessPlan();
           case 'actions': return _renderActions();
-          case 'story':   return _renderStory();
+          case 'story':   return _renderNarrativeTab('story');
+          case 'details': return _renderNarrativeTab('details');
           default:        return '';
         }
       default: // 'work'
@@ -730,22 +809,187 @@ var WizardScreen = (function () {
     );
   }
 
+  function _isContentLocked() {
+    return (typeof WorkpadsEncrypt !== 'undefined') &&
+      WorkpadsEncrypt.isSealed(_record) &&
+      !_contentUnlocked;
+  }
+
+  function _fieldsWrapClass() {
+    return _isContentLocked() ? ' wiz-fields-locked' : '';
+  }
+
+  function _renderEncryptBlock() {
+    if (_mode === 'expense' || _mode === 'payment') return '';
+    var on     = !!_record.encrypt_enabled;
+    var sealed = (typeof WorkpadsEncrypt !== 'undefined') && WorkpadsEncrypt.isSealed(_record);
+    var padName = (typeof PadType !== 'undefined')
+      ? PadType.label({ record_class: _padType }).toLowerCase()
+      : 'workpad';
+    var lockBtn = (on && !sealed)
+      ? '<button class="btn-ghost" id="wiz-lock-seal" type="button" style="margin-top:6px;font-size:10px;padding:4px 10px;">Lock now</button>'
+      : '';
+    return (
+      '<div class="wiz-encrypt-block">' +
+        '<div class="wiz-encrypt-row">' +
+          '<input type="checkbox" id="f-encrypt_enabled"' + (on ? ' checked' : '') + '>' +
+          '<label for="f-encrypt_enabled">Encrypt this ' + padName + '</label>' +
+        '</div>' +
+        '<p class="wiz-encrypt-hint">Content can be locked with a passphrase before sharing. Title and type stay visible on this device.</p>' +
+        '<div class="wiz-encrypt-pass" id="wiz-encrypt-pass"' + (on ? '' : ' style="display:none;"') + '>' +
+          '<input class="field-input" type="password" id="f-encrypt_pass" placeholder="Passphrase" autocomplete="new-password">' +
+          (sealed
+            ? '<button class="btn-ghost" id="wiz-unlock-seal" type="button" style="margin-top:6px;font-size:10px;padding:4px 10px;">Unlock to edit</button>'
+            : lockBtn) +
+        '</div>' +
+        (sealed && _isContentLocked()
+          ? '<p class="wiz-encrypt-sealed">Content is locked — unlock to edit fields below.</p>'
+          : '') +
+      '</div>'
+    );
+  }
+
+  function _narrativeCopy(part) {
+    var p = _padType;
+    if (p === 'field') {
+      return part === 'story'
+        ? { label: 'Activity notes', ph: 'What happened on site — observations, handoffs, outcomes…', hint: 'Readable when you share this field pad' }
+        : { label: 'Details', ph: '', hint: '' };
+    }
+    if (p === 'note') {
+      return part === 'story'
+        ? { label: 'Summary', ph: 'The headline takeaway — what this memo is about…', hint: 'Short overview for yourself or a reader' }
+        : { label: 'Details', ph: 'Supporting detail, references, quotes…', hint: 'Use the Actions tab for step-by-step items' };
+    }
+    if (p === 'plan') {
+      return part === 'story'
+        ? { label: 'General plan', ph: 'Overall goal, scope, milestones, and approach…', hint: 'The big picture — not individual tasks' }
+        : { label: 'Details', ph: 'Constraints, resources, risks, assumptions…', hint: 'Context that supports the plan' };
+    }
+    return part === 'story'
+      ? { label: 'Story', ph: 'A plain account of the work…', hint: 'Narrative — readable by the customer' }
+      : { label: 'Details', ph: 'Technical notes, materials, measurements…', hint: 'Internal — included in the share link' };
+  }
+
+  function _renderNarrativeTab(part) {
+    var cfg     = _narrativeCopy(part);
+    var isStory = part === 'story';
+    var sealed  = (typeof WorkpadsEncrypt !== 'undefined') && WorkpadsEncrypt.isSealed(_record);
+
+    if (sealed && !_record[isStory ? 'story' : 'details']) {
+      return (
+        '<div class="card"><div class="card-section">' +
+          '<p style="font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);">' +
+            'This workpad is sealed. Enter your passphrase on the Process tab and click Unlock to edit.' +
+          '</p>' +
+        '</div></div>'
+      );
+    }
+
+    var showSummary = (_padType === 'work' && _mode !== 'expense' && _mode !== 'payment');
+    var summaryHtml = '';
+    if (showSummary && isStory) {
+      var titleLine = [];
+      if (_record.job)      titleLine.push('<strong>' + _esc(_record.job) + '</strong>');
+      if (_record.customer) titleLine.push(_esc(_record.customer));
+      if (_record.date)     titleLine.push(_esc(_record.date));
+      summaryHtml = (
+        '<div class="wiz-story-ctx">' +
+          '<div class="wiz-story-ctx-label">Record summary</div>' +
+          (titleLine.length
+            ? '<div class="wiz-story-ctx-job">' + titleLine.join(' \xb7 ') + '</div>'
+            : '<div class="wiz-story-ctx-job" style="color:var(--ink-faint);font-style:italic;">No title yet</div>') +
+        '</div>'
+      );
+    }
+
+    var fieldKey = isStory ? 'story' : 'details';
+    var preview  = isStory ? _storyPreview : _detailsPreview;
+    var toggleId = isStory ? 'wiz-story-md-btn' : 'wiz-details-md-btn';
+    var inputId  = isStory ? 'f-story' : 'f-details';
+    var prevId   = isStory ? 'f-story-preview' : 'f-details-preview';
+
+    var mdRow = (
+      '<div class="wiz-md-row">' +
+        '<span class="wiz-md-label">' + cfg.label + '</span>' +
+        '<div class="wiz-md-controls">' +
+          '<button class="wiz-md-toggle" id="' + toggleId + '" type="button">' +
+            (preview ? '\u270e Edit' : 'View as Markdown') +
+          '</button>' +
+          '<a class="wiz-md-help" href="https://commonmark.org/help/" target="_blank" rel="noopener" tabindex="-1">?</a>' +
+        '</div>' +
+      '</div>'
+    );
+
+    var fieldEl = preview
+      ? '<div class="wiz-md-preview" id="' + prevId + '">' + _renderMarkdown(_record[fieldKey] || '') + '</div>'
+      : '<textarea class="field-input field-textarea" id="' + inputId + '" rows="6"' +
+          ' placeholder="' + _esc(cfg.ph) + '">' + _esc(_record[fieldKey] || '') + '</textarea>';
+
+    return (
+      '<div class="card"><div class="card-section">' +
+        summaryHtml +
+        '<div class="field-group">' + mdRow + fieldEl +
+          (cfg.hint ? '<p class="field-hint">' + cfg.hint + '</p>' : '') +
+        '</div>' +
+      '</div></div>'
+    );
+  }
+
+  function _renderLocMapPreview(loc) {
+    if (typeof MapUtils === 'undefined') return '';
+    return MapUtils.renderLocationPreview(loc);
+  }
+
   // ── Field type renderer ──────────────────────────────────────
 
   function _renderProcessField() {
-    var locHtml = '<div class="field-group"><label class="field-label">Locations</label>';
+    var locHtml = '<div class="field-group"><label class="field-label">Locations</label>' +
+      '<p class="field-hint">Map previews and postcards fetch tiles from <strong>OpenStreetMap</strong>. ' +
+      'Share links keep coords only — receivers can fetch a richer preview on their device. Paste OSM, Google, or Apple links.</p>';
     locHtml += '<div class="wiz-locations-list" id="wiz-locations-list">';
     _locations.forEach(function(loc, i) {
-      locHtml += '<div class="wiz-location-item" data-loc-idx="' + i + '">' +
-        '<div class="wiz-location-row">' +
-          '<input class="field-input wiz-loc-address" type="text" placeholder="Address or site name"' +
-            ' value="' + _esc(loc.address || '') + '" data-loc-field="address" data-loc-idx="' + i + '">' +
+      var isCollapsed = !!loc.collapsed;
+      locHtml += '<div class="wiz-location-item' + (isCollapsed ? ' collapsed' : '') + '" draggable="true" data-loc-idx="' + i + '">' +
+        '<div class="wiz-location-head">' +
+          '<span class="wiz-loc-drag" title="Drag to reorder">\u2807</span>' +
+          '<button type="button" class="wiz-loc-collapse" data-loc-collapse="' + i + '" title="Expand/collapse">' +
+            (isCollapsed ? '\u25b8' : '\u25be') +
+          '</button>' +
+          '<input class="field-input wiz-loc-title" type="text" placeholder="Short label (e.g. Site A)"' +
+            ' value="' + _esc(loc.title || '') + '" data-loc-field="title" data-loc-idx="' + i + '">' +
           (_locations.length > 1
             ? '<button class="wiz-location-remove" type="button" data-remove-loc="' + i + '" title="Remove">&times;</button>'
             : '') +
         '</div>' +
-        '<textarea class="field-input wiz-location-notes" rows="2" placeholder="Notes for this location"' +
+        '<div class="wiz-location-body" data-loc-body="' + i + '" style="' + (isCollapsed ? 'display:none' : '') + '">' +
+        '<div class="wiz-location-row">' +
+          '<input class="field-input wiz-loc-address" type="text" placeholder="Address or site name"' +
+            ' value="' + _esc(loc.address || '') + '" data-loc-field="address" data-loc-idx="' + i + '">' +
+        '</div>' +
+        '<textarea class="field-input wiz-location-notes" rows="2" placeholder="Site notes — access, contacts, hazards…"' +
           ' data-loc-field="notes" data-loc-idx="' + i + '">' + _esc(loc.notes || '') + '</textarea>' +
+        '<div class="wiz-loc-map-row">' +
+          '<input class="field-input wiz-loc-map" type="url" inputmode="url"' +
+            ' placeholder="OpenStreetMap link — used for map preview & snapshots"' +
+            ' value="' + _esc(loc.map_url || '') + '" data-loc-field="map_url" data-loc-idx="' + i + '">' +
+        '</div>' +
+        '<div class="wiz-loc-map-row">' +
+          '<input class="field-input wiz-loc-google" type="url" inputmode="url"' +
+            ' placeholder="Google Maps link (optional)"' +
+            ' value="' + _esc(loc.google_map_url || '') + '" data-loc-field="google_map_url" data-loc-idx="' + i + '">' +
+        '</div>' +
+        '<div class="wiz-loc-map-row">' +
+          '<input class="field-input wiz-loc-apple" type="url" inputmode="url"' +
+            ' placeholder="Apple Maps link (optional)"' +
+            ' value="' + _esc(loc.apple_map_url || '') + '" data-loc-field="apple_map_url" data-loc-idx="' + i + '">' +
+        '</div>' +
+        '<div class="wiz-loc-enrich-row">' +
+          '<button class="btn-ghost wiz-loc-enrich" type="button" data-loc-enrich="' + i + '">Fetch map snapshot</button>' +
+          '<span class="wiz-loc-enrich-hint">Local snapshot for your editor — not embedded in share links. Google/Apple links open those apps; previews use OSM.</span>' +
+        '</div>' +
+        '<div class="wiz-loc-map-preview" data-loc-preview="' + i + '">' + _renderLocMapPreview(loc) + '</div>' +
+        '</div>' +
       '</div>';
     });
     locHtml += '</div>';
@@ -754,11 +998,15 @@ var WizardScreen = (function () {
 
     return (
       '<div class="card"><div class="card-section">' +
+        _renderEncryptBlock() +
+        '<div class="wiz-fields-wrap' + _fieldsWrapClass() + '">' +
+        _field('job', 'Title', 'text', _record.job || '', true, 'Name this activity') +
         _field('date',       'Date',       'date', _record.date       || '', false, '') +
         _field('start_time', 'Start time', 'text', _record.start_time || '', false, '09:00') +
         _field('end_time',   'End time',   'text', _record.end_time   || '', false, '') +
         locHtml +
         _field('worker', 'Your alias', 'text', _record.worker || localStorage.getItem('wp_pref_alias') || '', false, 'Optional — how you sign this') +
+        '</div>' +
       '</div></div>'
     );
   }
@@ -768,8 +1016,11 @@ var WizardScreen = (function () {
   function _renderProcessNote() {
     return (
       '<div class="card"><div class="card-section">' +
-        _field('job', 'Title', 'text', _record.job || '', false, 'What is this note about?') +
-        _field('worker', 'Your alias', 'text', _record.worker || localStorage.getItem('wp_pref_alias') || '', false, 'Optional') +
+        _renderEncryptBlock() +
+        '<div class="wiz-fields-wrap' + _fieldsWrapClass() + '">' +
+        _field('job', 'Title', 'text', _record.job || '', true, 'Name this memo') +
+        _field('worker', 'Your alias', 'text', _record.worker || localStorage.getItem('wp_pref_alias') || '', false, 'Optional — attribution only') +
+        '</div>' +
       '</div></div>'
     );
   }
@@ -779,9 +1030,10 @@ var WizardScreen = (function () {
       '<div class="card"><div class="card-section">' +
         '<div class="field-group">' +
           '<label class="field-label">Actions</label>' +
-          '<textarea class="field-input" id="f-pads-actions" rows="10" style="height:180px;resize:none;" placeholder="One action per line, or freeform notes">' +
+          '<textarea class="field-input" id="f-pads-actions" rows="10" style="height:180px;resize:none;" placeholder="Steps, bullets, or checklist items — one per line">' +
             _esc(_record.pads_actions || '') +
           '</textarea>' +
+          '<p class="field-hint">Free-form list — not the structured action builder</p>' +
         '</div>' +
       '</div></div>'
     );
@@ -792,7 +1044,7 @@ var WizardScreen = (function () {
       '<div class="card"><div class="card-section">' +
         '<div class="field-group">' +
           '<label class="field-label">Details</label>' +
-          '<textarea class="field-input" id="f-pads-details" rows="10" style="height:180px;resize:none;" placeholder="Supporting details">' +
+          '<textarea class="field-input" id="f-pads-details" rows="10" style="height:180px;resize:none;" placeholder="References, links, quotes, background context…">' +
             _esc(_record.pads_details || _record.details || '') +
           '</textarea>' +
         '</div>' +
@@ -805,11 +1057,27 @@ var WizardScreen = (function () {
   function _renderProcessPlan() {
     return (
       '<div class="card"><div class="card-section">' +
-        _field('job',      'Title',    'text', _record.job      || '', false, 'What is the plan?') +
-        _field('date',     'Start',    'date', _record.date     || '', false, '') +
-        _field('due_date', 'Due date', 'date', _record.due_date || '', false, '') +
-        _field('location', 'Location', 'text', _record.location || '', false, 'Where (optional)') +
+        _renderEncryptBlock() +
+        '<div class="wiz-fields-wrap' + _fieldsWrapClass() + '">' +
+        _field('job',      'Title',    'text', _record.job      || '', true, 'What are you planning?') +
+        _field('date',     'Start',    'date', _record.date     || '', false, 'When does this begin?') +
+        _field('due_date', 'Due date', 'date', _record.due_date || '', false, 'Target completion') +
+        _field('location', 'Location', 'text', _record.location || '', false, 'Where it happens (optional)') +
+        '<div class="field-group">' +
+          '<label class="field-label" for="f-location_map_url">Map link</label>' +
+          '<input class="field-input" id="f-location_map_url" type="url" inputmode="url"' +
+            (_isContentLocked() ? ' disabled readonly' : '') +
+            ' placeholder="OpenStreetMap link — previews & postcards use OSM tiles"' +
+            ' value="' + _esc(_record.location_map_url || '') + '">' +
+          '<p class="field-hint">Map previews and postcards fetch tiles from OpenStreetMap. Paste any map link for coordinates; OSM URL gives the richest preview.</p>' +
+          '<div id="wiz-plan-map-preview">' +
+            ((typeof MapUtils !== 'undefined' && _record.location_lat != null)
+              ? MapUtils.renderPreview(_record.location_lat, _record.location_lon, _record.location_zoom)
+              : '') +
+          '</div>' +
+        '</div>' +
         _field('worker', 'Your alias', 'text', _record.worker || localStorage.getItem('wp_pref_alias') || '', false, 'Optional') +
+        '</div>' +
       '</div></div>'
     );
   }
@@ -827,22 +1095,62 @@ var WizardScreen = (function () {
         '<div class="card-section">' +
           (_mode !== 'expense' && _mode !== 'payment' ? _renderRecordTypeSelector() : '') +
           _renderActionPicker() +
+          _renderEncryptBlock() +
+          '<div class="wiz-fields-wrap' + _fieldsWrapClass() + '">' +
           _field('job', jobLabel, 'text', _record.job || '', true, jobPlaceholder) +
           '<div class="field-group">' +
             '<label class="field-label" for="f-customer">Customer</label>' +
             '<div class="wiz-customer-row">' +
               '<input class="field-input" id="f-customer" type="text"' +
+                (_isContentLocked() ? ' disabled readonly' : '') +
                 ' value="' + _esc(_record.customer || '') + '" placeholder="Customer or client name">' +
               '<button class="wiz-me-btn" id="wiz-me-btn" type="button" title="Set to my own identity">ME</button>' +
             '</div>' +
           '</div>' +
           _field('date',     'Date',     'date', _record.date     || '', false, '') +
+          '</div>' +
         '</div>' +
-        '<div class="card-section">' +
+        '<div class="card-section wiz-fields-wrap' + _fieldsWrapClass() + '">' +
           _renderFinancialFields() +
         '</div>' +
       '</div>'
     );
+  }
+
+  function _actionCopy() {
+    if (_padType === 'field') {
+      return {
+        emptyTitle: 'No steps yet', emptySub: 'Break the visit into checkpoints',
+        titlePh: 'Step or checkpoint', notesPh: 'Site note for this step',
+        addAction: '+ Add step', addSection: '+ Add section',
+      };
+    }
+    if (_padType === 'plan') {
+      return {
+        emptyTitle: 'No tasks yet', emptySub: 'Add milestones and tasks in order',
+        titlePh: 'Task or milestone', notesPh: 'Owner, deps, or notes',
+        addAction: '+ Add task', addSection: '+ Add section',
+      };
+    }
+    if (_padType === 'note') {
+      return {
+        emptyTitle: 'No items yet', emptySub: 'Use the Actions tab for free-form lists',
+        titlePh: 'Item', notesPh: 'Notes',
+        addAction: '+ Add item', addSection: '+ Add section',
+      };
+    }
+    if (_mode === 'expense') {
+      return {
+        emptyTitle: 'No items yet', emptySub: 'List the expense items',
+        titlePh: 'Item description', notesPh: 'Notes — optional',
+        addAction: '+ Add item', addSection: '+ Add section',
+      };
+    }
+    return {
+      emptyTitle: 'No actions yet', emptySub: 'Break the job into steps',
+      titlePh: 'Step title', notesPh: 'Notes — optional',
+      addAction: '+ Add action', addSection: '+ Add section',
+    };
   }
 
   function _renderFinancialFields() {
@@ -1086,11 +1394,12 @@ var WizardScreen = (function () {
               '</div>';
     }
 
-    var isItems = (_mode === 'expense');
-    var emptyTitle = isItems ? 'No items yet' : 'No actions yet';
-    var emptySub   = isItems ? 'List the expense items' : 'Break the job into steps';
-    var titlePh    = isItems ? 'Item description' : 'Step title';
-    var addLabel   = isItems ? '+ Add item' : '+ Add action';
+    var copy       = _actionCopy();
+    var emptyTitle = copy.emptyTitle;
+    var emptySub   = copy.emptySub;
+    var titlePh    = copy.titlePh;
+    var notesPh    = copy.notesPh;
+    var addLabel   = copy.addAction;
 
     if (actions.length === 0) {
       html += '<div class="wiz-actions-empty">' +
@@ -1105,16 +1414,17 @@ var WizardScreen = (function () {
       html += '<div class="wiz-actions-list" id="wiz-actions-list">';
       displayList.forEach(function (entry) {
         var a = entry.a, i = entry.i;
-        var num = (i < 9 ? '0' : '') + (i + 1);
+        var isHead = a.kind === 'heading' || a.isHeading;
+        var num = isHead ? '\u00a7' : ((i < 9 ? '0' : '') + (i + 1));
         html += (
-          '<div class="wiz-action" draggable="true" data-index="' + i + '">' +
+          '<div class="wiz-action' + (isHead ? ' wiz-action-heading' : '') + '" draggable="true" data-index="' + i + '">' +
             '<span class="wiz-action-num">' + num + '</span>' +
             '<div class="wiz-action-fields">' +
-              '<input class="field-input wiz-action-title" type="text"' +
-                ' placeholder="' + titlePh + '" value="' + _esc(a.title || '') + '"' +
-                ' data-action-title="' + i + '">' +
+              '<input class="field-input wiz-action-title' + (isHead ? ' wiz-action-heading-title' : '') + '" type="text"' +
+                ' placeholder="' + (isHead ? 'Section heading' : titlePh) + '" value="' + _esc(a.title || '') + '"' +
+                ' data-action-title="' + i + '" data-action-kind="' + (isHead ? 'heading' : 'action') + '">' +
               '<input class="field-input wiz-action-notes" type="text"' +
-                ' placeholder="Notes \u2014 optional" value="' + _esc(a.notes || '') + '"' +
+                ' placeholder="' + notesPh + '" value="' + _esc(a.notes || '') + '"' +
                 ' data-action-notes="' + i + '">' +
             '</div>' +
             '<button class="wiz-action-remove" data-remove="' + i + '" title="Remove">\u00d7</button>' +
@@ -1124,8 +1434,9 @@ var WizardScreen = (function () {
       html += '</div>';
     }
 
-    html += '<div class="wiz-add-row">' +
+    html += '<div class="wiz-add-row wiz-add-row-split">' +
               '<button class="btn-ghost" id="wiz-add-action">' + addLabel + '</button>' +
+              '<button class="btn-ghost" id="wiz-add-section">' + copy.addSection + '</button>' +
             '</div>';
     html += '</div>';
     return html;
@@ -1191,9 +1502,11 @@ var WizardScreen = (function () {
       '</div>'
     );
 
+    var storyCfg   = _narrativeCopy('story');
+    var detailsCfg = _narrativeCopy('details');
     var storyMdRow = (
       '<div class="wiz-md-row">' +
-        '<span class="wiz-md-label">Story</span>' +
+        '<span class="wiz-md-label">' + storyCfg.label + '</span>' +
         '<div class="wiz-md-controls">' +
           '<button class="wiz-md-toggle" id="wiz-story-md-btn" type="button">' +
             (_storyPreview ? '\u270e Edit' : 'View as Markdown') +
@@ -1206,13 +1519,13 @@ var WizardScreen = (function () {
     var storyField = _storyPreview
       ? '<div class="wiz-md-preview" id="f-story-preview">' + _renderMarkdown(_record.story || '') + '</div>'
       : '<textarea class="field-input field-textarea" id="f-story" rows="6"' +
-          ' placeholder="A plain account of the work\u2026">' +
+          ' placeholder="' + _esc(storyCfg.ph) + '">' +
           _esc(_record.story || '') +
         '</textarea>';
 
     var detailsMdRow = (
       '<div class="wiz-md-row">' +
-        '<span class="wiz-md-label">Notes / Details</span>' +
+        '<span class="wiz-md-label">' + detailsCfg.label + '</span>' +
         '<div class="wiz-md-controls">' +
           '<button class="wiz-md-toggle" id="wiz-details-md-btn" type="button">' +
             (_detailsPreview ? '\u270e Edit' : 'View as Markdown') +
@@ -1225,7 +1538,7 @@ var WizardScreen = (function () {
     var detailsField = _detailsPreview
       ? '<div class="wiz-md-preview" id="f-details-preview">' + _renderMarkdown(_record.details || '') + '</div>'
       : '<textarea class="field-input field-textarea" id="f-details" rows="5"' +
-          ' placeholder="Technical notes, materials, measurements\u2026">' +
+          ' placeholder="' + _esc(detailsCfg.ph) + '">' +
           _esc(_record.details || '') +
         '</textarea>';
 
@@ -1236,14 +1549,14 @@ var WizardScreen = (function () {
           '<div class="field-group">' +
             storyMdRow +
             storyField +
-            '<p class="field-hint">Narrative \u2014 readable by the customer</p>' +
+            '<p class="field-hint">' + storyCfg.hint + '</p>' +
           '</div>' +
         '</div>' +
         '<div class="card-section">' +
           '<div class="field-group">' +
             detailsMdRow +
             detailsField +
-            '<p class="field-hint">Internal \u2014 included in the share link</p>' +
+            '<p class="field-hint">' + detailsCfg.hint + '</p>' +
           '</div>' +
         '</div>' +
       '</div>'
@@ -1302,12 +1615,15 @@ var WizardScreen = (function () {
   // ── Field helper ─────────────────────────────────────────────
 
   function _field(key, label, type, value, required, placeholder) {
-    var hasNote = !!(_id && typeof PersonalService !== 'undefined');
+    var locked = _isContentLocked();
+    var dis    = locked ? ' disabled readonly' : '';
+    var hasNote = !!(_id && typeof PersonalService !== 'undefined') && !locked;
     var noteBtn = hasNote
       ? '<button class="wiz-field-note-btn" type="button" data-field="' + key + '"' +
           ' data-label="' + _esc(label) + '" title="Add note for this field" tabindex="0">\u270f</button>'
       : '';
     var inputEl = '<input class="field-input" id="f-' + key + '" type="' + type + '"' +
+      dis +
       ' value="' + _esc(value) + '"' +
       ' placeholder="' + _esc(placeholder) + '">';
     return (
@@ -1337,26 +1653,44 @@ var WizardScreen = (function () {
 
   function _collect() {
     _tryCollect('job',            'f-job');
-    _tryCollect('customer',       'f-customer');
+    if (_padType === 'work' || _mode === 'expense' || _mode === 'payment') {
+      _tryCollect('customer',       'f-customer');
+      _tryCollect('customer_phone', 'f-customer_phone');
+      _tryCollect('meeting_time',   'f-meeting_time');
+    }
     _tryCollect('date',           'f-date');
     _tryCollect('location',       'f-location');
-    _tryCollect('customer_phone', 'f-customer_phone');
     _tryCollect('start_time',     'f-start_time');
     _tryCollect('end_time',       'f-end_time');
-    _tryCollect('meeting_time',   'f-meeting_time');
     _tryCollect('story',          'f-story');
     _tryCollect('details',        'f-details');
     _tryCollect('due_date',       'f-due_date');
+    _tryCollect('location_map_url', 'f-location_map_url');
     _tryCollect('worker',         'f-worker');
-    _tryCollect('amount',         'f-amount');
-    _tryCollect('currency',       'f-currency');
-    _tryCollect('vat',            'f-vat');
-    if (_record.vat === 'none') delete _record.vat;
-    _tryCollect('worker_cost',    'f-worker_cost');
-    _tryCollect('action_quoted',  'f-action_quoted');
-    _tryCollect('charge_type',    'f-charge_type');
-    _tryCollect('payment_ref',    'f-payment_ref');
-    if (_record.payment_ref) _record.job = _record.payment_ref;
+
+    if (_padType === 'plan') {
+      var parsed = _parseLocMapUrl(_record.location_map_url || '');
+      if (parsed) {
+        _record.location_lat  = parsed.lat;
+        _record.location_lon  = parsed.lon;
+        _record.location_zoom = parsed.zoom;
+      } else {
+        delete _record.location_lat;
+        delete _record.location_lon;
+        delete _record.location_zoom;
+      }
+    }
+    if (_padType === 'work' || _mode === 'expense' || _mode === 'payment') {
+      _tryCollect('amount',         'f-amount');
+      _tryCollect('currency',       'f-currency');
+      _tryCollect('vat',            'f-vat');
+      if (_record.vat === 'none') delete _record.vat;
+      _tryCollect('worker_cost',    'f-worker_cost');
+      _tryCollect('action_quoted',  'f-action_quoted');
+      _tryCollect('charge_type',    'f-charge_type');
+      _tryCollect('payment_ref',    'f-payment_ref');
+      if (_record.payment_ref) _record.job = _record.payment_ref;
+    }
 
     // Note type: collect free-text PADS sections
     if (_padType === 'note') {
@@ -1368,8 +1702,18 @@ var WizardScreen = (function () {
     if (_padType === 'field') {
       _collectLocations();
       _record.location = (_locations[0] && _locations[0].address) ? _locations[0].address : '';
-      _record._locations_json = _locations.length > 1 || (_locations[0] && _locations[0].notes)
-        ? JSON.stringify(_locations) : undefined;
+      var hasLocData = _locations.some(function (loc) {
+        return (loc.title || loc.address || loc.notes || loc.map_url || loc.google_map_url || loc.apple_map_url);
+      });
+      if (hasLocData) {
+        _record._locations_json = JSON.stringify(_locations.map(function (loc) {
+          var copy = Object.assign({}, loc);
+          delete copy.collapsed;
+          return copy;
+        }));
+      } else {
+        delete _record._locations_json;
+      }
     }
 
     // Stamp pad type on every record
@@ -1378,18 +1722,52 @@ var WizardScreen = (function () {
     _collectParticipants();
     _collectPartsFlag();
     _collectActions();
+    _collectEncrypt();
+  }
+
+  function _parseLocMapUrl(url) {
+    if (typeof MapUtils === 'undefined' || !url) return null;
+    return MapUtils.parseMapUrl(url);
   }
 
   function _collectLocations() {
+    var titleEls   = document.querySelectorAll('.wiz-loc-title');
     var addressEls = document.querySelectorAll('.wiz-loc-address');
     var notesEls   = document.querySelectorAll('.wiz-location-notes');
+    var mapEls     = document.querySelectorAll('.wiz-loc-map');
+    var googleEls  = document.querySelectorAll('.wiz-loc-google');
+    var appleEls   = document.querySelectorAll('.wiz-loc-apple');
     if (!addressEls.length) return;
     var locs = [];
     for (var i = 0; i < addressEls.length; i++) {
-      locs.push({
-        address: addressEls[i].value.trim(),
-        notes:   notesEls[i] ? notesEls[i].value.trim() : '',
-      });
+      var prev = _locations[i] || _blankLocation();
+      var loc = {
+        title:          titleEls[i] ? titleEls[i].value.trim() : (prev.title || ''),
+        address:        addressEls[i].value.trim(),
+        notes:          notesEls[i] ? notesEls[i].value.trim() : '',
+        map_url:        mapEls[i] ? mapEls[i].value.trim() : '',
+        google_map_url: googleEls[i] ? googleEls[i].value.trim() : '',
+        apple_map_url:  appleEls[i] ? appleEls[i].value.trim() : '',
+        map_snapshot:   prev.map_snapshot || null,
+        ms:             prev.ms || null,
+        mt:             prev.mt || null,
+        mw:             prev.mw || null,
+        mh:             prev.mh || null,
+        collapsed:      !!prev.collapsed,
+      };
+      var parsed = typeof MapUtils !== 'undefined'
+        ? MapUtils.resolveLocationCoords(loc)
+        : _parseLocMapUrl(loc.map_url);
+      if (parsed) {
+        loc.lat = parsed.lat;
+        loc.lon = parsed.lon;
+        loc.zoom = parsed.zoom;
+        loc.map_source = parsed.source;
+      } else {
+        loc.lat = loc.lon = loc.zoom = null;
+        delete loc.map_source;
+      }
+      locs.push(loc);
     }
     _locations = locs;
   }
@@ -1426,12 +1804,20 @@ var WizardScreen = (function () {
     var notes = document.querySelectorAll('[data-action-notes]');
     var arr   = [];
     for (var i = 0; i < titles.length; i++) {
-      arr.push({
+      var kind = titles[i].dataset.actionKind || 'action';
+      var item = {
         title: titles[i].value || '',
         notes: notes[i] ? (notes[i].value || '') : '',
-      });
+      };
+      if (kind === 'heading') item.kind = 'heading';
+      arr.push(item);
     }
     _record.actions = arr;
+  }
+
+  function _collectEncrypt() {
+    var enEl = document.getElementById('f-encrypt_enabled');
+    if (enEl) _record.encrypt_enabled = enEl.checked;
   }
 
   // ── Tab switching ────────────────────────────────────────────
@@ -1459,6 +1845,10 @@ var WizardScreen = (function () {
       _bindBodyEvents();
     }
 
+    var footer = document.querySelector('.wiz-wrap .wiz-footer');
+    if (footer) footer.outerHTML = _renderFooter();
+    _bindFooterEvents();
+
     _autoFocus();
     _notifyContext();
   }
@@ -1478,6 +1868,61 @@ var WizardScreen = (function () {
 
   // ── Save / Cancel ────────────────────────────────────────────
 
+  function _titleRequiredMsg() {
+    if (_padType === 'field') return 'Title is required';
+    if (_padType === 'note')  return 'Memo title is required';
+    if (_padType === 'plan')  return 'Plan title is required';
+    if (_mode === 'expense')  return 'Short description is required';
+    if (_mode === 'payment')  return 'Payment description is required';
+    return 'Job title is required';
+  }
+
+  function _persistRecord(done) {
+    _collect();
+    var toSave = Object.assign({}, _record);
+    var passEl = document.getElementById('f-encrypt_pass');
+    var pass   = passEl ? passEl.value : '';
+
+    if (toSave.encrypt_enabled) {
+      if (typeof WorkpadsEncrypt === 'undefined') {
+        App.toast('Encryption unavailable');
+        return;
+      }
+      // Already sealed, no passphrase — save metadata only (stay locked).
+      if (WorkpadsEncrypt.isSealed(toSave) && !pass) {
+        RecordService.save(_id, toSave).then(done);
+        return;
+      }
+      // Unlocked or never sealed — save edits without re-locking.
+      if (!WorkpadsEncrypt.isSealed(toSave) && !pass) {
+        delete toSave._encrypt_seal;
+        RecordService.save(_id, toSave).then(function (saved) {
+          _record = saved;
+          done(saved);
+        });
+        return;
+      }
+      if (!pass) {
+        App.toast('Enter a passphrase to lock');
+        return;
+      }
+      WorkpadsEncrypt.sealRecord(toSave, pass).then(function (sealed) {
+        _record = sealed;
+        _contentUnlocked = false;
+        RecordService.save(_id, sealed).then(done);
+      }).catch(function () {
+        App.toast('Encryption failed — check passphrase');
+      });
+      return;
+    }
+
+    delete toSave._encrypt_seal;
+    RecordService.save(_id, toSave).then(function (saved) {
+      _record = saved;
+      done(saved);
+    });
+  }
+
   function _save() {
     _collect();
 
@@ -1491,15 +1936,14 @@ var WizardScreen = (function () {
           setTimeout(function () { jobEl.style.borderColor = ''; }, 1400);
         }
       }, 40);
-      App.toast('Job title is required');
+      App.toast(_titleRequiredMsg());
       return;
     }
 
-    RecordService.save(_id, _record).then(function (saved) {
+    _persistRecord(function (saved) {
       if (saved.customer && saved.customer_phone) {
         BlockRegistry.save(saved.customer, saved.customer_phone);
       }
-      // After saving an expense, return to the parent record
       if (_mode === 'expense' && saved.parentId) {
         App.showView(saved.parentId);
       } else {
@@ -1509,8 +1953,7 @@ var WizardScreen = (function () {
   }
 
   function _saveDraft() {
-    _collect();
-    RecordService.save(_id, _record).then(function () {
+    _persistRecord(function () {
       App.toast('Draft saved');
     });
   }
@@ -1531,20 +1974,25 @@ var WizardScreen = (function () {
 
   // ── Event binding ────────────────────────────────────────────
 
+  function _bindFooterEvents() {
+    var cancelBottom = document.getElementById('wiz-cancel-bottom');
+    if (cancelBottom) cancelBottom.addEventListener('click', _cancel);
+    var saveBtn  = document.getElementById('wiz-save');
+    var draftBtn = document.getElementById('wiz-save-draft');
+    var nextBtn  = document.getElementById('wiz-next');
+    if (saveBtn)  saveBtn.addEventListener('click',  _save);
+    if (draftBtn) draftBtn.addEventListener('click', _saveDraft);
+    if (nextBtn)  nextBtn.addEventListener('click',  _nextTab);
+  }
+
   function _bindEvents(screenEl) {
     screenEl.querySelectorAll('.tab-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { _switchTab(this.dataset.tab); });
     });
 
-    ['wiz-cancel-top', 'wiz-cancel-bottom'].forEach(function (id) {
-      var btn = document.getElementById(id);
-      if (btn) btn.addEventListener('click', _cancel);
-    });
-
-    var saveBtn  = document.getElementById('wiz-save');
-    var draftBtn = document.getElementById('wiz-save-draft');
-    if (saveBtn)  saveBtn.addEventListener('click',  _save);
-    if (draftBtn) draftBtn.addEventListener('click', _saveDraft);
+    var cancelTop = document.getElementById('wiz-cancel-top');
+    if (cancelTop) cancelTop.addEventListener('click', _cancel);
+    _bindFooterEvents();
 
     screenEl.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -1558,12 +2006,20 @@ var WizardScreen = (function () {
   }
 
   function _bindBodyEvents() {
+    var jobEl = document.getElementById('f-job');
+    if (jobEl) {
+      jobEl.addEventListener('input', function () {
+        _record.job = jobEl.value;
+        _notifyContext();
+      });
+    }
+
     // ── Add location (Field type) ────────────────────────────
     var addLocBtn = document.getElementById('wiz-add-location');
     if (addLocBtn) {
       addLocBtn.addEventListener('click', function () {
         _collectLocations();
-        _locations.push({ address: '', notes: '' });
+        _locations.push(_blankLocation());
         var body = document.getElementById('wiz-body');
         if (body) {
           body.innerHTML = _renderTabBody('process');
@@ -1571,6 +2027,51 @@ var WizardScreen = (function () {
           var inputs = document.querySelectorAll('.wiz-loc-address');
           if (inputs.length) inputs[inputs.length - 1].focus();
         }
+      });
+    }
+
+    document.querySelectorAll('[data-loc-collapse]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        _collectLocations();
+        var idx = parseInt(this.dataset.locCollapse, 10);
+        if (_locations[idx]) _locations[idx].collapsed = !_locations[idx].collapsed;
+        var body = document.getElementById('wiz-body');
+        if (body) { body.innerHTML = _renderTabBody('process'); _bindBodyEvents(); }
+      });
+    });
+
+    var locList = document.getElementById('wiz-locations-list');
+    if (locList) {
+      locList.addEventListener('dragstart', function (e) {
+        var item = e.target.closest('.wiz-location-item');
+        if (!item) return;
+        _locDragIndex = parseInt(item.dataset.locIdx, 10);
+        item.classList.add('dragging');
+      });
+      locList.addEventListener('dragend', function (e) {
+        var item = e.target.closest('.wiz-location-item');
+        if (item) item.classList.remove('dragging');
+        locList.querySelectorAll('.drag-over').forEach(function (el) { el.classList.remove('drag-over'); });
+      });
+      locList.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        var item = e.target.closest('.wiz-location-item');
+        if (!item) return;
+        locList.querySelectorAll('.drag-over').forEach(function (el) { el.classList.remove('drag-over'); });
+        item.classList.add('drag-over');
+      });
+      locList.addEventListener('drop', function (e) {
+        e.preventDefault();
+        var item = e.target.closest('.wiz-location-item');
+        if (!item || _locDragIndex < 0) return;
+        var dropIndex = parseInt(item.dataset.locIdx, 10);
+        if (dropIndex === _locDragIndex) return;
+        _collectLocations();
+        var moved = _locations.splice(_locDragIndex, 1)[0];
+        _locations.splice(dropIndex, 0, moved);
+        _locDragIndex = -1;
+        var body = document.getElementById('wiz-body');
+        if (body) { body.innerHTML = _renderTabBody('process'); _bindBodyEvents(); }
       });
     }
 
@@ -1584,6 +2085,113 @@ var WizardScreen = (function () {
       });
     });
 
+    // ── Encrypt toggle ───────────────────────────────────────
+    var encEl = document.getElementById('f-encrypt_enabled');
+    if (encEl) {
+      encEl.addEventListener('change', function () {
+        _record.encrypt_enabled = encEl.checked;
+        var box = document.getElementById('wiz-encrypt-pass');
+        if (box) box.style.display = encEl.checked ? '' : 'none';
+      });
+    }
+    var unlockBtn = document.getElementById('wiz-unlock-seal');
+    if (unlockBtn) {
+      unlockBtn.addEventListener('click', function () {
+        var passEl = document.getElementById('f-encrypt_pass');
+        var pass   = passEl ? passEl.value : '';
+        if (!pass || typeof WorkpadsEncrypt === 'undefined') {
+          App.toast('Enter passphrase');
+          return;
+        }
+        WorkpadsEncrypt.unsealRecord(_record, pass).then(function (r) {
+          delete r._encrypt_seal;
+          _record = r;
+          _padType = (typeof PadType !== 'undefined') ? PadType.of(r) : (r.record_class || 'work');
+          _contentUnlocked = true;
+          return RecordService.save(_id, r);
+        }).then(function (saved) {
+          if (saved) _record = saved;
+          App.toast('Unlocked');
+          _render();
+          _notifyContext();
+        }).catch(function () { App.toast('Wrong passphrase'); });
+      });
+    }
+
+    var lockBtn = document.getElementById('wiz-lock-seal');
+    if (lockBtn) {
+      lockBtn.addEventListener('click', function () {
+        _collect();
+        var passEl = document.getElementById('f-encrypt_pass');
+        var pass   = passEl ? passEl.value : '';
+        if (!pass) { App.toast('Enter a passphrase to lock'); return; }
+        WorkpadsEncrypt.sealRecord(_record, pass).then(function (sealed) {
+          _record = sealed;
+          _contentUnlocked = false;
+          return RecordService.save(_id, sealed);
+        }).then(function (saved) {
+          if (saved) _record = saved;
+          App.toast('Locked');
+          _render();
+        }).catch(function () { App.toast('Could not lock'); });
+      });
+    }
+
+    // ── OSM map link parse (offline preview only) ────────────
+    function _refreshLocMaps() {
+      _collectLocations();
+      var body = document.getElementById('wiz-body');
+      if (body) { body.innerHTML = _renderTabBody('process'); _bindBodyEvents(); }
+    }
+
+    document.querySelectorAll('.wiz-loc-map, .wiz-loc-google, .wiz-loc-apple').forEach(function (input) {
+      input.addEventListener('blur', _refreshLocMaps);
+    });
+
+    document.querySelectorAll('.wiz-loc-enrich').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (typeof MapUtils === 'undefined') return;
+        _collectLocations();
+        var idx = parseInt(btn.dataset.locEnrich, 10);
+        var loc = _locations[idx];
+        if (!loc) return;
+        var coords = MapUtils.resolveLocationCoords(loc);
+        if (!coords) {
+          App.toast('Paste a map link with coordinates first');
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'Fetching…';
+        MapUtils.fetchEnrichedSnapshot(coords.lat, coords.lon, coords.zoom).then(function (snap) {
+          loc.ms            = snap.ms;
+          loc.mt            = snap.mt;
+          loc.mw            = snap.mw;
+          loc.mh            = snap.mh;
+          loc.map_snapshot  = snap.map_snapshot;
+          loc.lat = coords.lat;
+          loc.lon = coords.lon;
+          loc.zoom = coords.zoom;
+          _locations[idx] = loc;
+          var sz = snap.bytes || MapUtils.snapshotSize(snap.ms);
+          App.toast('Snapshot ready (~' + Math.round(sz / 1024) + ' KB, local only)');
+          _refreshLocMaps();
+        }).catch(function () {
+          App.toast('Could not fetch map tiles — check connection or use offline preview');
+          btn.disabled = false;
+          btn.textContent = 'Fetch map snapshot';
+        });
+      });
+    });
+
+    var planMapEl = document.getElementById('f-location_map_url');
+    if (planMapEl) {
+      planMapEl.addEventListener('blur', function () {
+        _collect();
+        var body = document.getElementById('wiz-body');
+        if (body) { body.innerHTML = _renderTabBody('process'); _bindBodyEvents(); }
+      });
+    }
+
     // ── Add action ───────────────────────────────────────────
     var addActionBtn = document.getElementById('wiz-add-action');
     if (addActionBtn) {
@@ -1595,6 +2203,21 @@ var WizardScreen = (function () {
           body.innerHTML = _renderTabBody('actions');
           _bindBodyEvents();
           var inputs = document.querySelectorAll('.wiz-action-title');
+          if (inputs.length) inputs[inputs.length - 1].focus();
+        }
+      });
+    }
+
+    var addSectionBtn = document.getElementById('wiz-add-section');
+    if (addSectionBtn) {
+      addSectionBtn.addEventListener('click', function () {
+        _collectActions();
+        _record.actions = (_record.actions || []).concat([{ kind: 'heading', title: '', notes: '' }]);
+        var body = document.getElementById('wiz-body');
+        if (body) {
+          body.innerHTML = _renderTabBody('actions');
+          _bindBodyEvents();
+          var inputs = document.querySelectorAll('.wiz-action-heading-title');
           if (inputs.length) inputs[inputs.length - 1].focus();
         }
       });

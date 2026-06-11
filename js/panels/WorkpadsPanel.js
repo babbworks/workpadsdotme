@@ -11,7 +11,9 @@ var WorkpadsPanel = (function () {
   var _screenName   = 'list';
   var _screenParams = {};
   var _cogsOpen     = false;
-  var _listTab      = 'jobs';   // 'jobs' | 'quotes' | 'invoices'
+  var _padClassTab  = 'work';   // 'field' | 'work' | 'note' | 'plan'
+  var _listTab      = 'jobs';   // work sub: 'jobs' | 'quotes' | 'invoices'
+  var _sortMode     = 'recent'; // other pads: 'recent' | 'az' | 'za'
 
   // ── Styles ───────────────────────────────────────────────────
 
@@ -330,11 +332,13 @@ var WorkpadsPanel = (function () {
         '<input class="wpp-search-input" id="wpp-search" type="search"' +
           ' placeholder="Search\u2026" autocomplete="off" spellcheck="false">' +
       '</div>' +
-      '<div class="wpp-sort-tabs" id="wpp-sort-tabs" style="display:none;">' +
-        '<button class="wpp-sort-tab active" data-tab="jobs">Jobs</button>' +
-        '<button class="wpp-sort-tab" data-tab="quotes">Quotes</button>' +
-        '<button class="wpp-sort-tab" data-tab="invoices">Invoices</button>' +
+      '<div class="wpp-sort-tabs wpp-pad-tabs" id="wpp-pad-tabs">' +
+        '<button class="wpp-sort-tab" data-pad="field">Field</button>' +
+        '<button class="wpp-sort-tab active" data-pad="work">Work</button>' +
+        '<button class="wpp-sort-tab" data-pad="note">Memo</button>' +
+        '<button class="wpp-sort-tab" data-pad="plan">Plan</button>' +
       '</div>' +
+      '<div class="wpp-sort-tabs" id="wpp-sort-tabs"></div>' +
       '<div id="wpp-ctx" style="display:none;"></div>' +
       '<div id="wpp-expenses" style="display:none;"></div>' +
       '<div class="wpp-list" id="wpp-list"></div>'
@@ -350,6 +354,24 @@ var WorkpadsPanel = (function () {
 
     var backBtn = document.getElementById('wpp-back-btn');
     if (backBtn) backBtn.addEventListener('click', function () { App.showList(); });
+
+    var padTabsEl = document.getElementById('wpp-pad-tabs');
+    if (padTabsEl) {
+      padTabsEl.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-pad]');
+        if (!btn) return;
+        _padClassTab = btn.dataset.pad;
+        padTabsEl.querySelectorAll('[data-pad]').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.pad === _padClassTab);
+        });
+        if (_padClassTab === 'work') _listTab = 'jobs';
+        else _sortMode = 'recent';
+        _renderSubTabs();
+        _renderList();
+        _renderContext();
+      });
+    }
+    _renderSubTabs();
   }
 
   // ── Load + render ────────────────────────────────────────────
@@ -357,18 +379,48 @@ var WorkpadsPanel = (function () {
   function _load() {
     RecordService.list().then(function (records) {
       _records = records || [];
+      _syncPadTabFromActiveRecord();
       _renderList();
       _renderContext();
     });
+  }
+
+  function _syncPadTabFromActiveRecord() {
+    var id = _activeId();
+    if (!id) return;
+    if (_screenName !== 'view' && _screenName !== 'edit' && _screenName !== 'share') return;
+    for (var i = 0; i < _records.length; i++) {
+      if (_records[i].id === id) {
+        var pc = _padClass(_records[i]);
+        if (pc && pc !== _padClassTab) setPadClassFilter(pc);
+        return;
+      }
+    }
   }
 
   function refresh() {
     _load();
   }
 
+  function setPadClassFilter(padClass) {
+    _padClassTab = padClass || 'work';
+    var padTabsEl = document.getElementById('wpp-pad-tabs');
+    if (padTabsEl) {
+      padTabsEl.querySelectorAll('[data-pad]').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.pad === _padClassTab);
+      });
+    }
+    if (_padClassTab === 'work') _listTab = 'jobs';
+    else _sortMode = 'recent';
+    _renderSubTabs();
+    _renderList();
+    _renderContext();
+  }
+
   function setContext(name, params) {
     _screenName   = name;
     _screenParams = params || {};
+    _syncPadTabFromActiveRecord();
     _renderContext();
   }
 
@@ -387,23 +439,12 @@ var WorkpadsPanel = (function () {
     if (backBtn) backBtn.style.display = inRecordMode ? '' : 'none';
     if (listEl)  listEl.style.display  = inRecordMode ? 'none' : '';
 
-    // Sort tabs: visible only in list mode
+    // Pad + sub tabs: visible only in list mode
+    var padTabsEl  = document.getElementById('wpp-pad-tabs');
     var sortTabsEl = document.getElementById('wpp-sort-tabs');
-    if (sortTabsEl) {
-      sortTabsEl.style.display = inRecordMode ? 'none' : '';
-      if (!inRecordMode) {
-        sortTabsEl.querySelectorAll('.wpp-sort-tab').forEach(function (btn) {
-          btn.classList.toggle('active', btn.dataset.tab === _listTab);
-          btn.onclick = function () {
-            _listTab = this.dataset.tab;
-            sortTabsEl.querySelectorAll('.wpp-sort-tab').forEach(function (b) {
-              b.classList.toggle('active', b.dataset.tab === _listTab);
-            });
-            _renderList();
-          };
-        });
-      }
-    }
+    if (padTabsEl)  padTabsEl.style.display  = inRecordMode ? 'none' : '';
+    if (sortTabsEl) sortTabsEl.style.display = inRecordMode ? 'none' : '';
+    if (!inRecordMode) _renderSubTabs();
 
     // Always hide expenses unless in record mode
     if (expEl && !inRecordMode) {
@@ -473,13 +514,18 @@ var WorkpadsPanel = (function () {
     var meta = [];
     if (record.customer) meta.push(_esc(record.customer));
     if (record.date)     meta.push(_fmtDate(record.date));
-    var role = record.receivedAt ? 'Received' : 'Viewing';
+    var pc = _padClass(record);
+    var roleLabels = { field: 'Field visit', work: 'Viewing', note: 'Memo', plan: 'Plan' };
+    var role = record.receivedAt ? 'Received' : (roleLabels[pc] || 'Viewing');
 
     ctxEl.style.display = '';
     ctxEl.innerHTML = (
       '<div class="wpp-ctx">' +
         '<div class="wpp-ctx-label">' + role + '</div>' +
-        '<div class="wpp-ctx-job">' + _esc(record.job || 'Untitled') + '</div>' +
+        '<div class="wpp-ctx-job">' + _esc(
+          (typeof WorkpadsEncrypt !== 'undefined' ? WorkpadsEncrypt.displayJob(record) : record.job) ||
+          record.job || 'Untitled'
+        ) + '</div>' +
         (meta.length ? '<div class="wpp-ctx-meta">' + meta.join(' \xb7 ') + '</div>' : '') +
         '<div class="wpp-ctx-actions">' +
           '<button class="btn-ghost" id="wpp-ctx-edit" style="font-size:10px;padding:4px 10px;">Edit</button>' +
@@ -495,7 +541,12 @@ var WorkpadsPanel = (function () {
     if (shareBtn) shareBtn.addEventListener('click', function () { App.showShare(aid); });
 
     var children = _records.filter(function (r) { return r.parentId === activeId; });
-    _renderExpenses(children, activeId);
+    if ((typeof PadType !== 'undefined' ? PadType.hasFinancials(record) : _padClass(record) === 'work')) {
+      _renderExpenses(children, activeId);
+    } else {
+      var expEl = document.getElementById('wpp-expenses');
+      if (expEl) { expEl.style.display = 'none'; expEl.innerHTML = ''; }
+    }
   }
 
   function _renderChildCtx(ctxEl, record, parent) {
@@ -543,13 +594,31 @@ var WorkpadsPanel = (function () {
 
   function _renderWizardCtx(ctxEl) {
     var customer = (_screenParams && _screenParams.customer) || '';
+    var job      = (_screenParams && _screenParams.job) || '';
+    var padType  = (_screenParams && _screenParams.padType) || 'work';
+    var padLabels = { field: 'Field visit', work: 'Work pad', note: 'Memo', plan: 'Plan' };
 
-    if (!customer) {
+    if (!customer && !job) {
+      var padHint = (padType === 'field') ? 'Title is required to save'
+                  : (padType === 'note')  ? 'Memo title is required'
+                  : (padType === 'plan')  ? 'Plan title is required'
+                  : 'Job title is required to save';
       ctxEl.style.display = '';
       ctxEl.innerHTML = (
         '<div class="wpp-ctx">' +
-          '<div class="wpp-ctx-label">New record</div>' +
-          '<div class="wpp-ctx-hint">Job title is required to save</div>' +
+          '<div class="wpp-ctx-label">New ' + (padLabels[padType] || 'record').toLowerCase() + '</div>' +
+          '<div class="wpp-ctx-hint">' + padHint + '</div>' +
+        '</div>'
+      );
+      return;
+    }
+
+    if (padType !== 'work' && job) {
+      ctxEl.style.display = '';
+      ctxEl.innerHTML = (
+        '<div class="wpp-ctx">' +
+          '<div class="wpp-ctx-label">' + (padLabels[padType] || 'Editing') + '</div>' +
+          '<div class="wpp-ctx-job">' + _esc(job) + '</div>' +
         '</div>'
       );
       return;
@@ -1065,6 +1134,86 @@ var WorkpadsPanel = (function () {
     });
   }
 
+  // ── Sub-tab row (work subtypes or sort modes) ────────────────
+
+  function _renderSubTabs() {
+    var sortTabsEl = document.getElementById('wpp-sort-tabs');
+    if (!sortTabsEl) return;
+
+    var tabs, activeKey;
+    if (_padClassTab === 'work') {
+      tabs = [
+        { key: 'jobs',     label: 'Jobs' },
+        { key: 'quotes',   label: 'Quotes' },
+        { key: 'invoices', label: 'Invoices' },
+      ];
+      activeKey = _listTab;
+    } else {
+      tabs = [
+        { key: 'recent', label: 'Recent' },
+        { key: 'az',     label: 'A\u2013Z' },
+        { key: 'za',     label: 'Z\u2013A' },
+      ];
+      activeKey = _sortMode;
+    }
+
+    var html = '';
+    tabs.forEach(function (t) {
+      html += '<button class="wpp-sort-tab' + (t.key === activeKey ? ' active' : '') +
+              '" data-subtab="' + t.key + '">' + t.label + '</button>';
+    });
+    sortTabsEl.innerHTML = html;
+
+    sortTabsEl.querySelectorAll('[data-subtab]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = this.dataset.subtab;
+        if (_padClassTab === 'work') _listTab = key;
+        else _sortMode = key;
+        sortTabsEl.querySelectorAll('[data-subtab]').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.subtab === key);
+        });
+        _renderList();
+      });
+    });
+  }
+
+  function _padClass(r) {
+    return r.record_class || 'work';
+  }
+
+  function _filterMainRecords(inRecordMode) {
+    return _records.filter(function (r) {
+      if (r.parentId || r.record_type === 'ack') return false;
+      if (inRecordMode) return true;
+      if (_padClass(r) !== _padClassTab) return false;
+      if (_padClassTab === 'work') {
+        if (_listTab === 'quotes')   return r.record_type === 'quote';
+        if (_listTab === 'invoices') return r.record_type === 'invoice';
+        return r.record_type !== 'quote' && r.record_type !== 'invoice';
+      }
+      return true;
+    });
+  }
+
+  function _sortRecords(records) {
+    if (_padClassTab === 'work' || _sortMode === 'recent') return records;
+    var sorted = records.slice();
+    sorted.sort(function (a, b) {
+      var ta = (a.job || '').toLowerCase();
+      var tb = (b.job || '').toLowerCase();
+      if (ta < tb) return _sortMode === 'az' ? -1 : 1;
+      if (ta > tb) return _sortMode === 'az' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }
+
+  var _PAD_BADGE = {
+    field: { label: 'Fld', color: '#6a5a40', bg: 'rgba(106,90,64,.10)' },
+    note:  { label: 'Memo', color: '#5a4a8a', bg: 'rgba(90,74,138,.10)' },
+    plan:  { label: 'Plan', color: '#2a6e6e', bg: 'rgba(42,110,110,.10)' },
+  };
+
   // ── List rendering ───────────────────────────────────────────
 
   function _renderList() {
@@ -1074,21 +1223,12 @@ var WorkpadsPanel = (function () {
     var activeId = _activeId();
     var inRecordMode = (_screenName === 'view' || _screenName === 'edit' || _screenName === 'share');
 
-    // Filter by tab then exclude child records and ACK records
-    var mainRecords = _records.filter(function (r) {
-      if (r.parentId || r.record_type === 'ack') return false;
-      if (!inRecordMode) {
-        if (_listTab === 'quotes')   return r.record_type === 'quote';
-        if (_listTab === 'invoices') return r.record_type === 'invoice';
-        // 'jobs': records that are not quotes or invoices
-        return r.record_type !== 'quote' && r.record_type !== 'invoice';
-      }
-      return true;
-    });
+    var mainRecords = _filterMainRecords(inRecordMode);
 
     if (mainRecords.length === 0) {
+      var typeLabel = { field: 'field', work: 'work', note: 'memo', plan: 'plan' }[_padClassTab] || 'matching';
       listEl.innerHTML = (
-        '<div class="wpp-empty">No workpads yet.<br>Create your first record.</div>'
+        '<div class="wpp-empty">No ' + typeLabel + ' pads yet.<br>Create one with + New Workpad.</div>'
       );
       return;
     }
@@ -1102,6 +1242,8 @@ var WorkpadsPanel = (function () {
                  (r.date     || '').toLowerCase().indexOf(q) !== -1;
         })
       : mainRecords;
+
+    filtered = _sortRecords(filtered);
 
     if (filtered.length === 0) {
       listEl.innerHTML = '<div class="wpp-empty">No matches.</div>';
@@ -1124,10 +1266,18 @@ var WorkpadsPanel = (function () {
       if (r.customer) meta.push(_esc(r.customer));
       if (r.date)     meta.push(_fmtDate(r.date));
 
+      var pc = _padClass(r);
+      var padBadge = '';
+      if (pc !== 'work' && _PAD_BADGE[pc]) {
+        var pb = _PAD_BADGE[pc];
+        padBadge = '<span style="display:inline-block;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;padding:1px 5px;border-radius:2px;margin-left:6px;vertical-align:middle;background:' + pb.bg + ';color:' + pb.color + ';">' + pb.label + '</span>';
+      }
+
       html += (
         '<div class="wpp-item' + (isActive ? ' active' : '') + '"' +
             ' data-id="' + _esc(r.id) + '" tabindex="0" role="button">' +
           '<div class="wpp-item-job">' + _esc(r.job || 'Untitled') +
+            padBadge +
             (r.receivedAt
               ? '<span style="display:inline-block;font-family:var(--font-mono);font-size:8px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;padding:1px 5px;border-radius:2px;margin-left:6px;vertical-align:middle;background:rgba(192,71,10,.10);color:var(--stamp);">Rcvd</span>'
               : r.record_type === 'quote'
@@ -1241,8 +1391,17 @@ var WorkpadsPanel = (function () {
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  function showFilteredList(padClass) {
+    if (padClass) setPadClassFilter(padClass);
+    _screenName   = 'list';
+    _screenParams = {};
+    _renderContext();
+    var listEl = document.getElementById('wpp-list');
+    if (listEl) listEl.scrollTop = 0;
+  }
+
   // ── Public ───────────────────────────────────────────────────
 
-  return { init: init, refresh: refresh, setContext: setContext };
+  return { init: init, refresh: refresh, setContext: setContext, setPadClassFilter: setPadClassFilter, showFilteredList: showFilteredList };
 
 }());

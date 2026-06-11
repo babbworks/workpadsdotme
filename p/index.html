@@ -7,7 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <script src="../js/lib/fflate.js"></script>
+  <script src="../js/lib/fflate.js?v=23"></script>
+  <script src="../js/lib/pads-ext.js?v=23"></script>
+  <script src="../js/lib/map-utils.js?v=32"></script>
+  <script src="../js/lib/postcard.js?v=33"></script>
+  <script src="../js/lib/pad-type.js?v=1"></script>
+  <script src="../js/lib/workpads-encrypt.js?v=24"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -721,6 +726,149 @@
     }
     .acct-bar-dismiss:hover { color: rgba(232,223,208,.8); }
 
+    .action-heading-item { list-style: none; padding: 14px 0 6px; border-bottom: none; }
+    .action-section-hd {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase; color: var(--stamp);
+    }
+    .map-preview-offline { margin-top: 8px; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+    .map-preview-link,
+    a.map-preview-offline.map-preview-link { display: block; text-decoration: none; color: inherit; cursor: pointer; }
+    .map-preview-link-label {
+      font-family: 'Source Serif 4', Georgia, serif; font-size: 13px; color: var(--ink-mid);
+      padding: 14px 10px 2px; margin: 0; text-align: center;
+    }
+    .map-preview-loc-note,
+    .view-loc-site-note {
+      font-family: 'Fraunces', Georgia, serif; font-size: 13px; font-style: italic;
+      color: var(--ink-mid); padding: 10px 12px; margin: 8px 0 0;
+      background: var(--stamp-light); border-left: 3px solid var(--stamp);
+      border-radius: 0 3px 3px 0; white-space: pre-wrap; line-height: 1.5;
+    }
+    .map-preview-note {
+      font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-muted);
+      padding: 6px 8px; background: var(--card);
+    }
+    .viewer-toolbar {
+      max-width: 680px; width: 100%; margin: 0 auto 18px;
+      padding: 12px 14px; background: var(--ink); color: var(--paper);
+      border-radius: 4px; display: flex; align-items: center; gap: 12px;
+    }
+    .viewer-toolbar-msg {
+      flex: 1; min-width: 0; text-align: left;
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      color: rgba(246,241,232,.78); letter-spacing: .03em; line-height: 1.4;
+    }
+    .viewer-toolbar-actions {
+      display: flex; flex-wrap: nowrap; gap: 8px; align-items: center;
+      flex-shrink: 0; justify-content: flex-end;
+    }
+    .viewer-toolbar-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase; padding: 9px 12px;
+      border-radius: 3px; border: 1px solid rgba(246,241,232,.35);
+      background: transparent; color: var(--paper); cursor: pointer;
+      white-space: nowrap; flex-shrink: 0; text-decoration: none;
+    }
+    .viewer-toolbar-btn.primary {
+      background: var(--stamp); border-color: var(--stamp); color: #fff;
+    }
+    .viewer-toolbar-btn:hover { border-color: rgba(246,241,232,.7); }
+    @media (max-width: 480px) {
+      .viewer-toolbar { padding: 10px 10px; gap: 8px; }
+      .viewer-toolbar-msg { font-size: 8px; letter-spacing: .02em; line-height: 1.35; }
+      .viewer-toolbar-btn { font-size: 9px; letter-spacing: .06em; padding: 8px 9px; }
+    }
+    .map-preview-fetchable { margin-top: 8px; border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+    .map-fetch-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      padding: 8px 10px; background: var(--card);
+    }
+    .map-fetch-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase; padding: 7px 10px;
+      border-radius: 3px; border: 1px solid var(--rule); background: var(--paper);
+      color: var(--ink); cursor: pointer;
+    }
+    .map-fetch-btn:disabled { opacity: .6; cursor: wait; }
+    .map-fetch-hint {
+      font-family: 'JetBrains Mono', monospace; font-size: 8px; color: var(--ink-muted);
+    }
+    .postcard-overlay {
+      position: fixed; inset: 0; z-index: 9000; background: rgba(25,20,15,.78);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .postcard-modal {
+      background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
+      box-shadow: var(--card-shadow); max-width: 96vw; max-height: 92vh; overflow: auto;
+      padding: 22px 24px; width: min(520px, 96vw);
+    }
+    .postcard-modal-sm { width: min(460px, 96vw); }
+    .postcard-modal-preview { width: min(640px, 96vw); }
+    .postcard-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--rule-light); }
+    .postcard-modal-title { font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 700; }
+    .postcard-modal-close { background: var(--rule-light); border: none; border-radius: 4px; width: 32px; height: 32px; font-size: 20px; cursor: pointer; color: var(--ink-muted); }
+    .postcard-fmt-opt {
+      display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 8px;
+      border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); cursor: pointer;
+    }
+    .postcard-fmt-thumb { flex-shrink: 0; background: linear-gradient(135deg,#e8e4dc 40%,#c0470a 100%); border: 1px solid var(--rule); border-radius: 3px; }
+    .postcard-fmt-thumb-square { width: 40px; height: 40px; }
+    .postcard-fmt-thumb-landscape { width: 48px; height: 27px; }
+    .postcard-fmt-thumb-detailed { width: 48px; height: 25px; }
+    .postcard-fmt-info { flex: 1; }
+    .postcard-fmt-name { display: block; font-size: 14px; font-weight: 700; }
+    .postcard-fmt-desc { display: block; font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-muted); margin-top: 3px; }
+    .postcard-preview-wrap { overflow: hidden; margin: 10px auto; background: #19140f; border-radius: 6px; border: 1px solid rgba(255,255,255,.08); }
+    .postcard-map-note { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--ink-muted); margin-bottom: 8px; }
+    .postcard-loading { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-muted); padding: 32px; text-align: center; }
+    .postcard-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule-light); }
+    .postcard-msg-input { width: 100%; font-size: 14px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 4px; margin-bottom: 12px; }
+    .postcard-field-label { display: block; font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 6px; }
+    .postcard-opt-group { margin-bottom: 12px; }
+    .postcard-opt-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 4px; border: 1px solid var(--rule-light); border-radius: 4px; font-size: 13px; }
+    .postcard-opt-row.disabled { opacity: .45; }
+    .postcard-loc-hint { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-muted); margin-bottom: 12px; line-height: 1.5; }
+    .postcard-loc-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 4px; border: 1px solid var(--rule-light); border-radius: 4px; font-size: 14px; }
+    .btn-primary, .btn-ghost {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: .08em;
+      padding: 9px 14px; border-radius: 3px; cursor: pointer; border: 1px solid var(--rule);
+    }
+    .btn-primary { background: var(--stamp); border-color: var(--stamp); color: #fff; }
+    .btn-ghost { background: var(--paper); color: var(--ink-mid); }
+    .viewer-return-panel {
+      max-width: 680px; width: 100%; margin: 24px auto 0;
+      padding: 16px 18px; background: var(--stamp-light);
+      border: 1px solid #e8c4aa; border-radius: 4px;
+    }
+    .viewer-return-title {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      letter-spacing: .12em; text-transform: uppercase; color: var(--stamp); margin-bottom: 10px;
+    }
+    .view-loc-item { margin-bottom: 14px; }
+    .view-loc-address { font-weight: 600; margin-bottom: 4px; }
+    .view-loc-notes { font-size: 13px; color: var(--ink-mid); margin-bottom: 6px; }
+    .sealed-gate {
+      max-width: 680px; width: 100%; margin-bottom: 20px; padding: 14px 16px;
+      background: var(--stamp-light); border: 1px solid #e8c4aa; border-radius: 3px;
+    }
+    .sealed-gate p {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mid); margin-bottom: 10px;
+    }
+    .sealed-gate-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sealed-gate input {
+      flex: 1; min-width: 160px; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      padding: 8px 10px; border: 1px solid var(--rule); border-radius: 3px; background: var(--card);
+    }
+    .sealed-gate button {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase; padding: 8px 14px;
+      background: var(--stamp); color: #fff; border: none; border-radius: 3px; cursor: pointer;
+    }
+    .sealed-msg {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-muted); font-style: italic;
+    }
+
     /* ── Review screen (full-screen, sender reviewing returned record) */
     .review-screen { min-height: 100vh; background: var(--paper); }
     .review-header {
@@ -1227,11 +1375,32 @@
     '</div>';
   }
 
+  function padClass(record) {
+    return (record && record.record_class) || 'work';
+  }
+
   function renderMetaRow(record) {
+    var pc = padClass(record);
     var items = [];
-    if (record.customer) items.push(renderMetaItem('Customer', record.customer));
-    if (record.date)     items.push(renderMetaItem('Date', record.date));
-    if (record.location) items.push(renderMetaItem('Location', record.location));
+
+    if (pc === 'field') {
+      if (record.date) items.push(renderMetaItem('Date', record.date));
+      if (record.start_time || record.end_time) {
+        items.push(renderMetaItem('Time', [record.start_time, record.end_time].filter(Boolean).join(' – ')));
+      }
+      if (record.worker) items.push(renderMetaItem('Alias', record.worker));
+    } else if (pc === 'note') {
+      if (record.worker) items.push(renderMetaItem('Alias', record.worker));
+    } else if (pc === 'plan') {
+      if (record.date)     items.push(renderMetaItem('Start', record.date));
+      if (record.due_date) items.push(renderMetaItem('Due', record.due_date));
+      if (record.location) items.push(renderMetaItem('Location', record.location));
+      if (record.worker)   items.push(renderMetaItem('Alias', record.worker));
+    } else {
+      if (record.customer) items.push(renderMetaItem('Customer', record.customer));
+      if (record.date)     items.push(renderMetaItem('Date', record.date));
+      if (record.location) items.push(renderMetaItem('Location', record.location));
+    }
 
     if (items.length === 0) return '';
 
@@ -1254,6 +1423,12 @@
 
     for (var i = 0; i < actions.length; i++) {
       var a = actions[i];
+      if (a.kind === 'heading' || a.isHeading) {
+        html += '<li class="action-item action-heading-item">' +
+          '<div class="action-body"><div class="action-title action-section-hd">' + esc(a.title) + '</div></div>' +
+        '</li>';
+        continue;
+      }
       var num = (i + 1 < 10 ? '0' : '') + (i + 1);
       html += '<li class="action-item">' +
         '<span class="action-num">' + num + '</span>' +
@@ -1265,6 +1440,158 @@
     }
 
     return html + '</ol></div>';
+  }
+
+  function renderSealedSection(label) {
+    return '<div class="doc-section">' +
+      '<div class="section-header"><span class="section-label">' + esc(label) + '</span><span class="section-rule"></span></div>' +
+      '<p class="sealed-msg">Sealed — enter passphrase above to unlock.</p></div>';
+  }
+
+  function renderSealedGate(record) {
+    var unlockable = canUnlock(record);
+    return '<div class="sealed-gate" id="sealed-gate">' +
+      '<p><strong>Encrypted workpad.</strong> Enter the passphrase the sender gave you separately (it is not in this link).</p>' +
+      (unlockable
+        ? '<div class="sealed-gate-row">' +
+            '<input type="password" id="sealed-pass" placeholder="Passphrase" autocomplete="off">' +
+            '<button type="button" id="sealed-unlock-btn">Unlock</button>' +
+          '</div>'
+        : '<p class="sealed-msg">Unlock unavailable — encryption scripts did not load. Hard-refresh this page and try again.</p>') +
+      '<p id="sealed-err" style="display:none;font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--stamp);margin-top:8px;"></p>' +
+    '</div>';
+  }
+
+  function renderFieldLocations(record) {
+    if (looksEncrypted(record) && isSealed(record)) return '';
+    var locs = [];
+    try {
+      if (record._locations_json) {
+        locs = JSON.parse(typeof MapUtils !== 'undefined'
+          ? MapUtils.expandLocationsJson(record._locations_json) : record._locations_json);
+      }
+    } catch (_) {}
+    if (!locs.length && record.location) locs = [{ address: record.location, notes: '' }];
+    if (!locs.length) return '';
+
+    var body = '';
+    locs.forEach(function (loc, i) {
+      var label = (typeof MapUtils !== 'undefined')
+        ? MapUtils.locationLabel(loc) : (loc.title || loc.address || 'Untitled site');
+      var notes = loc.notes || '';
+      var mapHtml = (typeof MapUtils !== 'undefined')
+        ? MapUtils.renderLocationPreview(loc, null, null, { includeNotes: false, useSnapshot: false, fetchable: true }) : '';
+      body += '<div class="view-loc-item">' +
+        '<div class="view-loc-address">' + esc(label) + '</div>' +
+        (loc.address && loc.address !== label
+          ? '<div class="view-loc-notes">' + esc(loc.address) + '</div>' : '') +
+        (notes ? '<div class="view-loc-site-note">' + esc(notes) + '</div>' : '') +
+        mapHtml +
+      '</div>';
+    });
+    return '<div class="doc-section"><div class="section-header">' +
+      '<span class="section-label">Locations</span><span class="section-rule"></span></div>' +
+      body + '</div>';
+  }
+
+  function renderProsePlain(label, text) {
+    if (!text || !String(text).trim()) return '';
+    var lines = String(text).split('\n');
+    var body = '<div class="prose">';
+    lines.forEach(function (line) { body += '<p>' + esc(line) + '</p>'; });
+    body += '</div>';
+    return '<div class="doc-section"><div class="section-header">' +
+      '<span class="section-label">' + esc(label) + '</span><span class="section-rule"></span></div>' +
+      body + '</div>';
+  }
+
+  function renderPlanMap(record) {
+    if (typeof MapUtils === 'undefined') return '';
+    var planLoc = MapUtils.expandLocation({
+      address: record.location || '',
+      map_url: record.location_map_url || '',
+      lat: record.location_lat,
+      lon: record.location_lon,
+      zoom: record.location_zoom,
+    });
+    var mapHtml = MapUtils.renderLocationPreview(planLoc, null, null, { useSnapshot: false, fetchable: true });
+    if (!mapHtml) return '';
+    return '<div class="doc-section"><div class="section-header">' +
+      '<span class="section-label">Map</span><span class="section-rule"></span></div>' +
+      mapHtml + '</div>';
+  }
+
+  function isSealed(record) {
+    return !!(record && record.encrypt_enabled && record._encrypt_seal);
+  }
+
+  function looksEncrypted(record) {
+    if (!record) return false;
+    if (isSealed(record)) return true;
+    if (record.job === 'Encrypted workpad') return true;
+    if (typeof PadsExt !== 'undefined' && PadsExt.isTransportEncrypted(record)) return true;
+    if (record.details && /<!--wp-ext:/.test(record.details)) return true;
+    return false;
+  }
+
+  function canUnlock(record) {
+    return isSealed(record) && typeof WorkpadsEncrypt !== 'undefined';
+  }
+
+  function renderPadBody(record, fin, isDemo) {
+    var pc = padClass(record);
+    var sealed = isSealed(record);
+    var encrypted = looksEncrypted(record);
+    var html = '';
+
+    if (!isDemo && encrypted && sealed) {
+      return '<div class="doc-section"><p class="sealed-msg">Content is encrypted. Unlock with your passphrase above.</p></div>';
+    }
+    if (!isDemo && encrypted && !sealed) {
+      return '<div class="doc-section"><p class="sealed-msg">This workpad is encrypted but the link could not be read completely. Ask the sender to re-share.</p></div>';
+    }
+
+    if (pc === 'field') {
+      html += renderFieldLocations(record);
+      if (record.actions && record.actions.length) html += renderActions(record.actions);
+      if (record.story) html += renderProse('Activity notes', record.story);
+      else if (sealed) html += renderSealedSection('Activity notes');
+      return html;
+    }
+
+    if (pc === 'note') {
+      if (record.pads_actions) html += renderProsePlain('Actions', record.pads_actions);
+      else if (sealed) html += renderSealedSection('Actions');
+      if (record.pads_details) html += renderProsePlain('Details', record.pads_details);
+      else if (sealed) html += renderSealedSection('Details');
+      if (record.story) html += renderProse('Summary', record.story);
+      else if (sealed) html += renderSealedSection('Summary');
+      if (record.details && record.details !== record.pads_details) {
+        html += renderProse('Notes', record.details);
+      }
+      return html;
+    }
+
+    if (pc === 'plan') {
+      if (record.actions && record.actions.length) html += renderActions(record.actions);
+      html += renderPlanMap(record);
+      if (record.story) html += renderProse('General plan', record.story);
+      else if (sealed) html += renderSealedSection('General plan');
+      var planDetails = record.details || record.pads_details;
+      if (planDetails) html += renderProse('Details', planDetails);
+      else if (sealed) html += renderSealedSection('Details');
+      return html;
+    }
+
+    html += renderActions(record.actions);
+    html += renderDetailsGrid(record);
+    if (record.story) html += renderProse('Story', record.story);
+    else if (sealed) html += renderSealedSection('Story');
+    if (record.details) html += renderProse('Notes', record.details);
+    else if (sealed) html += renderSealedSection('Notes');
+    if (!isDemo) html += renderFinSection(fin, record.currency === 'EUR' ? '\u20ac' : record.currency === 'USD' ? '$' : '\u00a3', record);
+    if (!isDemo) html += renderFinAnalysis(fin, record.currency === 'EUR' ? '\u20ac' : record.currency === 'USD' ? '$' : '\u00a3', record);
+    return html;
   }
 
   function renderDetailsGrid(record) {
@@ -1320,7 +1647,7 @@
   }
 
   function renderProse(label, text) {
-    if (!text) return '';
+    if (!text || /<!--wp-ext:/.test(text)) return '';
     return '<div class="doc-section">' +
       '<div class="section-header">' +
         '<span class="section-label">' + label + '</span>' +
@@ -1519,16 +1846,96 @@
     '</div>';
   }
 
-  function renderDocument(record, isDemo, fin) {
+  var _viewerCtx = { storedId: null, ownedRecord: null, isReturn: false, isPreview: false };
+
+  function _appOrigin() {
+    return window.location.origin || 'https://workpads.me';
+  }
+
+  function renderViewerToolbar(ctx, record, isDemo) {
+    ctx = ctx || _viewerCtx;
+    var postcardBtn = (record && !isDemo)
+      ? '<button type="button" class="viewer-toolbar-btn" id="viewer-postcard-btn">Postcard</button>' : '';
+    return '<div class="viewer-toolbar" id="viewer-toolbar">' +
+      '<div class="viewer-toolbar-msg">All data decoded on this device&nbsp;&mdash; fully private.</div>' +
+      '<div class="viewer-toolbar-actions">' +
+        postcardBtn +
+        '<button type="button" class="viewer-toolbar-btn primary" id="viewer-save-btn">Save to device</button>' +
+        '<a class="viewer-toolbar-btn" id="viewer-open-app" href="' + esc(_appOrigin() + '/') + '">App</a>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderReturnPanel(received, ownedRecord, fin) {
+    var isAck = !!(received.job && received.job.indexOf('ACK: ') === 0);
+    var viewerExps = _detectViewerExps(fin, ownedRecord);
+    if (!isAck && !viewerExps.length) return '';
+    var title = isAck ? 'Approval received' : 'Items added by recipient';
+    var html = '<div class="viewer-return-panel" id="viewer-return-panel">' +
+      '<div class="viewer-return-title">' + esc(title) + '</div>';
+    if (viewerExps.length) {
+      viewerExps.forEach(function (exp, idx) {
+        html += '<div class="review-diff-item" id="rdiff-' + idx + '">' +
+          '<div class="review-diff-label">' + esc(exp.l || 'Expense') + '</div>' +
+          '<div class="review-diff-amount">' + esc(exp.a || '0') + '</div>' +
+        '</div>';
+      });
+      html += '<p class="sealed-msg" style="margin-top:10px;">Open Workpads to accept or decline these items.</p>';
+    }
+    if (isAck) {
+      html += '<p class="sealed-msg">Approved by ' + esc(received.worker || 'recipient') +
+        (received.date ? ' on ' + esc(received.date) : '') + '.</p>';
+    }
+    return html + '</div>';
+  }
+
+  function _bindViewerToolbar() {
+    var postcardBtn = document.getElementById('viewer-postcard-btn');
+    if (postcardBtn && _currentRecord) {
+      postcardBtn.addEventListener('click', function () {
+        if (typeof Postcard === 'undefined') {
+          alert('Postcard module not loaded — hard-refresh this page');
+          return;
+        }
+        Postcard.openPicker(_currentRecord);
+      });
+    }
+    var saveBtn = document.getElementById('viewer-save-btn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        var origin = _appOrigin();
+        var id = _viewerCtx.storedId;
+        if (_viewerCtx.isPreview && _viewerCtx.ownedRecord && _viewerCtx.ownedRecord.id) {
+          id = _viewerCtx.ownedRecord.id;
+        }
+        if (id) {
+          window.location.href = origin + '/#/view/' + id;
+        } else {
+          window.location.href = origin + '/?import=' + encodeURIComponent(window.location.href);
+        }
+      });
+    }
+  }
+
+  function renderDocument(record, isDemo, fin, ctx) {
+    if (ctx) _viewerCtx = Object.assign({}, _viewerCtx, ctx);
     var main = document.getElementById('main');
     var sym = record.currency === 'EUR' ? '\u20ac' : record.currency === 'USD' ? '$' : '\u00a3';
     var html = '';
+
+    if (!isDemo) {
+      html += renderViewerToolbar(_viewerCtx, record, isDemo);
+    }
 
     if (isDemo) {
       html += '<div class="demo-callout">' +
         '<span class="demo-callout-icon">DEMO</span>' +
         '<span class="demo-callout-text"><strong>This is a sample workpad.</strong> When you receive a real workpad link, the job record from the sender\'s phone is decoded and displayed here — no server involved.</span>' +
       '</div>';
+    }
+
+    if (!isDemo && looksEncrypted(record)) {
+      html += renderSealedGate(record);
     }
 
     html += '<div class="document">';
@@ -1543,21 +1950,19 @@
 
     // header
     html += '<div class="doc-header">';
+    var pc = padClass(record);
     var stampLabels = { quote: 'QUOTE', invoice: 'INVOICE', ack: 'APPROVAL', job: 'WORKPAD' };
-    var stamp = isDemo ? 'SAMPLE' : (stampLabels[record.record_type] || 'RECEIVED');
+    var padStamps = { field: 'FIELD', note: 'MEMO', plan: 'PLAN' };
+    var stamp = isDemo ? 'SAMPLE' : (looksEncrypted(record) ? 'ENCRYPTED' : (stampLabels[record.record_type] || padStamps[pc] || 'RECEIVED'));
     html += '<div class="doc-stamp">' + stamp + '</div>';
-    html += '<div class="doc-ref">JOB RECORD · WORKPADS</div>';
+    var refLabel = pc === 'work' ? 'JOB RECORD' : (padStamps[pc] || 'RECORD');
+    html += '<div class="doc-ref">' + refLabel + ' · WORKPADS</div>';
     html += '<h1 class="job-title">' + esc(record.job || 'Untitled record') + '</h1>';
     html += renderMetaRow(record);
     html += '</div>';
 
-    // body sections
-    html += renderActions(record.actions);
-    html += renderDetailsGrid(record);
-    html += renderProse('Story', record.story);
-    html += renderProse('Notes', record.details);
-    if (!isDemo) html += renderFinSection(fin, sym, record);
-    if (!isDemo) html += renderFinAnalysis(fin, sym, record);
+    // body sections (pad-aware)
+    html += renderPadBody(record, fin, isDemo);
 
     // footer
     if (record.worker || record.customer_phone) {
@@ -1566,8 +1971,12 @@
 
     html += '</div>'; // .document
 
+    if (!isDemo && _viewerCtx.isReturn && _viewerCtx.ownedRecord) {
+      html += renderReturnPanel(record, _viewerCtx.ownedRecord, fin);
+    }
+
     // Approve button for quotes
-    if (!isDemo && record.record_type === 'quote') {
+    if (!isDemo && record.record_type === 'quote' && !looksEncrypted(record)) {
       html += '<div class="approve-block">' +
         '<button class="approve-btn" id="approve-quote-btn">Approve this quote</button>' +
         '<p class="approve-note">Generates a short link to send back as confirmation.</p>' +
@@ -1578,15 +1987,46 @@
     html += '<div class="about-block">' +
       '<a class="about-wordmark" href="https://workpads.org" target="_blank" rel="noopener">workpads.org</a>' +
       '<span class="about-sub">Job records that travel as links</span>' +
-      '<a class="about-link" href="https://workpads.me/?start=1">Start yours</a>' +
+      '<a class="about-link" href="' + esc(_appOrigin() + '/?start=1') + '">Start yours</a>' +
     '</div>';
 
     main.innerHTML = html;
+    _bindViewerToolbar();
+    if (typeof MapUtils !== 'undefined' && MapUtils.bindFetchButtons) {
+      MapUtils.bindFetchButtons(main);
+    }
 
-    if (!isDemo && record.record_type === 'quote') {
+    if (!isDemo && record.record_type === 'quote' && padClass(record) === 'work' && !looksEncrypted(record)) {
       var approveBtn = document.getElementById('approve-quote-btn');
       if (approveBtn) approveBtn.addEventListener('click', function() { showApproveDialog(record); });
     }
+
+    _bindSealedUnlock(record, fin, isDemo);
+  }
+
+  function _bindSealedUnlock(record, fin, isDemo) {
+    var btn = document.getElementById('sealed-unlock-btn');
+    if (!btn || !canUnlock(record)) return;
+    btn.addEventListener('click', function () {
+      var passEl = document.getElementById('sealed-pass');
+      var errEl  = document.getElementById('sealed-err');
+      var pass   = passEl ? passEl.value : '';
+      if (!pass) {
+        if (errEl) { errEl.textContent = 'Enter a passphrase.'; errEl.style.display = 'block'; }
+        return;
+      }
+      WorkpadsEncrypt.unsealRecord(record, pass).then(function (unsealed) {
+        var merged = Object.assign({}, record, unsealed);
+        delete merged._encrypt_seal;
+        _currentRecord = merged;
+        renderDocument(merged, isDemo, fin, _viewerCtx);
+      }).catch(function () {
+        if (errEl) {
+          errEl.textContent = 'Wrong passphrase — could not unlock.';
+          errEl.style.display = 'block';
+        }
+      });
+    });
   }
 
   function renderError(message) {
@@ -1847,12 +2287,28 @@
     try {
       var ts  = Date.now();
       var id  = ts.toString(36) + Math.random().toString(36).slice(2, 6);
+      // Avoid duplicate imports of the same link on this device
+      if (decoded._chainRef) {
+        for (var di = 0; di < localStorage.length; di++) {
+          var dk = localStorage.key(di);
+          if (!dk || dk.indexOf('wp_record_') !== 0) continue;
+          try {
+            var dr = JSON.parse(localStorage.getItem(dk) || 'null');
+            if (dr && dr.receivedAt && dr.chainRef === decoded._chainRef && dr.job === decoded.job) {
+              return dr.id;
+            }
+          } catch (_) {}
+        }
+      }
       var rec = { id: id, receivedAt: ts, draft: false, createdAt: ts, updatedAt: ts };
       var wireFields = [
         'job','customer','date','location','meeting_time',
         'start_time','end_time','customer_phone','worker',
         'details','story','actions',
         'amount','currency','vat','record_type',
+        'record_class','_locations_json','pads_actions','pads_details',
+        'due_date','location_map_url','location_lat','location_lon','location_zoom',
+        '_exp_comments','encrypt_enabled','_encrypt_seal',
       ];
       wireFields.forEach(function(f) {
         if (decoded[f] !== undefined && decoded[f] !== null) rec[f] = decoded[f];
@@ -1964,6 +2420,31 @@
     });
   }
 
+  // Inline fallback — receiver must work even if pads-ext.js fails to load.
+  function normalizeReceivedRecord(record) {
+    if (!record) return record;
+    if (typeof PadsExt !== 'undefined') return PadsExt.extract(record);
+    var details = String(record.details || '');
+    var m = details.match(/<!--wp-ext:([A-Za-z0-9_-]+)-->\n?/);
+    if (!m) return record;
+    var out = Object.assign({}, record);
+    var clean = details.replace(/<!--wp-ext:[A-Za-z0-9_-]+-->\n?/, '').trim();
+    if (clean) out.details = clean; else delete out.details;
+    try {
+      var t = m[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (t.length % 4) t += '=';
+      var ext = JSON.parse(decodeURIComponent(escape(atob(t))));
+      var merged = Object.assign(out, ext);
+      if (merged._locations_json && typeof MapUtils !== 'undefined') {
+        merged._locations_json = MapUtils.expandLocationsJson(merged._locations_json);
+      }
+      return merged;
+    } catch (_) {
+      if (/encrypt_enabled|_encrypt_seal/.test(m[1])) out.encrypt_enabled = true;
+      return out;
+    }
+  }
+
   // ── Boot ──────────────────────────────────────────────────
   function boot() {
     var hash = window.location.hash.slice(1);
@@ -1974,25 +2455,34 @@
     }
 
     try {
+      if (typeof WorkpadsEncrypt === 'undefined') {
+        renderError('Receiver could not load encryption support. Hard-refresh (Shift+Reload) and open the link again.');
+        return;
+      }
       var record = decodeWorkpad(hash);
+      record = normalizeReceivedRecord(record);
       _currentRecord = record;
       _currentFin    = recordToFin(record);
 
       var chainRef    = record._chainRef || null;
       var ownedRecord = findOwnedRecordByChainRef(chainRef);
+      var isAck       = !!(record.job && record.job.indexOf('ACK: ') === 0);
+      var viewerExps  = ownedRecord ? _detectViewerExps(_currentFin, ownedRecord) : [];
+      var isReturn    = !!(ownedRecord && (isAck || viewerExps.length));
+      var isPreview   = !!(ownedRecord && !isReturn);
 
-      if (ownedRecord) {
-        // This device sent the original record — show full-screen review
-        storeReceived(record);
-        renderReview(record, ownedRecord, _currentFin);
-      } else {
-        storeReceived(record);
-        renderDocument(record, false, _currentFin);
-        _bindViewerExpenseForm(record, _currentFin);
-        // If viewer has an account on this device, offer app actions
-        var account = getLocalAccount();
-        if (account && account.name) renderAccountBar(account, record);
-      }
+      var storedId = (isPreview && ownedRecord && ownedRecord.id)
+        ? ownedRecord.id
+        : storeReceived(record);
+      _viewerCtx = {
+        storedId:    storedId,
+        ownedRecord: ownedRecord,
+        isReturn:    isReturn,
+        isPreview:   isPreview,
+      };
+
+      renderDocument(record, false, _currentFin, _viewerCtx);
+      _bindViewerExpenseForm(record, _currentFin);
     } catch (e) {
       renderError(e.message);
     }
@@ -2096,8 +2586,11 @@
     }
   }
 
-  // Wait for fflate to be available
-  if (typeof fflate !== 'undefined') {
+  function _depsReady() {
+    return typeof fflate !== 'undefined';
+  }
+
+  if (_depsReady()) {
     boot();
   } else {
     window.addEventListener('load', boot);

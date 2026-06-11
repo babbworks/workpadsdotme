@@ -55,8 +55,16 @@ var ViewScreen = (function () {
       '  color:#2d2318; line-height:1.55; margin-bottom:5px;',
       '}',
       '.view-comment-meta {',
-      '  display:flex; align-items:center; justify-content:space-between;',
+      '  display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;',
       '}',
+      '.view-comment-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }',
+      '.view-comment-action {',
+      '  font-family:var(--font-mono); font-size:8px; font-weight:700; letter-spacing:.06em;',
+      '  text-transform:uppercase; color:var(--ink-faint); background:none; border:none;',
+      '  cursor:pointer; padding:2px 4px;',
+      '}',
+      '.view-comment-action:hover { color:var(--stamp); }',
+      '.view-comment-action-delete:hover { color:#b33a0a; }',
       '.view-comment-ts {',
       '  font-family:var(--font-mono); font-size:9px;',
       '  color:var(--ink-faint); letter-spacing:.03em;',
@@ -186,6 +194,46 @@ var ViewScreen = (function () {
       '  opacity:0.5; transition:opacity 0.15s;',
       '}',
       '.view-action-cogs-btn:hover { opacity:1; color:var(--ink-mid); }',
+
+      /* Field locations */
+      '.view-loc-item {',
+      '  padding:10px 0; border-bottom:1px solid var(--rule-light);',
+      '}',
+      '.view-loc-item:last-child { border-bottom:none; padding-bottom:0; }',
+      '.view-loc-header {',
+      '  display:flex; align-items:center; gap:8px; width:100%;',
+      '  background:none; border:none; padding:0; cursor:pointer; text-align:left;',
+      '}',
+      '.view-loc-chevron {',
+      '  font-family:var(--font-mono); font-size:10px; color:var(--ink-muted); width:12px;',
+      '}',
+      '.view-loc-label {',
+      '  font-family:var(--font-body); font-size:14px; font-weight:700; color:var(--ink);',
+      '}',
+      '.view-loc-body { margin-top:10px; }',
+      '.view-loc-address {',
+      '  font-family:var(--font-body); font-size:13px; color:var(--ink-mid); margin-bottom:8px;',
+      '}',
+      '.map-preview-link, a.map-preview-offline.map-preview-link { display:block; text-decoration:none; color:inherit; cursor:pointer; }',
+      '.map-preview-link-label {',
+      '  font-family:var(--font-body); font-size:13px; color:var(--ink-mid);',
+      '  padding:14px 10px 2px; margin:0; text-align:center;',
+      '}',
+      '.map-preview-loc-note, .view-loc-site-note {',
+      '  font-family:var(--font-body); font-size:13px; font-style:italic; color:var(--ink-mid);',
+      '  padding:10px 12px; margin:8px 0 0; background:var(--stamp-light);',
+      '  border-left:3px solid var(--stamp); border-radius:0 3px 3px 0;',
+      '  white-space:pre-wrap; line-height:1.5;',
+      '}',
+      '.view-prose-plain p { margin-bottom:.5em; }',
+      '.view-prose-plain p:last-child { margin-bottom:0; }',
+      '.view-action-section-hd {',
+      '  font-family:var(--font-display); font-size:15px; font-weight:700;',
+      '  letter-spacing:.04em; text-transform:uppercase; color:var(--ink-mid);',
+      '  padding:8px 0 4px; border-bottom:1px solid var(--rule-light);',
+      '}',
+      '.view-action-heading-item { list-style:none; margin-left:0; padding-left:0; }',
+      '.view-action-heading-item .view-action-num { display:none; }',
 
       /* Expense/COGS record context banner */
       '.view-child-ctx {',
@@ -578,7 +626,10 @@ var ViewScreen = (function () {
           })
         : Promise.resolve();
 
-      Promise.all([expenseLoad, parentLoad, approvalLoad]).then(function () { _render(); });
+      Promise.all([expenseLoad, parentLoad, approvalLoad]).then(function () {
+        _render();
+        if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) WorkpadsPanel.refresh();
+      });
     });
   }
 
@@ -586,11 +637,30 @@ var ViewScreen = (function () {
 
   // ── Render ───────────────────────────────────────────────────
 
+  function _padClass(r) {
+    return (typeof PadType !== 'undefined') ? PadType.of(r) : ((r && r.record_class) || 'work');
+  }
+
+  function _hasFinancialUI(r) {
+    return (typeof PadType !== 'undefined') ? PadType.hasFinancials(r) : _padClass(r) === 'work';
+  }
+
+  function _displayTitle(r) {
+    if (!r) return '';
+    if (typeof WorkpadsEncrypt !== 'undefined') {
+      var d = WorkpadsEncrypt.displayJob(r);
+      if (d) return d;
+    }
+    if (r.job && r.job !== 'Encrypted workpad') return r.job;
+    return '';
+  }
+
   function _render() {
     var el = document.getElementById('screen-view');
     var r  = _record;
+    var padClass = _padClass(r);
 
-    var hasSidebar = !r.receivedAt && !_isArchived && r.recordType !== 'expense';
+    var hasSidebar = _hasFinancialUI(r) && !r.receivedAt && !_isArchived;
     var html = '<div class="view-wrap' + (hasSidebar ? ' view-has-sidebar' : '') + '">';
     if (hasSidebar) html += '<div class="view-main">';
 
@@ -607,25 +677,30 @@ var ViewScreen = (function () {
       html += '<div class="view-stamp" style="background:var(--stamp-light);">' + expStampLabel + '</div>';
     } else if (r.record_type && TYPE_STAMP[r.record_type]) {
       html += '<div class="view-stamp">' + TYPE_STAMP[r.record_type] + '</div>';
+    } else if (padClass !== 'work') {
+      var PAD_STAMP = { field: 'Field', note: 'Memo', plan: 'Plan' };
+      if (PAD_STAMP[padClass]) {
+        html += '<div class="view-stamp">' + PAD_STAMP[padClass] + '</div>';
+      }
     } else if (r.receivedAt) {
       html += '<div class="view-stamp">Received</div>';
     }
     // For COGS/expense records with blank job, fall back to charge type label
-    var displayTitle = r.job || '';
+    var displayTitle = _displayTitle(r);
     if (!displayTitle && r.recordType === 'expense' && r.charge_type != null) {
       displayTitle = CHARGE_TYPE_LABELS[String(r.charge_type)] || '';
     }
     html += '<h1 class="view-job">' + _esc(displayTitle || 'Untitled') + '</h1>';
-    html += _renderMetaRow(r);
+    html += _renderMetaRow(r, padClass);
     html += '</div>';
 
-    // ── Approval status
+    // ── Approval status (work quotes only)
     if (_approval) {
       html += '<div class="view-approval-notice">' +
         '\u2713 Approved by ' + _esc(_approval.worker || 'customer') +
         (_approval.date ? ' \xb7 ' + _esc(_approval.date) : '') +
       '</div>';
-    } else if (r.record_type === 'quote') {
+    } else if (padClass === 'work' && r.record_type === 'quote') {
       html += '<div class="view-approval-pending">Awaiting customer approval</div>';
     }
 
@@ -638,10 +713,17 @@ var ViewScreen = (function () {
       if (r.parentId) {
         html += '<button class="view-parent-link" id="view-btn-parent">\u2190 Parent record</button>';
       }
+      var isWorkPad = _hasFinancialUI(r);
       if (r.recordType !== 'expense') {
         html += '<button class="btn-primary" id="view-btn-share">Share</button>';
+        html += '<button class="btn-ghost" id="view-btn-shared-preview">Shared view</button>';
+        if (r.recordType !== 'payment') {
+          html += '<button class="btn-ghost" id="view-btn-postcard">Postcard</button>';
+        }
+        if (isWorkPad) {
         html += '<button class="btn-ghost" id="view-btn-quick-expense">+ Expense</button>';
         html += '<button class="btn-ghost" id="view-btn-quick-cogs">+ COGS</button>';
+        }
       }
       if (r.recordType === 'expense' && r.expense_billing !== 'cogs') {
         html += '<button class="btn-ghost" id="view-btn-cogs">Record COGS</button>';
@@ -651,49 +733,14 @@ var ViewScreen = (function () {
     }
     html += '</div>';
 
+    if (typeof WorkpadsEncrypt !== 'undefined' && WorkpadsEncrypt.looksEncrypted(r)) {
+      html += _renderSealedBanner(WorkpadsEncrypt.canUnlock(r));
+    }
+
     // ── Body sections (main card)
     html += '<div class="card">';
 
-    // Expense/COGS records: show all available fields first
-    if (r.recordType === 'expense') {
-      html += _renderExpenseDetails(r);
-    }
-
-    if (r.recordType !== 'expense') {
-      if (r.actions && r.actions.length) {
-        html += _renderActionsSection(r.actions, !r.receivedAt);
-      } else if (!r.receivedAt) {
-        html += _renderActionsSection([], true);
-      }
-    }
-
-    // Participants block (preferred) or legacy worker field (non-expense main records only)
-    if (r.recordType !== 'expense') {
-      var hasParticipants = r.participants && r.participants.length > 0;
-      var timeFields  = ['start_time','end_time','meeting_time'];
-      var otherFields = ['customer_phone'];
-      if (r.location) otherFields.push('location');
-      var detailFields = (hasParticipants ? [] : ['worker'])
-        .concat(timeFields)
-        .concat(otherFields);
-      var hasDetail = hasParticipants || detailFields.some(function(k) { return !!r[k]; });
-      if (hasDetail) {
-        html += _renderCardSection('Details', _renderDetailSection(r, detailFields, hasParticipants));
-      }
-    }
-
-    if (r.story) {
-      html += _renderCardSection('Story',
-        '<div class="view-prose">' + _md(r.story) + '</div>');
-    }
-
-    if (r.details) {
-      html += _renderCardSection(
-        'Notes\u200b<span class="view-private-badge">Private</span>',
-        '<div class="view-prose">' + _md(r.details) + '</div>',
-        true
-      );
-    }
+    html += _renderPadBody(r, padClass);
 
     if (r.receivedAt && r.recordType !== 'expense') {
       html += _renderCardSection('Source',
@@ -704,8 +751,8 @@ var ViewScreen = (function () {
 
     html += '</div>'; // .card
 
-    // ── Financial card (separate, below main card)
-    if (r.amount || _expenses.length || _payments.length) {
+    // ── Financial card (work pads only)
+    if (_hasFinancialUI(r) && (r.amount || _expenses.length || _payments.length)) {
       html += _renderFinancialCard(r);
     }
 
@@ -724,6 +771,32 @@ var ViewScreen = (function () {
 
     el.innerHTML = html;
     _bindEvents();
+    if (typeof MapUtils !== 'undefined' && MapUtils.bindFetchButtons) {
+      MapUtils.bindFetchButtons(el);
+    }
+  }
+
+  function _renderExpCommentItem(c) {
+    var d  = new Date(c.ts || 0);
+    var mo = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    var ti = d.toTimeString().slice(0, 5);
+    var badge = c._source === 'record'
+      ? '<span class="comment-badge comment-badge-record">in record</span>'
+      : '<span class="comment-badge comment-badge-device">this device</span>';
+    return '<div class="comment-item" data-comment-ts="' + (c.ts || 0) + '" data-comment-source="' + c._source + '">' +
+      '<div class="comment-meta">' +
+        '<div class="comment-meta-left">' +
+          (c.alias ? '<span class="comment-alias">' + _esc(c.alias) + '</span>' : '') +
+          '<span class="comment-ts">' + mo + ' \xb7 ' + ti + '</span>' +
+          badge +
+        '</div>' +
+        '<div class="comment-actions">' +
+          '<button type="button" class="comment-action-btn" data-comment-action="edit">Edit</button>' +
+          '<button type="button" class="comment-action-btn comment-action-delete" data-comment-action="delete">Delete</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="comment-body" data-comment-body>' + _esc(c.text) + '</div>' +
+    '</div>';
   }
 
   function _renderCommentsSection(r) {
@@ -733,37 +806,25 @@ var ViewScreen = (function () {
       deviceComments = JSON.parse(localStorage.getItem(deviceKey) || '[]');
     } catch (_) {}
 
-    // Record-encoded comments are stored in r._exp_comments (JSON array)
     var recordComments = [];
     try {
       recordComments = JSON.parse(r._exp_comments || '[]');
     } catch (_) {}
 
-    var allComments = deviceComments.map(function(c) { return Object.assign({}, c, { _source: 'device' }); })
-      .concat(recordComments.map(function(c) { return Object.assign({}, c, { _source: 'record' }); }))
-      .sort(function(a, b) { return (a.ts || 0) - (b.ts || 0); });
+    var allComments = deviceComments.map(function (c) { return Object.assign({}, c, { _source: 'device' }); })
+      .concat(recordComments.map(function (c) { return Object.assign({}, c, { _source: 'record' }); }))
+      .sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
 
     var defaultAlias = localStorage.getItem('wp_pref_alias') || '';
     var html = '<div class="comments-section" id="view-comments-section">';
     html += '<div class="comments-section-heading">Comments</div>';
 
     if (allComments.length) {
-      allComments.forEach(function(c) {
-        var d  = new Date(c.ts || 0);
-        var mo = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-        var ti = d.toTimeString().slice(0, 5);
-        var badge = c._source === 'record'
-          ? '<span class="comment-badge comment-badge-record">in record</span>'
-          : '<span class="comment-badge comment-badge-device">this device</span>';
-        html += '<div class="comment-item">' +
-          '<div class="comment-meta">' +
-            (c.alias ? '<span class="comment-alias">' + _esc(c.alias) + '</span>' : '') +
-            '<span>' + mo + ' \xb7 ' + ti + '</span>' +
-            badge +
-          '</div>' +
-          '<div class="comment-body">' + _esc(c.text) + '</div>' +
-        '</div>';
-      });
+      html += '<div class="comment-list" id="view-comment-list">';
+      allComments.forEach(function (c) { html += _renderExpCommentItem(c); });
+      html += '</div>';
+    } else {
+      html += '<p class="comment-empty">No comments yet.</p>';
     }
 
     html += '<div class="comment-add-form">' +
@@ -775,8 +836,10 @@ var ViewScreen = (function () {
         ' placeholder="Add a comment…" rows="3"></textarea>' +
       '<div class="comment-save-row">' +
         '<span class="comment-save-hint">Save to device keeps it private. Save to record travels with the next share.</span>' +
-        '<button class="btn-ghost" id="view-comment-save-device">Save to device</button>' +
-        '<button class="btn-primary" id="view-comment-save-record">Save to record</button>' +
+        '<div class="comment-save-btns">' +
+          '<button type="button" class="btn-ghost" id="view-comment-save-device">Save to device</button>' +
+          '<button type="button" class="btn-primary" id="view-comment-save-record">Save to record</button>' +
+        '</div>' +
       '</div>' +
     '</div>';
 
@@ -784,11 +847,223 @@ var ViewScreen = (function () {
     return html;
   }
 
-  function _renderMetaRow(r) {
+  function _renderSealedBanner(unlockable) {
+    var controls = unlockable
+      ? '<div class="view-sealed-row">' +
+          '<input class="field-input" type="password" id="view-unlock-pass" placeholder="Passphrase" autocomplete="off">' +
+          '<button class="btn-primary" id="view-unlock-btn" type="button">Unlock</button>' +
+        '</div>'
+      : '<p class="view-sealed-hint">Unlock unavailable — reload the app and try again.</p>';
+    return (
+      '<div class="view-sealed-banner" id="view-sealed-banner">' +
+        '<p class="view-sealed-text"><strong>Encrypted workpad.</strong> Enter the passphrase the sender gave you separately.</p>' +
+        controls +
+        '<p class="view-sealed-hint" id="view-unlock-err" style="display:none;color:var(--stamp);"></p>' +
+      '</div>'
+    );
+  }
+
+  function _renderSealedSection(label) {
+    return _renderCardSection(
+      label,
+      '<p class="view-sealed-msg">Sealed — unlock with passphrase above.</p>'
+    );
+  }
+
+  function _renderPadBody(r, padClass) {
+    if (r.recordType === 'expense') {
+      return _renderExpenseDetails(r);
+    }
+
+    var sealed = (typeof WorkpadsEncrypt !== 'undefined') && WorkpadsEncrypt.isSealed(r);
+    var encrypted = (typeof WorkpadsEncrypt !== 'undefined') && WorkpadsEncrypt.looksEncrypted(r);
+    if (encrypted && sealed) {
+      return _renderCardSection(
+        'Content',
+        '<p class="view-sealed-msg">Encrypted — enter your passphrase above to view this workpad.</p>'
+      );
+    }
+    var showFinOnActions = _hasFinancialUI(r);
+    var bodyLocked       = sealed;
+    var canEditActions   = !r.receivedAt && !bodyLocked;
+
+    if (padClass === 'field') {
+      var html = _renderFieldLocations(r);
+      if (r.actions && r.actions.length) {
+        html += _renderActionsSection(r.actions, canEditActions, showFinOnActions);
+      } else if (canEditActions) {
+        html += _renderActionsSection([], true, showFinOnActions);
+      }
+      if (r.story) {
+        html += _renderCardSection('Activity notes', '<div class="view-prose">' + _md(r.story) + '</div>');
+      } else if (sealed) {
+        html += _renderSealedSection('Activity notes');
+      }
+      return html;
+    }
+
+    if (padClass === 'note') {
+      var html = '';
+      if (r.pads_actions) html += _renderProseSection('Actions', r.pads_actions);
+      else if (sealed) html += _renderSealedSection('Actions');
+      if (r.pads_details) html += _renderProseSection('Details', r.pads_details);
+      else if (sealed) html += _renderSealedSection('Details');
+      if (r.story) {
+        html += _renderCardSection('Summary', '<div class="view-prose">' + _md(r.story) + '</div>');
+      } else if (sealed) {
+        html += _renderSealedSection('Summary');
+      }
+      if (r.details && r.details !== r.pads_details) {
+        html += _renderCardSection(
+          'Notes\u200b<span class="view-private-badge">Private</span>',
+          '<div class="view-prose">' + _md(r.details) + '</div>',
+          true
+        );
+      }
+      return html;
+    }
+
+    if (padClass === 'plan') {
+      var html = '';
+      if (r.actions && r.actions.length) {
+        html += _renderActionsSection(r.actions, canEditActions, showFinOnActions);
+      } else if (canEditActions) {
+        html += _renderActionsSection([], true, showFinOnActions);
+      }
+      if (typeof MapUtils !== 'undefined') {
+        var planLoc = {
+          address: r.location || '',
+          map_url: r.location_map_url || '',
+          lat: r.location_lat,
+          lon: r.location_lon,
+          zoom: r.location_zoom,
+        };
+        var planMap = MapUtils.renderLocationPreview(
+          typeof MapUtils.expandLocation === 'function' ? MapUtils.expandLocation(planLoc) : planLoc
+        );
+        if (planMap) html += _renderCardSection('Map', planMap);
+      }
+      if (r.story) {
+        html += _renderCardSection('General plan', '<div class="view-prose">' + _md(r.story) + '</div>');
+      } else if (sealed) {
+        html += _renderSealedSection('General plan');
+      }
+      if (r.details) {
+        html += _renderCardSection('Details', '<div class="view-prose">' + _md(r.details) + '</div>');
+      } else if (sealed) {
+        html += _renderSealedSection('Details');
+      }
+      return html;
+    }
+
+    // work (default)
+    var html = '';
+    if (r.actions && r.actions.length) {
+      html += _renderActionsSection(r.actions, canEditActions, showFinOnActions);
+    } else if (canEditActions) {
+      html += _renderActionsSection([], true, showFinOnActions);
+    }
+
+    var hasParticipants = r.participants && r.participants.length > 0;
+    var timeFields  = ['start_time','end_time','meeting_time'];
+    var otherFields = ['customer_phone'];
+    if (r.location) otherFields.push('location');
+    var detailFields = (hasParticipants ? [] : ['worker'])
+      .concat(timeFields)
+      .concat(otherFields);
+    var hasDetail = hasParticipants || detailFields.some(function(k) { return !!r[k]; });
+    if (hasDetail) {
+      html += _renderCardSection('Details', _renderDetailSection(r, detailFields, hasParticipants));
+    }
+
+    if (r.story) {
+      html += _renderCardSection('Story', '<div class="view-prose">' + _md(r.story) + '</div>');
+    } else if (sealed) {
+      html += _renderSealedSection('Story');
+    }
+
+    if (r.details) {
+      html += _renderCardSection(
+        'Notes\u200b<span class="view-private-badge">Private</span>',
+        '<div class="view-prose">' + _md(r.details) + '</div>',
+        true
+      );
+    } else if (sealed) {
+      html += _renderSealedSection('Notes');
+    }
+    return html;
+  }
+
+  function _renderFieldLocations(r) {
+    var locs = [];
+    try {
+      if (r._locations_json) {
+        locs = JSON.parse(typeof MapUtils !== 'undefined'
+          ? MapUtils.expandLocationsJson(r._locations_json) : r._locations_json);
+      }
+    } catch (_) {}
+    if (!locs.length && r.location) locs = [{ address: r.location, notes: '' }];
+    if (!locs.length) return '';
+
+    var body = '';
+    locs.forEach(function (loc, i) {
+      var label = (typeof MapUtils !== 'undefined')
+        ? MapUtils.locationLabel(loc) : (loc.title || loc.address || 'Untitled site');
+      var collapsed = !!loc.collapsed;
+      var notes = loc.notes || '';
+      var mapHtml = (typeof MapUtils !== 'undefined')
+        ? MapUtils.renderLocationPreview(loc, null, null, { includeNotes: false }) : '';
+      body += '<div class="view-loc-item' + (collapsed ? ' collapsed' : '') + '" data-loc-idx="' + i + '">' +
+        '<button type="button" class="view-loc-header" data-loc-toggle="' + i + '">' +
+          '<span class="view-loc-chevron">' + (collapsed ? '\u25b8' : '\u25be') + '</span>' +
+          '<span class="view-loc-label">' + _esc(label) + '</span>' +
+        '</button>' +
+        '<div class="view-loc-body" id="view-loc-body-' + i + '" style="' + (collapsed ? 'display:none' : '') + '">' +
+          (loc.address && loc.address !== label
+            ? '<div class="view-loc-address">' + _esc(loc.address) + '</div>' : '') +
+          (notes ? '<div class="view-loc-site-note">' + _esc(notes) + '</div>' : '') +
+          mapHtml +
+        '</div>' +
+      '</div>';
+    });
+    return _renderCardSection('Locations', body);
+  }
+
+  function _renderProseSection(label, text) {
+    if (!text || !String(text).trim()) return '';
+    var lines = String(text).split('\n');
+    var body  = '<div class="view-prose view-prose-plain">';
+    lines.forEach(function (line) {
+      body += '<p>' + _esc(line) + '</p>';
+    });
+    body += '</div>';
+    return _renderCardSection(label, body);
+  }
+
+  function _renderMetaRow(r, padClass) {
+    padClass = padClass || _padClass(r);
     var items = [];
+
+    if (padClass === 'field') {
+      if (r.date) items.push({ label: 'Date', value: r.date });
+      if (r.start_time || r.end_time) {
+        var tr = [r.start_time, r.end_time].filter(Boolean).join(' \u2013 ');
+        items.push({ label: 'Time', value: tr });
+      }
+      if (r.worker) items.push({ label: 'Alias', value: r.worker });
+    } else if (padClass === 'note') {
+      if (r.worker) items.push({ label: 'Alias', value: r.worker });
+    } else if (padClass === 'plan') {
+      if (r.date)     items.push({ label: 'Start',    value: r.date });
+      if (r.due_date) items.push({ label: 'Due',      value: r.due_date });
+      if (r.location) items.push({ label: 'Location', value: r.location });
+      if (r.worker)   items.push({ label: 'Alias',    value: r.worker });
+    } else {
     if (r.customer) items.push({ label: 'Customer', value: r.customer });
     if (r.date)     items.push({ label: 'Date',     value: r.date });
     if (r.location) items.push({ label: 'Location', value: r.location });
+    }
+
     if (!items.length) return '';
 
     var html = '<div class="view-meta-row">';
@@ -815,7 +1090,8 @@ var ViewScreen = (function () {
     );
   }
 
-  function _renderActionsSection(actions, showAdd) {
+  function _renderActionsSection(actions, showAdd, showFinBtns) {
+    if (showFinBtns === undefined) showFinBtns = true;
     var addRow = showAdd ? (
       '<div class="view-action-add-row">' +
         '<input class="view-action-add-input" id="view-action-add-input" type="text" ' +
@@ -829,13 +1105,14 @@ var ViewScreen = (function () {
           '<span class="section-label">Actions</span>' +
           '<span class="section-rule"></span>' +
         '</div>' +
-        _renderActions(actions) +
+        _renderActions(actions, showFinBtns) +
         addRow +
       '</div>'
     );
   }
 
-  function _renderActions(actions) {
+  function _renderActions(actions, showFinBtns) {
+    if (showFinBtns === undefined) showFinBtns = true;
     // Apply filter
     if (!actions.length) {
       return '<div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);padding:8px 0;" id="view-actions-list">No actions yet</div>';
@@ -843,6 +1120,14 @@ var ViewScreen = (function () {
 
     var html = '<ol class="view-actions-list" id="view-actions-list">';
     actions.forEach(function (a, i) {
+      var isHead = a.kind === 'heading' || a.isHeading;
+      if (isHead) {
+        html += '<li class="view-action-item view-action-heading-item">' +
+                  '<div class="view-action-body">' +
+                    '<div class="view-action-title view-action-section-hd">' + _esc(a.title) + '</div>' +
+                  '</div></li>';
+        return;
+      }
       var num = (i < 9 ? '0' : '') + (i + 1);
       var origIdx = i;
       html += '<li class="view-action-item">' +
@@ -851,10 +1136,12 @@ var ViewScreen = (function () {
                   '<div class="view-action-title">' + _esc(a.title) + '</div>' +
                   (a.notes ? '<div class="view-action-notes">' + _esc(a.notes) + '</div>' : '') +
                 '</div>' +
-                '<div class="view-action-btn-group">' +
+                (showFinBtns
+                  ? '<div class="view-action-btn-group">' +
                   '<button class="view-action-exp-btn" data-action-idx="' + origIdx + '" title="Add expense for this action">+ expense</button>' +
                   '<button class="view-action-cogs-btn" data-action-idx="' + origIdx + '" title="Record COGS for this action">COGS</button>' +
-                '</div>' +
+                    '</div>'
+                  : '') +
               '</li>';
     });
     return html + '</ol>';
@@ -1283,11 +1570,15 @@ var ViewScreen = (function () {
         var d  = new Date(c.ts);
         var mo = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
         var ti = d.toTimeString().slice(0, 5);
-        html += '<div class="view-comment" data-comment-ts="' + c.ts + '">' +
-          '<p class="view-comment-text">' + _esc(c.text) + '</p>' +
+        html += '<div class="view-comment" data-comment-ts="' + c.ts + '" data-note-type="' + type + '">' +
+          '<p class="view-comment-text" data-comment-body>' + _esc(c.text) + '</p>' +
           '<div class="view-comment-meta">' +
             '<span class="view-comment-ts">' + mo + ' \xb7 ' + ti + '</span>' +
-            '<button class="view-comment-pin" data-comment-idx="' + idx + '" data-note-type="' + type + '" title="Save to Personal collection">+</button>' +
+            '<div class="view-comment-actions">' +
+              '<button type="button" class="view-comment-action" data-note-action="edit" title="Edit">Edit</button>' +
+              '<button type="button" class="view-comment-action view-comment-action-delete" data-note-action="delete" title="Delete">Del</button>' +
+              '<button type="button" class="view-comment-pin" data-comment-idx="' + idx + '" data-note-type="' + type + '" title="Save to Personal collection">+</button>' +
+            '</div>' +
           '</div>' +
         '</div>';
       });
@@ -1343,9 +1634,58 @@ var ViewScreen = (function () {
     var parentCtxBtn = document.getElementById('view-btn-parent-ctx');
     if (parentCtxBtn) parentCtxBtn.addEventListener('click', function () { App.showView(parentId); });
     if (shareBtn)   shareBtn.addEventListener('click',   function () { App.showShare(id); });
+    var previewBtn = document.getElementById('view-btn-shared-preview');
+    if (previewBtn) {
+      previewBtn.addEventListener('click', function () {
+        try {
+          var url = RecordService.shareUrlFromCodec(RecordService.encodeUrl(_record), 'simple');
+          window.open(url, '_blank', 'noopener');
+        } catch (e) {
+          App.toast('Could not open shared preview');
+        }
+      });
+    }
+    var postcardBtn = document.getElementById('view-btn-postcard');
+    if (postcardBtn) {
+      postcardBtn.addEventListener('click', function () {
+        if (typeof Postcard === 'undefined') {
+          App.toast('Postcard module not loaded — hard-refresh the app');
+          return;
+        }
+        Postcard.openPicker(_record);
+      });
+    }
     if (cogsBtn)    cogsBtn.addEventListener('click',    function () { App.showCogs(_record.parentId); });
     if (editBtn)    editBtn.addEventListener('click',    function () { App.showWizard(id); });
     if (archiveBtn) archiveBtn.addEventListener('click', _doArchive);
+
+    var unlockBtn = document.getElementById('view-unlock-btn');
+    if (unlockBtn && typeof WorkpadsEncrypt !== 'undefined' && WorkpadsEncrypt.canUnlock(_record)) {
+      unlockBtn.addEventListener('click', function () {
+        var passEl = document.getElementById('view-unlock-pass');
+        var errEl  = document.getElementById('view-unlock-err');
+        var pass   = passEl ? passEl.value : '';
+        if (!pass) {
+          if (errEl) { errEl.textContent = 'Enter a passphrase.'; errEl.style.display = 'block'; }
+          return;
+        }
+        WorkpadsEncrypt.unsealRecord(_record, pass).then(function (unsealed) {
+          var merged = Object.assign({}, _record, unsealed);
+          delete merged._encrypt_seal;
+          return RecordService.save(_record.id, merged);
+        }).then(function (saved) {
+          _record = saved || _record;
+          if (errEl) errEl.style.display = 'none';
+          _render();
+          if (typeof WorkpadsPanel !== 'undefined' && WorkpadsPanel.refresh) WorkpadsPanel.refresh();
+        }).catch(function () {
+          if (errEl) {
+            errEl.textContent = 'Wrong passphrase — could not unlock.';
+            errEl.style.display = 'block';
+          }
+        });
+      });
+    }
 
     // Quick expense / COGS from action bar
     var quickExpBtn = document.getElementById('view-btn-quick-expense');
@@ -1353,33 +1693,128 @@ var ViewScreen = (function () {
     var quickCogsBtn = document.getElementById('view-btn-quick-cogs');
     if (quickCogsBtn) quickCogsBtn.addEventListener('click', function () { App.showCogs(id); });
 
+    document.querySelectorAll('[data-loc-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = this.dataset.locToggle;
+        var body = document.getElementById('view-loc-body-' + idx);
+        var chev = this.querySelector('.view-loc-chevron');
+        if (!body) return;
+        var open = body.style.display === 'none';
+        body.style.display = open ? '' : 'none';
+        if (chev) chev.textContent = open ? '\u25be' : '\u25b8';
+        this.closest('.view-loc-item').classList.toggle('collapsed', !open);
+      });
+    });
+
     _bindFinancialEvents(id);
 
-    // ── Comments (experiment) ────────────────────────────────
+    // ── Comments section ─────────────────────────────────────
     var saveDeviceBtn = document.getElementById('view-comment-save-device');
     var saveRecordBtn = document.getElementById('view-comment-save-record');
 
     function _collectComment() {
-      var alias = (document.getElementById('view-comment-alias').value || '').trim();
-      var text  = (document.getElementById('view-comment-text').value  || '').trim();
+      var aliasEl = document.getElementById('view-comment-alias');
+      var textEl  = document.getElementById('view-comment-text');
+      var alias = aliasEl ? aliasEl.value.trim() : '';
+      var text  = textEl ? textEl.value.trim() : '';
       return text ? { alias: alias, text: text, ts: Date.now() } : null;
     }
 
-    function _refreshComments() {
-      _render();
+    function _deviceComments() {
+      var deviceKey = 'wp_exp_comments_' + id;
+      try { return JSON.parse(localStorage.getItem(deviceKey) || '[]'); } catch (_) { return []; }
+    }
+
+    function _setDeviceComments(arr) {
+      localStorage.setItem('wp_exp_comments_' + id, JSON.stringify(arr));
+    }
+
+    function _recordComments() {
+      try { return JSON.parse(_record._exp_comments || '[]'); } catch (_) { return []; }
+    }
+
+    function _setRecordComments(arr) {
+      _record._exp_comments = JSON.stringify(arr);
+      return RecordService.save(id, _record);
+    }
+
+    function _startInlineEdit(itemEl, currentText, onSave) {
+      if (!itemEl || itemEl.dataset.editing === '1') return;
+      var body = itemEl.querySelector('[data-comment-body]');
+      if (!body) return;
+      itemEl.dataset.editing = '1';
+      var prev = currentText;
+      var safePrev = String(prev).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      body.innerHTML =
+        '<textarea class="field-input comment-edit-input" rows="3">' + safePrev + '</textarea>' +
+        '<div class="comment-edit-actions">' +
+          '<button type="button" class="btn-ghost comment-edit-cancel">Cancel</button>' +
+          '<button type="button" class="btn-primary comment-edit-save">Save</button>' +
+        '</div>';
+      var ta = body.querySelector('.comment-edit-input');
+      if (ta) ta.focus();
+      body.querySelector('.comment-edit-cancel').addEventListener('click', function () {
+        delete itemEl.dataset.editing;
+        body.textContent = prev;
+      });
+      body.querySelector('.comment-edit-save').addEventListener('click', function () {
+        var next = ta ? ta.value.trim() : '';
+        if (!next) return;
+        delete itemEl.dataset.editing;
+        onSave(next, function () { body.textContent = next; });
+      });
+    }
+
+    function _bindExpCommentActions() {
+      var section = document.getElementById('view-comments-section');
+      if (!section) return;
+      section.querySelectorAll('[data-comment-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var item   = btn.closest('.comment-item');
+          var action = btn.dataset.commentAction;
+          var ts     = parseInt(item.dataset.commentTs, 10);
+          var source = item.dataset.commentSource;
+          if (!ts) return;
+
+          if (action === 'delete') {
+            if (source === 'device') {
+              _setDeviceComments(_deviceComments().filter(function (c) { return c.ts !== ts; }));
+              _render();
+            } else {
+              _setRecordComments(_recordComments().filter(function (c) { return c.ts !== ts; })).then(_render);
+            }
+            return;
+          }
+
+          if (action === 'edit') {
+            var bodyEl = item.querySelector('[data-comment-body]');
+            var cur = bodyEl ? bodyEl.textContent : '';
+            _startInlineEdit(item, cur, function (next, done) {
+              if (source === 'device') {
+                _setDeviceComments(_deviceComments().map(function (c) {
+                  return c.ts === ts ? Object.assign({}, c, { text: next }) : c;
+                }));
+                done();
+              } else {
+                _setRecordComments(_recordComments().map(function (c) {
+                  return c.ts === ts ? Object.assign({}, c, { text: next }) : c;
+                })).then(done);
+              }
+            });
+          }
+        });
+      });
     }
 
     if (saveDeviceBtn) {
       saveDeviceBtn.addEventListener('click', function () {
         var c = _collectComment();
         if (!c) return;
-        var deviceKey = 'wp_exp_comments_' + id;
-        var existing = [];
-        try { existing = JSON.parse(localStorage.getItem(deviceKey) || '[]'); } catch (_) {}
+        var existing = _deviceComments();
         existing.push(c);
-        localStorage.setItem(deviceKey, JSON.stringify(existing));
+        _setDeviceComments(existing);
         if (c.alias) localStorage.setItem('wp_pref_alias', c.alias);
-        _refreshComments();
+        _render();
       });
     }
 
@@ -1387,14 +1822,14 @@ var ViewScreen = (function () {
       saveRecordBtn.addEventListener('click', function () {
         var c = _collectComment();
         if (!c) return;
-        var existing = [];
-        try { existing = JSON.parse(_record._exp_comments || '[]'); } catch (_) {}
+        var existing = _recordComments();
         existing.push(c);
-        _record._exp_comments = JSON.stringify(existing);
         if (c.alias) localStorage.setItem('wp_pref_alias', c.alias);
-        RecordService.save(id, _record).then(function () { _refreshComments(); });
+        _setRecordComments(existing).then(_render);
       });
     }
+
+    _bindExpCommentActions();
 
     // Shared note-column wiring (job + customer)
     function _bindNoteCol(type) {
@@ -1422,11 +1857,15 @@ var ViewScreen = (function () {
         var d  = new Date(c.ts);
         var mo = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
         var ti = d.toTimeString().slice(0, 5);
-        var cHtml = '<div class="view-comment" data-comment-ts="' + c.ts + '">' +
-          '<p class="view-comment-text">' + _esc(c.text) + '</p>' +
+        var cHtml = '<div class="view-comment" data-comment-ts="' + c.ts + '" data-note-type="' + type + '">' +
+          '<p class="view-comment-text" data-comment-body>' + _esc(c.text) + '</p>' +
           '<div class="view-comment-meta">' +
             '<span class="view-comment-ts">' + mo + ' \xb7 ' + ti + '</span>' +
-            '<button class="view-comment-pin" data-comment-idx="0" data-note-type="' + type + '" title="Save to Personal">+</button>' +
+            '<div class="view-comment-actions">' +
+              '<button type="button" class="view-comment-action" data-note-action="edit">Edit</button>' +
+              '<button type="button" class="view-comment-action view-comment-action-delete" data-note-action="delete">Del</button>' +
+              '<button type="button" class="view-comment-pin" data-comment-idx="0" data-note-type="' + type + '" title="Save to Personal">+</button>' +
+            '</div>' +
           '</div>' +
         '</div>';
 
@@ -1445,15 +1884,67 @@ var ViewScreen = (function () {
           nl.innerHTML = cHtml;
           colEl.appendChild(nl);
         }
-        _rebindPins();
+        _rebindNoteCol(type);
 
         var patch = {};
         patch[fieldName] = getArr();
         RecordService.update(id, patch).then(function (rec) { _record = rec; });
       });
     }
+
+    function _rebindNoteCol(type) {
+      var isJob     = type === 'job';
+      var listId    = isJob ? 'view-job-list' : 'view-customer-list';
+      var getArr    = function () { return isJob ? _comments : _customerComments; };
+      var setArr    = function (a) { if (isJob) _comments = a; else _customerComments = a; };
+      var fieldName = isJob ? 'comments' : 'customerComments';
+      var listEl    = document.getElementById(listId);
+      if (!listEl) return;
+
+      listEl.querySelectorAll('[data-note-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var item   = btn.closest('.view-comment');
+          var action = btn.dataset.noteAction;
+          var ts     = parseInt(item.dataset.commentTs, 10);
+          if (!ts) return;
+
+          if (action === 'delete') {
+            var next = getArr().filter(function (c) { return c.ts !== ts; });
+            setArr(next);
+            var patch = {};
+            patch[fieldName] = next;
+            RecordService.update(id, patch).then(function (rec) {
+              _record = rec;
+              _render();
+            });
+            return;
+          }
+
+          if (action === 'edit') {
+            var bodyEl = item.querySelector('[data-comment-body]');
+            var cur = bodyEl ? bodyEl.textContent : '';
+            _startInlineEdit(item, cur, function (text, done) {
+              var updated = getArr().map(function (c) {
+                return c.ts === ts ? Object.assign({}, c, { text: text }) : c;
+              });
+              setArr(updated);
+              var patch = {};
+              patch[fieldName] = updated;
+              RecordService.update(id, patch).then(function (rec) {
+                _record = rec;
+                done();
+              });
+            });
+          }
+        });
+      });
+      _rebindPins();
+    }
+
     _bindNoteCol('job');
     _bindNoteCol('customer');
+    _rebindNoteCol('job');
+    _rebindNoteCol('customer');
 
     // Pin any note to Personal collection
     function _rebindPins() {
