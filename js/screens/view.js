@@ -976,6 +976,18 @@ var ViewScreen = (function () {
       html += _renderCardSection('Details', _renderDetailSection(r, detailFields, hasParticipants));
     }
 
+    if (typeof MapUtils !== 'undefined' && (r.location_map_url || r.location_lat != null)) {
+      var workLoc = MapUtils.expandLocation({
+        address: r.location || '',
+        map_url: r.location_map_url || '',
+        lat: r.location_lat,
+        lon: r.location_lon,
+        zoom: r.location_zoom,
+      });
+      var workMap = MapUtils.renderLocationPreview(workLoc);
+      if (workMap) html += _renderCardSection('Map', workMap);
+    }
+
     if (r.story) {
       html += _renderCardSection('Story', '<div class="view-prose">' + _md(r.story) + '</div>');
     } else if (sealed) {

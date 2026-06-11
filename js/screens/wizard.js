@@ -941,6 +941,22 @@ var WizardScreen = (function () {
     return MapUtils.renderLocationPreview(loc);
   }
 
+  function _renderSingleMapLinkBlock(previewId) {
+    var previewHtml = '';
+    if (typeof MapUtils !== 'undefined' && _record.location_lat != null) {
+      previewHtml = MapUtils.renderPreview(_record.location_lat, _record.location_lon, _record.location_zoom);
+    }
+    return '<div class="field-group">' +
+      '<label class="field-label" for="f-location_map_url">Map link</label>' +
+      '<input class="field-input" id="f-location_map_url" type="url" inputmode="url"' +
+        (_isContentLocked() ? ' disabled readonly' : '') +
+        ' placeholder="OpenStreetMap link — postcards fetch OSM tiles from here"' +
+        ' value="' + _esc(_record.location_map_url || '') + '">' +
+      '<p class="field-hint">Paste an OSM, Google, or Apple map link — postcards use OpenStreetMap tiles at these coordinates.</p>' +
+      '<div id="' + previewId + '">' + previewHtml + '</div>' +
+    '</div>';
+  }
+
   // ── Field type renderer ──────────────────────────────────────
 
   function _renderProcessField() {
@@ -1063,19 +1079,7 @@ var WizardScreen = (function () {
         _field('date',     'Start',    'date', _record.date     || '', false, 'When does this begin?') +
         _field('due_date', 'Due date', 'date', _record.due_date || '', false, 'Target completion') +
         _field('location', 'Location', 'text', _record.location || '', false, 'Where it happens (optional)') +
-        '<div class="field-group">' +
-          '<label class="field-label" for="f-location_map_url">Map link</label>' +
-          '<input class="field-input" id="f-location_map_url" type="url" inputmode="url"' +
-            (_isContentLocked() ? ' disabled readonly' : '') +
-            ' placeholder="OpenStreetMap link — previews & postcards use OSM tiles"' +
-            ' value="' + _esc(_record.location_map_url || '') + '">' +
-          '<p class="field-hint">Map previews and postcards fetch tiles from OpenStreetMap. Paste any map link for coordinates; OSM URL gives the richest preview.</p>' +
-          '<div id="wiz-plan-map-preview">' +
-            ((typeof MapUtils !== 'undefined' && _record.location_lat != null)
-              ? MapUtils.renderPreview(_record.location_lat, _record.location_lon, _record.location_zoom)
-              : '') +
-          '</div>' +
-        '</div>' +
+        _renderSingleMapLinkBlock('wiz-plan-map-preview') +
         _field('worker', 'Your alias', 'text', _record.worker || localStorage.getItem('wp_pref_alias') || '', false, 'Optional') +
         '</div>' +
       '</div></div>'
@@ -1316,6 +1320,9 @@ var WizardScreen = (function () {
         '<div class="card-section">' +
           _renderParticipants() +
           _field('location',       'Location',       'text', _record.location       || '', false, 'Address or site') +
+          (_padType === 'work' && _mode !== 'expense' && _mode !== 'payment' &&
+            _record.recordType !== 'expense' && _record.recordType !== 'payment'
+            ? _renderSingleMapLinkBlock('wiz-work-map-preview') : '') +
           _field('customer_phone', 'Customer phone', 'tel',  _record.customer_phone || '', false, '+44 7700 \u2026') +
         '</div>' +
         '<div class="card-section">' +
@@ -1668,7 +1675,8 @@ var WizardScreen = (function () {
     _tryCollect('location_map_url', 'f-location_map_url');
     _tryCollect('worker',         'f-worker');
 
-    if (_padType === 'plan') {
+    if (_padType === 'plan' || (_padType === 'work' && _mode !== 'expense' && _mode !== 'payment' &&
+        _record.recordType !== 'expense' && _record.recordType !== 'payment')) {
       var parsed = _parseLocMapUrl(_record.location_map_url || '');
       if (parsed) {
         _record.location_lat  = parsed.lat;
@@ -1679,6 +1687,7 @@ var WizardScreen = (function () {
         delete _record.location_lon;
         delete _record.location_zoom;
       }
+      if (!_record.location_map_url) delete _record.location_map_url;
     }
     if (_padType === 'work' || _mode === 'expense' || _mode === 'payment') {
       _tryCollect('amount',         'f-amount');
@@ -2183,12 +2192,16 @@ var WizardScreen = (function () {
       });
     });
 
-    var planMapEl = document.getElementById('f-location_map_url');
-    if (planMapEl) {
-      planMapEl.addEventListener('blur', function () {
+    var mapUrlEl = document.getElementById('f-location_map_url');
+    if (mapUrlEl) {
+      mapUrlEl.addEventListener('blur', function () {
         _collect();
         var body = document.getElementById('wiz-body');
-        if (body) { body.innerHTML = _renderTabBody('process'); _bindBodyEvents(); }
+        if (body) {
+          var refreshTab = (_padType === 'plan') ? 'process' : 'details';
+          body.innerHTML = _renderTabBody(refreshTab);
+          _bindBodyEvents();
+        }
       });
     }
 

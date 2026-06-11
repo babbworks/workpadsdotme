@@ -10,7 +10,7 @@
   <script src="../js/lib/fflate.js?v=23"></script>
   <script src="../js/lib/pads-ext.js?v=23"></script>
   <script src="../js/lib/map-utils.js?v=32"></script>
-  <script src="../js/lib/postcard.js?v=33"></script>
+  <script src="../js/lib/postcard.js?v=34"></script>
   <script src="../js/lib/pad-type.js?v=1"></script>
   <script src="../js/lib/workpads-encrypt.js?v=24"></script>
   <style>
@@ -1585,6 +1585,9 @@
 
     html += renderActions(record.actions);
     html += renderDetailsGrid(record);
+    if (typeof MapUtils !== 'undefined' && (record.location_map_url || record.location_lat != null)) {
+      html += renderPlanMap(record);
+    }
     if (record.story) html += renderProse('Story', record.story);
     else if (sealed) html += renderSealedSection('Story');
     if (record.details) html += renderProse('Notes', record.details);

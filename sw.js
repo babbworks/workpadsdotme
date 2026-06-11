@@ -1,4 +1,4 @@
-var CACHE = 'workpads-v33';
+var CACHE = 'workpads-v34';
 var ASSETS = [
   '/',
   '/index.html',

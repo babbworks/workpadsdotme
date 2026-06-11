@@ -1390,6 +1390,7 @@ button.panel-title:active { color: var(--stamp); }
 
   /* Cards: tighter padding */
   .card-section { padding: 16px 18px; }
+  .comments-section { padding: 16px 18px 18px; }
 
   /* Overlays: near full-screen on phones */
   .overlay { padding: 12px; align-items: flex-end; }
@@ -1774,9 +1775,9 @@ a.map-preview-offline.map-preview-link {
 
 /* ── Comments section (view screen) ────────────────────────── */
 .comments-section {
-  margin-top: 24px;
-  border-top: 1px solid var(--rule);
-  padding-top: 18px;
+  margin-top: 0;
+  border-top: 1px solid var(--rule-light);
+  padding: 24px 28px 28px;
 }
 .comments-section-heading {
   font-family: var(--font-mono);
@@ -1786,7 +1787,6 @@ a.map-preview-offline.map-preview-link {
   text-transform: uppercase;
   color: var(--ink-muted);
   margin-bottom: 12px;
-  padding: 0;
 }
 .comment-list { margin-bottom: 16px; }
 .comment-empty {

@@ -100,10 +100,16 @@ var Postcard = (function () {
         }) : { address: record.location || '' };
       return [{ index: 0, loc: planLoc, label: planLoc.address || 'Plan location' }];
     }
-    if (record.location) {
+    if (record.location || record.location_map_url) {
       var wloc = (typeof MapUtils !== 'undefined')
-        ? MapUtils.expandLocation({ address: record.location, notes: '' }) : { address: record.location };
-      return [{ index: 0, loc: wloc, label: record.location }];
+        ? MapUtils.expandLocation({
+          address: record.location || '',
+          map_url: record.location_map_url || '',
+          lat: record.location_lat,
+          lon: record.location_lon,
+          zoom: record.location_zoom,
+        }) : { address: record.location || '' };
+      return [{ index: 0, loc: wloc, label: record.location || 'Job location' }];
     }
     return [{ index: 0, loc: null, label: 'No map location' }];
   }
@@ -623,12 +629,12 @@ var Postcard = (function () {
 
     overlay.querySelector('#pc-loc-one').addEventListener('click', function () {
       var sel = overlay.querySelector('input[name="pc-loc"]:checked');
-      onDone({ locIndex: sel ? parseInt(sel.value, 10) : 0, all: false });
       _removeOverlay();
+      onDone({ locIndex: sel ? parseInt(sel.value, 10) : 0, all: false });
     });
     overlay.querySelector('#pc-loc-all').addEventListener('click', function () {
-      onDone({ locIndex: 0, all: true });
       _removeOverlay();
+      onDone({ locIndex: 0, all: true });
     });
     overlay.addEventListener('click', function (e) { if (e.target === overlay) _removeOverlay(); });
   }
